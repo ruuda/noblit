@@ -1,0 +1,6 @@
+# Build files
+/target
+
+# Editor files
+*.swo
+*.swp
