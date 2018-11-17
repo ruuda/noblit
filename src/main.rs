@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::cmp::{PartialOrd, Ord, Ordering};
 
 /// Entity id.
@@ -8,28 +9,9 @@ struct Eid(u64);
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Aid(u64);
 
-/// A value.
-///
-/// A value is either a byte string, or an unsigned 62-bit integer. It is up to
-/// the attribute schema to give meaning to a value. For example, a byte string
-/// might store utf-8 text, and an integer might hold an entity id.
-///
-/// The most significant two bits contain the type and representation tag:
-///
-/// * `0b00`: An unsigned 62-bit integer stored inline. This means that all
-///           unsigned integers less than 2^62 are represented as themselves.
-/// * `0b01`: An unsigned 64-bit integer stored externally. The remaining 62
-///           bits indicate its storage address.
-/// * `0b10`: A small string. The next 6 most significant bits indicate the
-///           length, although the maximum valid length is 7. The next 7 bytes
-///           contain the string, padded with zeros. This means that the empty
-///           string is represented as `0x8000_0000_0000_0000`.
-/// * `0b11`: A string stored externally. The remaining 62 bits indicate its
-///           storage address.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct Value(u64);
-
 /// Transaction number.
+/// TODO: Don't expose internals, add a constructor that validates the tid is
+/// even.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Tid(u64);
 
@@ -73,7 +55,29 @@ impl TidOp {
     }
 }
 
+/// A value.
+///
+/// A value is either a byte string, or an unsigned 62-bit integer. It is up to
+/// the attribute schema to give meaning to a value. For example, a byte string
+/// might store utf-8 text, and an integer might hold an entity id.
+///
+/// The most significant two bits contain the type and representation tag:
+///
+/// * `0b00`: An unsigned 62-bit integer stored inline. This means that all
+///           unsigned integers less than 2^62 are represented as themselves.
+/// * `0b01`: An unsigned 64-bit integer stored externally. The remaining 62
+///           bits indicate its storage address.
+/// * `0b10`: A small string. The next 6 most significant bits indicate the
+///           length, although the maximum valid length is 7. The next 7 bytes
+///           contain the string, padded with zeros. This means that the empty
+///           string is represented as `0x8000_0000_0000_0000`.
+/// * `0b11`: A string stored externally. The remaining 62 bits indicate its
+///           storage address.
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Value(u64);
+
 /// An (entity, attribute, value, transaction, operation) tuple.
+#[derive(Copy, Clone)]
 struct Tuple {
     entity: Eid,
     attribute: Aid,
@@ -186,6 +190,68 @@ impl PartialEq for Eavt {
 impl PartialEq for Vaet {
     fn eq(&self, other: &Vaet) -> bool {
         self.0.vaet().eq(&other.0.vaet())
+    }
+}
+
+struct Database {
+    eavt: BTreeSet<Eavt>,
+    aevt: BTreeSet<Aevt>,
+    avet: BTreeSet<Avet>,
+    vaet: BTreeSet<Vaet>,
+    next_id: u64,
+    next_transaction_id: u64,
+}
+
+impl Database {
+    pub fn new() -> Database {
+        Database {
+            eavt: BTreeSet::new(),
+            aevt: BTreeSet::new(),
+            avet: BTreeSet::new(),
+            vaet: BTreeSet::new(),
+            // Transaction ids must be even. For now we do that by just tracking
+            // separate counters and incrementing both by 2. Perhaps the
+            // property that transaction ids are even could be exploited later,
+            // or perhaps it is a very bad idea and we want to have the entities
+            // created in a transaction and the transaction itself be adjacent
+            // in the indices by giving them adjacent ids.
+            next_id: 1,
+            next_transaction_id: 0,
+        }
+    }
+
+    pub fn insert(&mut self, tuple: Tuple) {
+        self.eavt.insert(Eavt(tuple));
+        self.aevt.insert(Aevt(tuple));
+        self.avet.insert(Avet(tuple));
+        self.vaet.insert(Vaet(tuple));
+    }
+
+    pub fn create_transaction(&mut self) -> Tid {
+        let tid = Tid(self.next_transaction_id);
+        self.next_transaction_id += 2;
+
+        let timestamp_aid = Aid(1);
+        let timestamp_value = Value(0); // TODO
+        let attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid, Operation::Assert);
+
+        tid
+    }
+
+    pub fn create_entity(&mut self, attribute: Aid, value: Value, transaction: Tid, operation: Operation) -> Eid {
+        let eid = Eid(self.next_id);
+        self.next_transaction_id += 2;
+
+        let tuple = Tuple {
+            entity: eid,
+            attribute: attribute,
+            value: value,
+            transaction_operation: TidOp::new(transaction, operation),
+        };
+
+        self.insert(tuple);
+
+        eid
     }
 }
 
