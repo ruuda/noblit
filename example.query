@@ -1,0 +1,101 @@
+// Notation:
+// Anything between curly brackets is a query.
+// A query is conjunction of disjunctions.
+// Expressions are separated by comma for disjunction, or semicolon for conjunction.
+// Example:
+
+{
+  artist.name == "U2", artist.name == "Muse";
+}
+
+// Would return the entity ids of the entities that have either:
+// * An "artist.name" attribute with value "U2", or
+// * An "artist.name" attribute with value "Muse".
+
+{
+  album.title == "Absolution";
+  album.artist == 144;
+}
+
+// Would return the entity ids of the entities that have both:
+// * An "album.title" attribute with value "Absolution", and
+// * An "album.artist" attribute with value 144 (which is an entity id).
+
+// Queries can be nested. If an attribute has a uniqueness constraint, it may be
+// possible to infer that a query has at most one result. In that case, it is
+// possible to use == on the query:
+
+{
+  album.title == "Absolution";
+  album.artist == { artist.name == "Muse" };
+}
+
+// If the result may not be unique, we need to use "in":
+
+{
+  album.title == "Absolution";
+  album.artist in
+  {
+    artist.name == "Muse",
+    artist.name == "U2",
+  };
+}
+
+// We could use a list to shorten this:
+
+{
+  album.title == "Absolution";
+  album.artist in { artist.name in ["Muse", "U2"] };
+}
+
+// If the cardinality of an attribute is such that there is a most one per
+// entity, we can use -> to follow references:
+
+{
+  album.title == "Absolution";
+  album.artist->artist.name in ["Muse", "U2"];
+}
+
+// Finally, we can return a dictionary, rather than entity ids, by surrounding
+// the query with "from ... select":
+
+from 
+{
+  album.title == "Absolution";
+  album.artist->artist.name == "Muse";
+}
+select
+{
+  album.year,
+  album.num_discs,
+}
+
+// If the type of an attribute is a ref, it is possible to add a selector, to
+// select something else than the entity id:
+
+from 
+{
+  album.title == "Absolution";
+  album.artist->artist.name == "Muse";
+}
+select
+{
+  album.year,
+  album.producer->producer.name,
+}
+
+// It is possible to add an ad-hoc key to be filled with the result of another
+// query. This nested query can refer to the entity ids of the outer query.
+
+from
+{
+  album.title == "Absolution";
+  album.artist -> artist.name == "Muse";
+}
+as $album
+select
+{
+  album.year,
+  album.title,
+  "tracks": from { track.album == $album } select { track.number, track.title },
+}
