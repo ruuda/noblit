@@ -55,6 +55,14 @@ impl TidOp {
     }
 }
 
+/// The supported value types for entity values.
+enum Type {
+    Ref,
+    Uint64,
+    Bytes,
+    String,
+}
+
 /// A value.
 ///
 /// A value is either a byte string, or an unsigned 62-bit integer. It is up to
@@ -107,10 +115,16 @@ impl Value {
     pub fn as_str(&self) -> &str {
         use std::mem;
         use std::str;
+        debug_assert_ne!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be string for as_str.");
         let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
         let len = (bytes[7] & 0x3f) as usize;
         debug_assert!(len <= 7);
         str::from_utf8(&bytes[..len]).expect("Should only store UTF-8 strings.")
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        debug_assert_eq!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be int for as_u64.");
+        self.0 & 0x3fff_ffff_ffff_ffff
     }
 
     pub fn min() -> Value {
@@ -472,16 +486,42 @@ impl Database {
         value
     }
 
+    pub fn lookup_attribute_type(&self, attribute: Aid) -> Type {
+        // TODO: Attribute name and type are adjacent in Eavt,
+        // a function to look both of them up at once would be more efficient.
+        let entity = Eid(attribute.0);
+        let value = self
+            .lookup_value(entity, self.builtins.attribute_db_attribute_type)
+            .expect("All attributes must have a value type.");
+
+        // TODO: I can make these numbers constants rather than variables.
+        match value.as_u64() {
+            k if k == self.builtins.entity_db_type_ref.0 => Type::Ref,
+            k if k == self.builtins.entity_db_type_uint64.0 => Type::Uint64,
+            k if k == self.builtins.entity_db_type_bytes.0 => Type::Bytes,
+            k if k == self.builtins.entity_db_type_string.0 => Type::String,
+            _ => panic!("Attribute has unsupported value type."),
+        }
+    }
+
     pub fn debug_print(&self) {
         // 6 9 7 11 9
-        println!("entity  attribute  value    transaction  operation");
-        println!("------  ---------  -------  -----------  ---------");
+        println!("entity  attribute  value       type    transaction  operation");
+        println!("------  ---------  ----------  ------  -----------  ---------");
         for &Eavt(tuple) in self.eavt.iter() {
             let attribute_name = self.lookup_attribute_name(tuple.attribute);
-            println!("{:6}  {:>9}  {:7}  {:11}  {:>9}",
-                tuple.entity.0,
-                attribute_name.as_str(),
-                tuple.value.0,
+            let attribute_type = self.lookup_attribute_type(tuple.attribute);
+
+            print!("{:6}  {} ({})   ", tuple.entity.0, attribute_name.as_str(), tuple.attribute.0);
+
+            match attribute_type {
+                Type::Ref    => print!("{:>10}  ref   ", tuple.value.as_u64()),
+                Type::Uint64 => print!("{:>10}  uint64", tuple.value.as_u64()),
+                Type::Bytes  => unimplemented!("TODO"),
+                Type::String => print!("{:>10}  string", tuple.value.as_str()),
+            }
+
+            println!("  {:11}  {:>9}",
                 tuple.transaction_operation.transaction().0,
                 match tuple.transaction_operation.operation() {
                     Operation::Retract => "retract",
