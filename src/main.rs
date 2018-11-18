@@ -422,9 +422,27 @@ impl Database {
 
         eid
     }
+
+    pub fn debug_print(&self) {
+        // 6 9 7 11 9
+        println!("entity  attribute  value    transaction  operation");
+        println!("------  ---------  -------  -----------  ---------");
+        for &Eavt(tuple) in self.eavt.iter() {
+            println!("{:6}  {:9}  {:7}  {:11}  {:>9}",
+                tuple.entity.0,
+                tuple.attribute.0,
+                tuple.value.0,
+                tuple.transaction_operation.transaction().0,
+                match tuple.transaction_operation.operation() {
+                    Operation::Retract => "retract",
+                    Operation::Assert => "assert",
+                }
+            );
+        }
+    }
 }
 
 fn main() {
-    let mut db = Database::new();
-    println!("Hello, world!");
+    let db = Database::new();
+    db.debug_print();
 }
