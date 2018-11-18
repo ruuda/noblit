@@ -9,6 +9,16 @@ struct Eid(u64);
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Aid(u64);
 
+impl Aid {
+    pub fn min() -> Aid {
+        Aid(0)
+    }
+
+    pub fn max() -> Aid {
+        Aid(0xffff_ffff_ffff_ffff)
+    }
+}
+
 /// Transaction number.
 /// TODO: Don't expose internals, add a constructor that validates the tid is
 /// even.
@@ -600,9 +610,105 @@ impl Database {
             );
         }
     }
+
+    pub fn debug_print_table(&self, entities: &[Eid]) {
+        let mut attributes = Vec::new();
+        let mut attribute_types = Vec::new();
+        let mut tuples = Vec::new();
+
+        for &eid in entities {
+            let min = Tuple::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
+            let max = Tuple::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
+            for &Eavt(tuple) in self.eavt.range(Eavt(min)..Eavt(max)) {
+                // Keep track of all the attributes we found; these will be the
+                // columns of the table. We could use a set, but the set is
+                // probably small, so a vector and linear scan will suffice.
+                if !attributes.contains(&tuple.attribute) {
+                    attributes.push(tuple.attribute);
+                }
+
+                tuples.push(tuple);
+            }
+        }
+
+        if tuples.len() == 0 {
+            print!("No data.");
+        }
+
+        // The tuples collection is ordered by entity id and then attribute id.
+        // If we sort all of the attributes to print, then we can do one single
+        // pass over the tuples and print the table.
+        attributes.sort();
+
+        print!("id    ");
+        for &attribute in &attributes {
+            let attribute_name = self.lookup_attribute_name(attribute);
+            let attribute_type = self.lookup_attribute_type(attribute);
+            print!("{:12}  ", attribute_name.as_str());
+            attribute_types.push(attribute_type);
+        }
+        print!("\n----  ");
+        for _ in &attributes {
+            print!("------------  ");
+        }
+
+        let mut current_entity = None;
+        let mut current_attribute = 0;
+        for tuple in &tuples[..] {
+            if current_entity != Some(tuple.entity) {
+                print!("\n{:4}  ", tuple.entity.0);
+                current_entity = Some(tuple.entity);
+                current_attribute = 0;
+            }
+
+            // Skip over all attributes that this entity does not have.
+            while attributes[current_attribute] != tuple.attribute {
+                print!("<null>        ");
+                current_attribute += 1;
+
+                if current_attribute == attributes.len() {
+                    break
+                }
+            }
+
+            if current_attribute < attributes.len() {
+                // TODO: Deduplicate printing per type.
+                match attribute_types[current_attribute] {
+                    Type::Bool if tuple.value.as_bool() => print!("true          "),
+                    Type::Bool   => print!("false         "),
+                    Type::Ref    => print!("{:>12}  ", tuple.value.as_u64()),
+                    Type::Uint64 => print!("{:>12}  ", tuple.value.as_u64()),
+                    Type::Bytes  => unimplemented!("TODO"),
+                    Type::String => print!("{:<12}  ", tuple.value.as_str()),
+                }
+                current_attribute += 1;
+            }
+        }
+
+        println!("");
+    }
 }
 
 fn main() {
     let db = Database::new();
     db.debug_print();
+
+    println!("\nAll attributes:\n");
+    db.debug_print_table(&[
+        Eid(db.builtins.attribute_db_attribute_name.0),
+        Eid(db.builtins.attribute_db_attribute_type.0),
+        Eid(db.builtins.attribute_db_attribute_unique.0),
+        Eid(db.builtins.attribute_db_attribute_many.0),
+        Eid(db.builtins.attribute_db_type_name.0),
+        Eid(db.builtins.attribute_db_transaction_time.0),
+    ]);
+
+    println!("\nAll types:\n");
+    db.debug_print_table(&[
+        db.builtins.entity_db_type_bool,
+        db.builtins.entity_db_type_ref,
+        db.builtins.entity_db_type_uint64,
+        db.builtins.entity_db_type_bytes,
+        db.builtins.entity_db_type_string,
+    ]);
 }
