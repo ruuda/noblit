@@ -57,6 +57,7 @@ impl TidOp {
 
 /// The supported value types for entity values.
 enum Type {
+    Bool,
     Ref,
     Uint64,
     Bytes,
@@ -88,6 +89,13 @@ impl Value {
     pub fn from_u64(value: u64) -> Value {
         assert_eq!(value & 0xc000_0000_0000_0000, 0, "TODO: Implement spilling.");
         Value(value)
+    }
+
+    pub fn from_bool(value: bool) -> Value {
+        match value {
+            false => Value(0),
+            true => Value(1),
+        }
     }
 
     pub fn from_eid(value: Eid) -> Value {
@@ -123,8 +131,18 @@ impl Value {
     }
 
     pub fn as_u64(&self) -> u64 {
+        // TODO: Check only the top bit, deal with out of band integers.
         debug_assert_eq!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be int for as_u64.");
         self.0 & 0x3fff_ffff_ffff_ffff
+    }
+
+    pub fn as_bool(&self) -> bool {
+        debug_assert_eq!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be int for as_bool.");
+        match self.0 {
+            0 => false,
+            1 => true,
+            _ => unreachable!("Bool values should be either 0 or 1."),
+        }
     }
 
     pub fn min() -> Value {
@@ -282,11 +300,17 @@ struct Builtins {
     attribute_db_attribute_name: Aid,
     /// Built-in attribute `db.attribute.type`.
     attribute_db_attribute_type: Aid,
+    /// Built-in attribute `db.attribute.unique`.
+    attribute_db_attribute_unique: Aid,
+    /// Built-in attribute `db.attribute.many`.
+    attribute_db_attribute_many: Aid,
     /// Built-in attribute `db.type.name`.
     attribute_db_type_name: Aid,
     /// Built-in attribute `db.transaction.time`.
     attribute_db_transaction_time: Aid,
 
+    /// Built-in type `db.type.bool`.
+    entity_db_type_bool: Eid,
     /// Built-in type `db.type.ref`.
     entity_db_type_ref: Eid,
     /// Built-in type `db.type.uint64`.
@@ -302,19 +326,25 @@ impl Builtins {
         let id_transaction = 0;
         let id_db_attr_name = 1;
         let id_db_attr_type = 2;
-        let id_db_type_name = 3;
-        let id_db_transaction_time = 4;
-        let id_db_type_ref = 5;
-        let id_db_type_uint64 = 6;
-        let id_db_type_bytes = 7;
-        let id_db_type_string = 8;
+        let id_db_attr_unique = 3;
+        let id_db_attr_many = 4;
+        let id_db_type_name = 5;
+        let id_db_transaction_time = 6;
+        let id_db_type_bool = 7;
+        let id_db_type_ref = 8;
+        let id_db_type_uint64 = 9;
+        let id_db_type_bytes = 10;
+        let id_db_type_string = 11;
 
         let builtins = Builtins {
             genisis_transaction: Tid(id_transaction),
             attribute_db_attribute_name: Aid(id_db_attr_name),
             attribute_db_attribute_type: Aid(id_db_attr_type),
+            attribute_db_attribute_unique: Aid(id_db_attr_unique),
+            attribute_db_attribute_many: Aid(id_db_attr_many),
             attribute_db_type_name: Aid(id_db_type_name),
             attribute_db_transaction_time: Aid(id_db_transaction_time),
+            entity_db_type_bool: Eid(id_db_type_bool),
             entity_db_type_ref: Eid(id_db_type_ref),
             entity_db_type_uint64: Eid(id_db_type_uint64),
             entity_db_type_bytes: Eid(id_db_type_bytes),
@@ -333,6 +363,11 @@ impl Builtins {
                 Tid(id_transaction), Operation::Assert,
             ),
             Tuple::new(
+                Eid(id_db_attr_name),
+                Aid(id_db_attr_unique), Value::from_bool(true),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
                 Eid(id_db_attr_type),
                 Aid(id_db_attr_name), Value::from_str("type"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
@@ -340,6 +375,26 @@ impl Builtins {
             Tuple::new(
                 Eid(id_db_attr_type),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_ref)),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_unique),
+                Aid(id_db_attr_name), Value::from_str("unique"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_unique),
+                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_bool)),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_many),
+                Aid(id_db_attr_name), Value::from_str("many"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_many),
+                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_bool)),
                 Tid(id_transaction), Operation::Assert,
             ),
             Tuple::new(
@@ -353,6 +408,11 @@ impl Builtins {
                 Tid(id_transaction), Operation::Assert,
             ),
             Tuple::new(
+                Eid(id_db_type_name),
+                Aid(id_db_attr_unique), Value::from_bool(true),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
                 Eid(id_db_transaction_time),
                 Aid(id_db_attr_name), Value::from_str("time"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
@@ -360,6 +420,11 @@ impl Builtins {
             Tuple::new(
                 Eid(id_db_transaction_time),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_uint64)), // TODO: Time type.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_bool),
+                Aid(id_db_type_name), Value::from_str("bool"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
             Tuple::new(
@@ -496,6 +561,7 @@ impl Database {
 
         // TODO: I can make these numbers constants rather than variables.
         match value.as_u64() {
+            k if k == self.builtins.entity_db_type_bool.0 => Type::Bool,
             k if k == self.builtins.entity_db_type_ref.0 => Type::Ref,
             k if k == self.builtins.entity_db_type_uint64.0 => Type::Uint64,
             k if k == self.builtins.entity_db_type_bytes.0 => Type::Bytes,
@@ -506,19 +572,23 @@ impl Database {
 
     pub fn debug_print(&self) {
         // 6 9 7 11 9
-        println!("entity  attribute  value       type    transaction  operation");
-        println!("------  ---------  ----------  ------  -----------  ---------");
+        println!("entity  attribute     value       type    transaction  operation");
+        println!("------  ------------  ----------  ------  -----------  ---------");
         for &Eavt(tuple) in self.eavt.iter() {
             let attribute_name = self.lookup_attribute_name(tuple.attribute);
             let attribute_type = self.lookup_attribute_type(tuple.attribute);
 
-            print!("{:6}  {} ({})   ", tuple.entity.0, attribute_name.as_str(), tuple.attribute.0);
+            let attribute = format!("{} ({})", attribute_name.as_str(), tuple.attribute.0);
+            print!("{:6}  {:12}  ", tuple.entity.0, attribute);
+
 
             match attribute_type {
+                Type::Bool if tuple.value.as_bool() => print!("true        bool  "),
+                Type::Bool   => print!("false       bool  "),
                 Type::Ref    => print!("{:>10}  ref   ", tuple.value.as_u64()),
                 Type::Uint64 => print!("{:>10}  uint64", tuple.value.as_u64()),
                 Type::Bytes  => unimplemented!("TODO"),
-                Type::String => print!("{:>10}  string", tuple.value.as_str()),
+                Type::String => print!("{:<10}  string", tuple.value.as_str()),
             }
 
             println!("  {:11}  {:>9}",
