@@ -91,17 +91,34 @@ impl Value {
         let mut bytes = [0_u8; 7];
         bytes[..value.len()].copy_from_slice(value.as_bytes());
         let bits = 0_u64
-            | 0b10_u64 << 56
+            | 0b10_u64 << 62
             | (value.len() as u64) << 56
-            | (bytes[0] as u64) << 48
-            | (bytes[1] as u64) << 40
-            | (bytes[2] as u64) << 32
+            | (bytes[6] as u64) << 48
+            | (bytes[5] as u64) << 40
+            | (bytes[4] as u64) << 32
             | (bytes[3] as u64) << 24
-            | (bytes[4] as u64) << 16
-            | (bytes[5] as u64) << 8
-            | (bytes[6] as u64)
+            | (bytes[2] as u64) << 16
+            | (bytes[1] as u64) << 8
+            | (bytes[0] as u64)
             ;
         Value(bits)
+    }
+
+    pub fn as_str(&self) -> &str {
+        use std::mem;
+        use std::str;
+        let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
+        let len = (bytes[7] & 0x3f) as usize;
+        debug_assert!(len <= 7);
+        str::from_utf8(&bytes[..len]).expect("Should only store UTF-8 strings.")
+    }
+
+    pub fn min() -> Value {
+        Value(0)
+    }
+
+    pub fn max() -> Value {
+        Value(0xffff_ffff_ffff_ffff)
     }
 }
 
@@ -146,6 +163,17 @@ impl Tuple {
     pub fn vaet(&self) -> (u64, u64, u64, u64) {
         // TODO: Deref the value.
         (self.value.0, self.attribute.0, self.value.0, self.transaction_operation.0)
+    }
+
+    /// Return the tuple, with operation set to `Operation::Assert`.
+    pub fn assert(&self) -> Tuple {
+        let transaction = self.transaction_operation.transaction();
+        Tuple {
+            entity: self.entity,
+            attribute: self.attribute,
+            value: self.value,
+            transaction_operation: TidOp::new(transaction, Operation::Assert),
+        }
     }
 }
 
@@ -423,14 +451,36 @@ impl Database {
         eid
     }
 
+    pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
+        // TODO: This function should return an iterator of values, from newer
+        // to older, with retracted tuples deleted.
+        let min = Tuple::new(entity, attribute, Value::min(), Tid(0), Operation::Retract);
+        let max = Tuple::new(entity, attribute, Value::max(), Tid(0), Operation::Retract);
+        // TODO: Could use Eavt or Aevt for this, which indicates it is probably
+        // inefficient to do one by one. I could look up multiple attributes, or
+        // multiple entities, at once.
+        let mut range = self.eavt.range(Eavt(min)..Eavt(max));
+        range.map(|&Eavt(tuple)| tuple.value).next_back()
+    }
+
+    pub fn lookup_attribute_name(&self, attribute: Aid) -> Value {
+        let entity = Eid(attribute.0);
+        let value = self
+            .lookup_value(entity, self.builtins.attribute_db_attribute_name)
+            .expect("All attributes must have a name.");
+
+        value
+    }
+
     pub fn debug_print(&self) {
         // 6 9 7 11 9
         println!("entity  attribute  value    transaction  operation");
         println!("------  ---------  -------  -----------  ---------");
         for &Eavt(tuple) in self.eavt.iter() {
-            println!("{:6}  {:9}  {:7}  {:11}  {:>9}",
+            let attribute_name = self.lookup_attribute_name(tuple.attribute);
+            println!("{:6}  {:>9}  {:7}  {:11}  {:>9}",
                 tuple.entity.0,
-                tuple.attribute.0,
+                attribute_name.as_str(),
                 tuple.value.0,
                 tuple.transaction_operation.transaction().0,
                 match tuple.transaction_operation.operation() {
