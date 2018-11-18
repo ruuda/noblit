@@ -76,6 +76,35 @@ impl TidOp {
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Value(u64);
 
+impl Value {
+    pub fn from_u64(value: u64) -> Value {
+        assert_eq!(value & 0xc000_0000_0000_0000, 0, "TODO: Implement spilling.");
+        Value(value)
+    }
+
+    pub fn from_eid(value: Eid) -> Value {
+        Value::from_u64(value.0)
+    }
+
+    pub fn from_str(value: &str) -> Value {
+        assert!(value.len() < 8);
+        let mut bytes = [0_u8; 7];
+        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        let bits = 0_u64
+            | 0b10_u64 << 56
+            | (value.len() as u64) << 56
+            | (bytes[0] as u64) << 48
+            | (bytes[1] as u64) << 40
+            | (bytes[2] as u64) << 32
+            | (bytes[3] as u64) << 24
+            | (bytes[4] as u64) << 16
+            | (bytes[5] as u64) << 8
+            | (bytes[6] as u64)
+            ;
+        Value(bits)
+    }
+}
+
 /// An (entity, attribute, value, transaction, operation) tuple.
 #[derive(Copy, Clone)]
 struct Tuple {
@@ -86,6 +115,15 @@ struct Tuple {
 }
 
 impl Tuple {
+    pub fn new(entity: Eid, attribute: Aid, value: Value, transaction: Tid, operation: Operation) -> Tuple {
+        Tuple {
+            entity: entity,
+            attribute: attribute,
+            value: value,
+            transaction_operation: TidOp::new(transaction, operation),
+        }
+    }
+
     /// The (attribute, entity, value, transaction) tuple.
     pub fn aevt(&self) -> (u64, u64, u64, u64) {
         // TODO: Deref the value.
@@ -193,38 +231,169 @@ impl PartialEq for Vaet {
     }
 }
 
+/// The genisis transaction adds all built-in attributes.
+struct Builtins {
+    /// Transaction id of the genisis transaction.
+    genisis_transaction: Tid,
+
+    /// Built-in attribute `db.attribute.name`.
+    attribute_db_attribute_name: Aid,
+    /// Built-in attribute `db.attribute.type`.
+    attribute_db_attribute_type: Aid,
+    /// Built-in attribute `db.type.name`.
+    attribute_db_type_name: Aid,
+    /// Built-in attribute `db.transaction.time`.
+    attribute_db_transaction_time: Aid,
+
+    /// Built-in type `db.type.ref`.
+    entity_db_type_ref: Eid,
+    /// Built-in type `db.type.uint64`.
+    entity_db_type_uint64: Eid,
+    /// Built-in type `db.type.bytes`.
+    entity_db_type_bytes: Eid,
+    /// Built-in type `db.type.string`.
+    entity_db_type_string: Eid,
+}
+
+impl Builtins {
+    pub fn new() -> (Builtins, Vec<Tuple>) {
+        let id_transaction = 0;
+        let id_db_attr_name = 1;
+        let id_db_attr_type = 2;
+        let id_db_type_name = 3;
+        let id_db_transaction_time = 4;
+        let id_db_type_ref = 5;
+        let id_db_type_uint64 = 6;
+        let id_db_type_bytes = 7;
+        let id_db_type_string = 8;
+
+        let builtins = Builtins {
+            genisis_transaction: Tid(id_transaction),
+            attribute_db_attribute_name: Aid(id_db_attr_name),
+            attribute_db_attribute_type: Aid(id_db_attr_type),
+            attribute_db_type_name: Aid(id_db_type_name),
+            attribute_db_transaction_time: Aid(id_db_transaction_time),
+            entity_db_type_ref: Eid(id_db_type_ref),
+            entity_db_type_uint64: Eid(id_db_type_uint64),
+            entity_db_type_bytes: Eid(id_db_type_bytes),
+            entity_db_type_string: Eid(id_db_type_string),
+        };
+
+        let tuples = vec![
+            Tuple::new(
+                Eid(id_db_attr_name),
+                Aid(id_db_attr_name), Value::from_str("name"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_name),
+                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_string)),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_type),
+                Aid(id_db_attr_name), Value::from_str("type"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_attr_type),
+                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_ref)),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_name),
+                Aid(id_db_attr_name), Value::from_str("name"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_name),
+                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_string)),
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_transaction_time),
+                Aid(id_db_attr_name), Value::from_str("time"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_transaction_time),
+                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_uint64)), // TODO: Time type.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_ref),
+                Aid(id_db_type_name), Value::from_str("ref"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_uint64),
+                Aid(id_db_type_name), Value::from_str("uint64"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_bytes),
+                Aid(id_db_type_name), Value::from_str("bytes"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_db_type_string),
+                Aid(id_db_type_name), Value::from_str("string"), // TODO: Long name.
+                Tid(id_transaction), Operation::Assert,
+            ),
+            Tuple::new(
+                Eid(id_transaction),
+                Aid(id_db_transaction_time), Value::from_u64(0),
+                Tid(id_transaction), Operation::Assert,
+            ),
+        ];
+
+        (builtins, tuples)
+    }
+}
+
 struct Database {
     eavt: BTreeSet<Eavt>,
     aevt: BTreeSet<Aevt>,
     avet: BTreeSet<Avet>,
     vaet: BTreeSet<Vaet>,
+    builtins: Builtins,
     next_id: u64,
     next_transaction_id: u64,
 }
 
 impl Database {
     pub fn new() -> Database {
-        Database {
+        let (builtins, genisis_tuples) = Builtins::new();
+        let mut db = Database {
             eavt: BTreeSet::new(),
             aevt: BTreeSet::new(),
             avet: BTreeSet::new(),
             vaet: BTreeSet::new(),
+            builtins: builtins,
             // Transaction ids must be even. For now we do that by just tracking
             // separate counters and incrementing both by 2. Perhaps the
             // property that transaction ids are even could be exploited later,
             // or perhaps it is a very bad idea and we want to have the entities
             // created in a transaction and the transaction itself be adjacent
-            // in the indices by giving them adjacent ids.
-            next_id: 1,
-            next_transaction_id: 0,
+            // in the indices by giving them adjacent ids. We start these
+            // counters at 100 to reserve some room to extend the geneisis
+            // transaction.
+            next_id: 101,
+            next_transaction_id: 100,
+        };
+
+        for tuple in &genisis_tuples[..] {
+            db.insert(tuple);
         }
+
+        db
     }
 
-    pub fn insert(&mut self, tuple: Tuple) {
-        self.eavt.insert(Eavt(tuple));
-        self.aevt.insert(Aevt(tuple));
-        self.avet.insert(Avet(tuple));
-        self.vaet.insert(Vaet(tuple));
+    pub fn insert(&mut self, tuple: &Tuple) {
+        self.eavt.insert(Eavt(*tuple));
+        self.aevt.insert(Aevt(*tuple));
+        self.avet.insert(Avet(*tuple));
+        self.vaet.insert(Vaet(*tuple));
     }
 
     pub fn create_transaction(&mut self) -> Tid {
@@ -249,12 +418,13 @@ impl Database {
             transaction_operation: TidOp::new(transaction, operation),
         };
 
-        self.insert(tuple);
+        self.insert(&tuple);
 
         eid
     }
 }
 
 fn main() {
+    let mut db = Database::new();
     println!("Hello, world!");
 }
