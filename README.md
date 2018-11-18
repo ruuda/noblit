@@ -10,9 +10,13 @@ scratch.
 
  * [Deconstructing the Database by Rich Hickey][deconstr]
  * [The Datomic Data Model][datamodel]
+ * [LevelDB implementation documentation][leveldb]
+ * [InfluxDB Storage Engine Internals][influxdb]
 
-[deconstr]: https://www.infoq.com/presentations/Deconstructing-Database
+[deconstr]:  https://www.infoq.com/presentations/Deconstructing-Database
 [datamodel]: https://docs.datomic.com/cloud/whatis/data-model.html
+[leveldb]:   https://github.com/google/leveldb/blob/1cb384088184be9840bd59b4040503a9fa9aee66/doc/impl.md
+[influxdb]:  https://www.youtube.com/watch?v=rtEalnKT25I
 
 ## Building
 
