@@ -1,10 +1,10 @@
-# Them Orbit Merger
-
-(Working title.)
+# Noblit
 
 This is a free, libre, implementation of an immutable append-only database,
 inspired by Datomic. The implementation is a clean-room implementation from
 scratch.
+
+This is a prototype and a work in progress, there is little to see here.
 
 ## Resources
 
@@ -20,12 +20,12 @@ scratch.
 
 ## Building
 
-Orbit Merger builds with Rust 1.28.0, because this was the Rust version that
-the latest two Ubuntu LTSes as well as Debian Testing shipped at the time of
-its inception.
+Noblit builds with Rust 1.28.0, because this was the Rust version that the
+latest two Ubuntu LTSes as well as Debian Testing shipped at the time of its
+inception.
 
     $ cargo build --release
-    $ target/release/orbitmerger
+    $ target/release/noblit
 
 ## License
 

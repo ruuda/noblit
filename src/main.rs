@@ -1,4 +1,4 @@
-// Them Orbit Merger (working title) -- An append-only database
+// Noblit -- An append-only database
 // Copyright 2018 Ruud van Asseldonk
 
 // Licensed under the Apache License, Version 2.0 (the "License");
