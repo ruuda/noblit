@@ -12,6 +12,16 @@ use std::cmp::{PartialOrd, Ord, Ordering};
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Eid(u64);
 
+impl Eid {
+    pub fn min() -> Eid {
+        Eid(0)
+    }
+
+    pub fn max() -> Eid {
+        Eid(std::u64::MAX)
+    }
+}
+
 /// Attribute id.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Aid(u64);
@@ -22,7 +32,7 @@ impl Aid {
     }
 
     pub fn max() -> Aid {
-        Aid(0xffff_ffff_ffff_ffff)
+        Aid(std::u64::MAX)
     }
 }
 
@@ -587,6 +597,16 @@ impl Database {
         }
     }
 
+    /// Return the entities for which the given attribute is set.
+    pub fn select_where_has_attribute(&self, attribute: Aid) -> Vec<Eid> {
+        let min = Tuple::new(Eid::min(), attribute, Value::min(), Tid(0), Operation::Retract);
+        let max = Tuple::new(Eid::max(), attribute, Value::max(), Tid(0), Operation::Retract);
+        self.aevt
+            .range(Aevt(min)..Aevt(max))
+            .map(|&Aevt(tuple)| tuple.entity)
+            .collect()
+    }
+
     pub fn debug_print(&self) {
         // 6 9 7 11 9
         println!("entity  attribute     value       type    transaction  operation");
@@ -701,21 +721,10 @@ fn main() {
     db.debug_print();
 
     println!("\nAll attributes:\n");
-    db.debug_print_table(&[
-        Eid(db.builtins.attribute_db_attribute_name.0),
-        Eid(db.builtins.attribute_db_attribute_type.0),
-        Eid(db.builtins.attribute_db_attribute_unique.0),
-        Eid(db.builtins.attribute_db_attribute_many.0),
-        Eid(db.builtins.attribute_db_type_name.0),
-        Eid(db.builtins.attribute_db_transaction_time.0),
-    ]);
+    let attributes = db.select_where_has_attribute(db.builtins.attribute_db_attribute_name);
+    db.debug_print_table(&attributes[..]);
 
     println!("\nAll types:\n");
-    db.debug_print_table(&[
-        db.builtins.entity_db_type_bool,
-        db.builtins.entity_db_type_ref,
-        db.builtins.entity_db_type_uint64,
-        db.builtins.entity_db_type_bytes,
-        db.builtins.entity_db_type_string,
-    ]);
+    let types = db.select_where_has_attribute(db.builtins.attribute_db_type_name);
+    db.debug_print_table(&types[..]);
 }
