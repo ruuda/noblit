@@ -1,0 +1,46 @@
+-- A query is a statement about variables.
+-- The query engine finds all possible assignments to all free variables,
+-- for which the statement is true.
+-- Values are exposed to the select part, which indicates what to fetch.
+-- Below attributes act as getter functions, similar to record fields in Haskell.
+-- E.g. "artist.name ?x" refers to the value of the "artist.name" attribute on
+-- entity ?x.
+
+where artist.name ?x == "Muse"
+select artist.name ?x
+
+-- Return (track number, track title, duration, album title) for all tracks by Muse.
+where
+  artist.name ?muse == "Muse"
+  album.artist ?album == ?muse
+  track.album ?track == ?album
+select
+  track.number ?track, track.title ?track, track.duration ?track, album.title ?album
+
+-- Variables are not necessarily entity ids. In fact, the latter would be simpler
+-- (albeit more verbose), because selects only refer to variables.
+
+-- List all albums by Muse and U2:
+where
+  artist.name ?muse in ["Muse", "U2"]
+  album.artist ?album == ?muse
+  album.title ?album == ?album_title
+select
+  ?album_title
+
+-- You can do graph-like queries and self-joins, although not unboundedly.
+
+-- Select all files nested 3 directories deep under the root directory:
+where
+  directory.name ?root_dir == "/"
+  directory.parent ?sub1 == ?root_dir
+  directory.parent ?sub2 == ?sub1
+  directory.parent ?sub3 == ?sub2
+  file.parent ?file == ?sub3
+  ?file_name == file.name ?file
+  ?file_size == file.size ?file
+select
+  ?file, ?file_name, ?file_size
+  
+
+
