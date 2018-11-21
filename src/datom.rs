@@ -10,7 +10,7 @@
 use std;
 
 /// Entity id.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Eid(pub u64); // TODO: non-pub field?
 
 impl Eid {
@@ -24,7 +24,7 @@ impl Eid {
 }
 
 /// Attribute id.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Aid(pub u64); // TODO: Non-pub field?
 
 impl Aid {
@@ -40,7 +40,7 @@ impl Aid {
 /// Transaction number.
 /// TODO: Don't expose internals, add a constructor that validates the tid is
 /// even.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Tid(pub u64); // TODO: Non-pub field?
 
 /// Transaction number and operation.
@@ -51,10 +51,10 @@ pub struct Tid(pub u64); // TODO: Non-pub field?
 ///
 /// * 0 indicates a retraction.
 /// * 1 indicates an assertion.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TidOp(u64);
 
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Operation {
     Retract,
     Assert,
@@ -101,7 +101,7 @@ impl TidOp {
 ///           string is represented as `0x8000_0000_0000_0000`.
 /// * `0b11`: A string stored externally. The remaining 62 bits indicate its
 ///           storage address.
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Value(pub u64); // TODO: Non-public field?
 
 impl Value {

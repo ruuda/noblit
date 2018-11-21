@@ -8,6 +8,7 @@
 //! This module defines the database itself, and its data types.
 
 use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Tuple};
 use index::{Aevt, Avet, Eavt, Vaet};
@@ -301,6 +302,7 @@ impl Database {
     }
 
     /// Return the entities for which the given attribute is set.
+    /// TODO: Should return iterator.
     pub fn select_where_has_attribute(&self, attribute: Aid) -> Vec<Eid> {
         let min = Tuple::new(Eid::min(), attribute, Value::min(), Tid(0), Operation::Retract);
         let max = Tuple::new(Eid::max(), attribute, Value::max(), Tid(0), Operation::Retract);
@@ -308,6 +310,25 @@ impl Database {
             .range(Aevt(min)..Aevt(max))
             .map(|&Aevt(tuple)| tuple.entity)
             .collect()
+    }
+
+    /// Return the attributes that are set for at least one of the entities.
+    pub fn get_entity_attributes<'a, I>(&'a self, entities: I) -> HashSet<Aid>
+    where I: IntoIterator<Item = &'a Eid>
+    {
+        let mut attributes = HashSet::new();
+        for &eid in entities.into_iter() {
+            let min = Tuple::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
+            let max = Tuple::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
+
+            // TODO: Cancel tuples against retractions, if there is a
+            // retraction.
+            for &Eavt(tuple) in self.eavt.range(Eavt(min)..Eavt(max)) {
+                attributes.insert(tuple.attribute);
+            }
+        }
+
+        attributes
     }
 
     pub fn debug_print(&self) {
@@ -342,33 +363,23 @@ impl Database {
     }
 
     pub fn debug_print_table(&self, entities: &[Eid]) {
-        let mut attributes = Vec::new();
-        let mut attribute_types = Vec::new();
-        let mut tuples = Vec::new();
+        let mut attributes: Vec<Aid> = self
+            .get_entity_attributes(entities)
+            .iter()
+            .cloned()
+            .collect();
 
-        for &eid in entities {
-            let min = Tuple::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
-            let max = Tuple::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
-            for &Eavt(tuple) in self.eavt.range(Eavt(min)..Eavt(max)) {
-                // Keep track of all the attributes we found; these will be the
-                // columns of the table. We could use a set, but the set is
-                // probably small, so a vector and linear scan will suffice.
-                if !attributes.contains(&tuple.attribute) {
-                    attributes.push(tuple.attribute);
-                }
-
-                tuples.push(tuple);
-            }
-        }
-
-        if tuples.len() == 0 {
+        if attributes.len() == 0 {
             print!("No data.");
+            return
         }
 
         // The tuples collection is ordered by entity id and then attribute id.
         // If we sort all of the attributes to print, then we can do one single
         // pass over the tuples and print the table.
         attributes.sort();
+
+        let mut attribute_types = Vec::new();
 
         print!("id    ");
         for &attribute in &attributes {
@@ -382,36 +393,40 @@ impl Database {
             print!("------------  ");
         }
 
-        let mut current_entity = None;
-        let mut current_attribute = 0;
-        for tuple in &tuples[..] {
-            if current_entity != Some(tuple.entity) {
-                print!("\n{:4}  ", tuple.entity.0);
-                current_entity = Some(tuple.entity);
-                current_attribute = 0;
-            }
 
-            // Skip over all attributes that this entity does not have.
-            while attributes[current_attribute] != tuple.attribute {
-                print!("<null>        ");
-                current_attribute += 1;
+        for &eid in entities {
+            let min = Tuple::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
+            let max = Tuple::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
 
-                if current_attribute == attributes.len() {
-                    break
+            let mut current_attribute = 0;
+
+            for &Eavt(tuple) in self.eavt.range(Eavt(min)..Eavt(max)) {
+                if current_attribute == 0 {
+                    print!("\n{:4}  ", tuple.entity.0);
                 }
-            }
 
-            if current_attribute < attributes.len() {
-                // TODO: Deduplicate printing per type.
-                match attribute_types[current_attribute] {
-                    Type::Bool if tuple.value.as_bool() => print!("true          "),
-                    Type::Bool   => print!("false         "),
-                    Type::Ref    => print!("{:>12}  ", tuple.value.as_u64()),
-                    Type::Uint64 => print!("{:>12}  ", tuple.value.as_u64()),
-                    Type::Bytes  => unimplemented!("TODO"),
-                    Type::String => print!("{:<12}  ", tuple.value.as_str()),
+                // Skip over all attributes that this entity does not have.
+                while attributes[current_attribute] != tuple.attribute {
+                    print!("<null>        ");
+                    current_attribute += 1;
+
+                    if current_attribute == attributes.len() {
+                        break
+                    }
                 }
-                current_attribute += 1;
+
+                if current_attribute < attributes.len() {
+                    // TODO: Deduplicate printing per type.
+                    match attribute_types[current_attribute] {
+                        Type::Bool if tuple.value.as_bool() => print!("true          "),
+                        Type::Bool   => print!("false         "),
+                        Type::Ref    => print!("{:>12}  ", tuple.value.as_u64()),
+                        Type::Uint64 => print!("{:>12}  ", tuple.value.as_u64()),
+                        Type::Bytes  => unimplemented!("TODO"),
+                        Type::String => print!("{:<12}  ", tuple.value.as_str()),
+                    }
+                    current_attribute += 1;
+                }
             }
         }
 
