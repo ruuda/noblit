@@ -56,6 +56,14 @@ select
 order by
   ?number
 
+-- A query plan for the above query (disregarding sort):
+for eid in AVET (attr, min_value) .. (attr, infty) {
+  for aid in (pr.title, pr.number, pr.commit, pr.status) {
+    value = lookup (eid, aid) in EAVT
+    yield value
+  }
+}
+
 -- All approved commits pull requests that are still open:
 where
   pr.status ?pr = "open"
@@ -69,6 +77,18 @@ select
 order by
   ?number
 
+-- A query plan for the above query (disregarding sort):
+for pr in AVET (pr.status, "open", min) .. (pr.status, "open", max) {
+  pr_commit = lookup (pr, pr.commit) in EAVT
+  for ap in AVET (approval.pr, pr, min) .. (approval.pr, pr, max) {
+    ap_commit = lookup (ap, approval.pr) in EAVT
+    if pr_commit != ap_commit { continue }
+    number = lookup (pr, pr.number) in EAVT
+    title = lookup (pr, pr.title) in EAVT
+    approved_by = lookup (ap, approval.approver) in EAVT
+    yield pr, number, title, approved_by
+}
+
 -- All approved commits for which no integration into the most recent master has
 -- been attempted:
 where
@@ -81,6 +101,26 @@ where not
   merge.tip ?merge = pr.commit ?pr
 select
   ?pr
+
+-- A query plan for the above query (disregarding sort):
+for pr in AVET (pr.status, "open", min) .. (pr.status, "open", max) {
+  pr_commit = lookup (pr, pr.commit) in EAVT
+  for ap in AVET (approval.pr, pr, min) .. (approval.pr, pr, max) {
+    ap_commit = lookup (ap, approval.pr) in EAVT
+    if pr_commit != ap_commit { continue }
+
+    -- TODO: Take advantage of entity uniqueness.
+    for datom in AEVT (master.commit, min) .. (master.commit, max) {
+      for merge in AVET (merge.base, datom.value, min) .. (merge.base, datom.value, max) {
+        merge_tip = lookup (merge, merge.tip) in EAVT
+        if merge_commit == pr_commit {
+          continue ap loop
+        }
+      }
+    }
+
+    yield pr
+}
 
 -- All approved commits for which integration into the most recent master branch
 -- has failed:
