@@ -42,5 +42,74 @@ where
 select
   ?file, ?file_name, ?file_size
   
+-- Some things I'd like for Hoff:
 
+-- All activitiy in the last 30 days:
+where
+  pr.created ?pr is_after '2018-11-01'
+  ?title = pr.title ?pr
+  ?number = pr.number ?pr
+  ?commit = pr.commit ?pr
+  ?status = pr.status ?pr
+select
+  ?pr, ?number, ?title, ?commit, ?status
+order by
+  ?number
 
+-- All approved commits pull requests that are still open:
+where
+  pr.status ?pr = "open"
+  approval.pr ?ap = ?pr
+  approval.commit ?ap = pr.commit ?ap
+  ?number = pr.number ?pr
+  ?title = pr.title ?pr
+  ?approved_by = approval.approver ?ap
+select
+  ?pr, ?number, ?title, ?approved_by
+order by
+  ?number
+
+-- All approved commits for which no integration into the most recent master has
+-- been attempted:
+where
+  pr.status ?pr = "open"
+  approval.pr ?ap = ?pr -- Redundant, commits should be central.
+  approval.commit ?ap = pr.commit ?ap
+where not
+  master.commit _ = ?master_rev -- Entity with this attribute should be unique.
+  merge.base ?merge = ?master_rev
+  merge.tip ?merge = pr.commit ?pr
+select
+  ?pr
+
+-- All approved commits for which integration into the most recent master branch
+-- has failed:
+where
+  pr.status ?pr = "open"
+  approval.pr ?ap = ?pr
+  approval.commit ?ap = pr.commit ?ap
+  master.commit _ = ?master_rev
+  merge.base ?merge = ?master_rev
+  merge.tip ?merge = pr.commit ?pr
+  merge.success ?merge = false
+select
+  pr.number ?pr, pr.title ?pr
+order by
+  pr.number ?pr
+
+-- All approved commits that can be merged successfully into the most recent
+-- master, which we have not yet attempted to push.
+where
+  pr.status ?pr = "open"
+  approval.pr ?ap = ?pr
+  approval.commit ?ap = pr.commit ?ap
+  master.commit _ = ?master_rev
+  merge.base ?merge = ?master_rev
+  merge.tip ?merge = pr.commit ?pr
+  merge.success ?merge = true
+where not
+  push.commit _ = merge.commit ?merge
+select
+  pr.branch ?pr, merge.commit ?pr
+order by
+  pr.number ?pr
