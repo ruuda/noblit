@@ -11,11 +11,13 @@ inspired by Datomic.
  * [The Datomic Data Model][datamodel]
  * [LevelDB implementation documentation][leveldb]
  * [InfluxDB Storage Engine Internals][influxdb]
+ * [What You Always Wanted to Know About Datalog][datalog]
 
 [deconstr]:  https://www.infoq.com/presentations/Deconstructing-Database
 [datamodel]: https://docs.datomic.com/cloud/whatis/data-model.html
 [leveldb]:   https://github.com/google/leveldb/blob/1cb384088184be9840bd59b4040503a9fa9aee66/doc/impl.md
 [influxdb]:  https://www.youtube.com/watch?v=rtEalnKT25I
+[datalog]:   https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf
 
 ## Design
 
