@@ -5,7 +5,7 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! This module defines query plans and their evaluation.
+//! Defines query plans and their evaluation.
 
 use std::collections::BTreeSet;
 use std::collections::HashSet;
@@ -38,9 +38,10 @@ pub enum Filter {
     ExistsAvet { entity: Var, attribute: Aid, value: Var },
 }
 
-/// A definition defines the allowed values of a variable.
+/// A variable definition.
 ///
-/// A variable is defined in two parts
+/// Specifies how to obtain the allowed values for a variable. A variable is
+/// defined in two parts:
 ///
 ///  * A *retrieval* that returns the set of all values that this variable might
 ///    possibly assume. The more restricted this set is, the more efficient the

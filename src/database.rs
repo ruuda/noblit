@@ -5,7 +5,7 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! This module defines the database itself, and its data types.
+//! Defines the database itself.
 
 use std::collections::BTreeSet;
 use std::collections::HashSet;

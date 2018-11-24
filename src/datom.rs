@@ -5,7 +5,7 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! This module defines the datom, the basic unit of information.
+//! Defines the datom, the basic unit of information.
 
 use std;
 
@@ -38,8 +38,8 @@ impl Aid {
 }
 
 /// Transaction number.
-/// TODO: Don't expose internals, add a constructor that validates the tid is
-/// even.
+// TODO: Don't expose internals, add a constructor that validates the tid is
+// even.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Tid(pub u64); // TODO: Non-pub field?
 
@@ -91,16 +91,16 @@ impl TidOp {
 ///
 /// The most significant two bits contain the type and representation tag:
 ///
-/// * `0b00`: An unsigned 62-bit integer stored inline. This means that all
-///           unsigned integers less than 2^62 are represented as themselves.
-/// * `0b01`: An unsigned 64-bit integer stored externally. The remaining 62
-///           bits indicate its storage address.
-/// * `0b10`: A small string. The next 6 most significant bits indicate the
-///           length, although the maximum valid length is 7. The next 7 bytes
-///           contain the string, padded with zeros. This means that the empty
-///           string is represented as `0x8000_0000_0000_0000`.
-/// * `0b11`: A string stored externally. The remaining 62 bits indicate its
-///           storage address.
+/// * 00: An unsigned 62-bit integer stored inline. This means that all unsigned
+///       integers less than 2<sup>62</sup> are represented as themselves.
+/// * 01: An unsigned 64-bit integer stored externally. The remaining 62 bits
+///       indicate its storage address.
+/// * 10: A small string. The next 6 most significant bits indicate the length,
+///       although the maximum valid length is 7. The next 7 bytes contain the
+///       string, padded with zeros. This means that the empty string is
+///       represented as `0x8000_0000_0000_0000`.
+/// * 11: A string stored externally. The remaining 62 bits indicate its storage
+///       address.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Value(pub u64); // TODO: Non-public field?
 

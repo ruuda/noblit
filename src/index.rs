@@ -5,15 +5,22 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! This module deals with indexes.
+//! Defines indexes.
 
 use std::cmp::{PartialOrd, Ord, Ordering};
 
 use datom::Datom;
 
+/// An (attribute, entity, value, transaction) ordered datom.
 pub struct Aevt(pub Datom);
+
+/// An (attribute, value, entity, transaction) ordered datom.
 pub struct Avet(pub Datom);
+
+/// An (entity, attribute, value, transaction) ordered datom.
 pub struct Eavt(pub Datom);
+
+/// A (value, attribute, entity, transaction) ordered datom.
 pub struct Vaet(pub Datom);
 
 impl Eq for Aevt {}
