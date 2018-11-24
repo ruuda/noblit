@@ -12,15 +12,7 @@ use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use index::{Aevt, Avet, Eavt, Vaet};
-
-/// The supported value types for entity values.
-enum Type {
-    Bool,
-    Ref,
-    Uint64,
-    Bytes,
-    String,
-}
+use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
 pub struct Builtins {
