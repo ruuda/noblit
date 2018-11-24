@@ -11,6 +11,7 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
+use database::Database;
 use index::{Avet};
 use types::Type;
 
@@ -61,9 +62,10 @@ pub struct Definition {
 /// specifies specifically *how* to find it.
 ///
 /// A query plan defines a number of variables, for which to find values. A
-/// definition defines *how* to find the values (and the query planner should
-/// ensure that the operation returns the desired). Definitions are ordered,
-/// where a definition may refer to variables defined earlier.
+/// definition defines how to find the values (and the query planner should
+/// ensure that this is the operation that returns the desired results).
+/// Definitions are ordered, where a definition may refer to variables defined
+/// earlier.
 ///
 /// A query is always executed as a number of nested loops, one for each
 /// variable. The loop is over all possible values of that variable. The
@@ -74,4 +76,45 @@ pub struct QueryPlan {
 
     /// The type of every numbered variable.
     types: Vec<Type>,
+}
+
+impl QueryPlan {
+    /// Return the type of a variable in this query plan.
+    fn get_type(&self, var: Var) -> Type {
+        self.types[var.0 as usize]
+    }
+
+    /// Assert that all invariants are respected.
+    pub fn assert_valid(&self, db: &Database) {
+        for (i, ref def) in self.definitions.iter().enumerate() {
+            let v = Var(i as u32);
+
+            match def.retrieval {
+                Retrieval::ScanAvetAny { .. } => { }
+                Retrieval::ScanAvetConst { .. } => { }
+                Retrieval::ScanAvetVar { attribute, value } => {
+                    let attr_value_type = db.lookup_attribute_type(attribute);
+                    let var_type = self.get_type(value);
+                    assert_eq!(var_type, attr_value_type,
+                               "Type mismatche in avet scan for variable {:?}. \
+                                Attribute has type {:?} but value variable has type {:?}.",
+                               v, attr_value_type, var_type);
+                    assert!(value < v, "Variable {:?} refers to later variable {:?}.", v, value);
+                },
+                Retrieval::LookupEavt { entity, attribute } => {
+                    let attr_value_type = db.lookup_attribute_type(attribute);
+                    let var_type = self.get_type(v);
+                    assert_eq!(var_type, attr_value_type,
+                               "Type mismatche in eavt lookup for entity {:?}. \
+                                Attribute has type {:?} but value variable has type {:?}.",
+                               entity, attr_value_type, var_type);
+                    assert!(entity < v, "Variable {:?} refers to later variable {:?}.", v, entity);
+                }
+            }
+        }
+    }
+
+    pub fn execute(&self) {
+
+    }
 }

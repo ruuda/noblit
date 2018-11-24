@@ -8,6 +8,7 @@
 //! This module defines the types of values.
 
 /// The supported value types for entity values.
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Type {
     Bool,
     Ref,
@@ -15,4 +16,3 @@ pub enum Type {
     Bytes,
     String,
 }
-
