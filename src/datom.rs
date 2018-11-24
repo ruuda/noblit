@@ -175,16 +175,16 @@ impl Value {
 
 /// An (entity, attribute, value, transaction, operation) tuple.
 #[derive(Copy, Clone)]
-pub struct Tuple {
+pub struct Datom {
     pub entity: Eid,
     pub attribute: Aid,
     pub value: Value,
     pub transaction_operation: TidOp,
 }
 
-impl Tuple {
-    pub fn new(entity: Eid, attribute: Aid, value: Value, transaction: Tid, operation: Operation) -> Tuple {
-        Tuple {
+impl Datom {
+    pub fn new(entity: Eid, attribute: Aid, value: Value, transaction: Tid, operation: Operation) -> Datom {
+        Datom {
             entity: entity,
             attribute: attribute,
             value: value,
@@ -216,10 +216,10 @@ impl Tuple {
         (self.value.0, self.attribute.0, self.value.0, self.transaction_operation.0)
     }
 
-    /// Return the tuple, with operation set to `Operation::Assert`.
-    pub fn assert(&self) -> Tuple {
+    /// Return the datom, with operation set to `Operation::Assert`.
+    pub fn assert(&self) -> Datom {
         let transaction = self.transaction_operation.transaction();
-        Tuple {
+        Datom {
             entity: self.entity,
             attribute: self.attribute,
             value: self.value,

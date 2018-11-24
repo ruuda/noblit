@@ -10,7 +10,7 @@
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 
-use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Tuple};
+use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use index::{Aevt, Avet, Eavt, Vaet};
 
 /// The supported value types for entity values.
@@ -53,7 +53,7 @@ pub struct Builtins {
 }
 
 impl Builtins {
-    pub fn new() -> (Builtins, Vec<Tuple>) {
+    pub fn new() -> (Builtins, Vec<Datom>) {
         let id_transaction = 0;
         let id_db_attr_name = 1;
         let id_db_attr_type = 2;
@@ -83,102 +83,102 @@ impl Builtins {
         };
 
         let tuples = vec![
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_name),
                 Aid(id_db_attr_name), Value::from_str("name"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_name),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_string)),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_name),
                 Aid(id_db_attr_unique), Value::from_bool(true),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_type),
                 Aid(id_db_attr_name), Value::from_str("type"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_type),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_ref)),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_unique),
                 Aid(id_db_attr_name), Value::from_str("unique"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_unique),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_bool)),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_many),
                 Aid(id_db_attr_name), Value::from_str("many"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_attr_many),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_bool)),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_name),
                 Aid(id_db_attr_name), Value::from_str("name"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_name),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_string)),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_name),
                 Aid(id_db_attr_unique), Value::from_bool(true),
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_transaction_time),
                 Aid(id_db_attr_name), Value::from_str("time"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_transaction_time),
                 Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_uint64)), // TODO: Time type.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_bool),
                 Aid(id_db_type_name), Value::from_str("bool"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_ref),
                 Aid(id_db_type_name), Value::from_str("ref"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_uint64),
                 Aid(id_db_type_name), Value::from_str("uint64"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_bytes),
                 Aid(id_db_type_name), Value::from_str("bytes"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_db_type_string),
                 Aid(id_db_type_name), Value::from_str("string"), // TODO: Long name.
                 Tid(id_transaction), Operation::Assert,
             ),
-            Tuple::new(
+            Datom::new(
                 Eid(id_transaction),
                 Aid(id_db_transaction_time), Value::from_u64(0),
                 Tid(id_transaction), Operation::Assert,
@@ -227,7 +227,7 @@ impl Database {
         db
     }
 
-    pub fn insert(&mut self, tuple: &Tuple) {
+    pub fn insert(&mut self, tuple: &Datom) {
         self.eavt.insert(Eavt(*tuple));
         self.aevt.insert(Aevt(*tuple));
         self.avet.insert(Avet(*tuple));
@@ -249,7 +249,7 @@ impl Database {
         let eid = Eid(self.next_id);
         self.next_transaction_id += 2;
 
-        let tuple = Tuple {
+        let tuple = Datom {
             entity: eid,
             attribute: attribute,
             value: value,
@@ -264,8 +264,8 @@ impl Database {
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
         // TODO: This function should return an iterator of values, from newer
         // to older, with retracted tuples deleted.
-        let min = Tuple::new(entity, attribute, Value::min(), Tid(0), Operation::Retract);
-        let max = Tuple::new(entity, attribute, Value::max(), Tid(0), Operation::Retract);
+        let min = Datom::new(entity, attribute, Value::min(), Tid(0), Operation::Retract);
+        let max = Datom::new(entity, attribute, Value::max(), Tid(0), Operation::Retract);
         // TODO: Could use Eavt or Aevt for this, which indicates it is probably
         // inefficient to do one by one. I could look up multiple attributes, or
         // multiple entities, at once.
@@ -304,8 +304,8 @@ impl Database {
     /// Return the entities for which the given attribute is set.
     /// TODO: Should return iterator.
     pub fn select_where_has_attribute(&self, attribute: Aid) -> Vec<Eid> {
-        let min = Tuple::new(Eid::min(), attribute, Value::min(), Tid(0), Operation::Retract);
-        let max = Tuple::new(Eid::max(), attribute, Value::max(), Tid(0), Operation::Retract);
+        let min = Datom::new(Eid::min(), attribute, Value::min(), Tid(0), Operation::Retract);
+        let max = Datom::new(Eid::max(), attribute, Value::max(), Tid(0), Operation::Retract);
         self.aevt
             .range(Aevt(min)..Aevt(max))
             .map(|&Aevt(tuple)| tuple.entity)
@@ -318,8 +318,8 @@ impl Database {
     {
         let mut attributes = HashSet::new();
         for &eid in entities.into_iter() {
-            let min = Tuple::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
-            let max = Tuple::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
+            let min = Datom::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
+            let max = Datom::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
 
             // TODO: Cancel tuples against retractions, if there is a
             // retraction.
@@ -395,8 +395,8 @@ impl Database {
 
 
         for &eid in entities {
-            let min = Tuple::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
-            let max = Tuple::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
+            let min = Datom::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
+            let max = Datom::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
 
             let mut current_attribute = 0;
 

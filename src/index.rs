@@ -9,12 +9,12 @@
 
 use std::cmp::{PartialOrd, Ord, Ordering};
 
-use datom::Tuple;
+use datom::Datom;
 
-pub struct Aevt(pub Tuple);
-pub struct Avet(pub Tuple);
-pub struct Eavt(pub Tuple);
-pub struct Vaet(pub Tuple);
+pub struct Aevt(pub Datom);
+pub struct Avet(pub Datom);
+pub struct Eavt(pub Datom);
+pub struct Vaet(pub Datom);
 
 impl Eq for Aevt {}
 impl Eq for Avet {}
