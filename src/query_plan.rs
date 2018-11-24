@@ -114,8 +114,34 @@ impl QueryPlan {
             }
         }
     }
+}
 
-    pub fn execute(&self) {
+type ValueIter = Box<dyn Iterator<Item = Value>>;
 
+/// Iterator that yields results from a given query plan.
+pub struct Evaluator {
+    /// The query plan.
+    plan: QueryPlan,
+
+    /// One iterator for every variable.
+    iters: Vec<ValueIter>,
+
+    /// The current value for every variable.
+    values: Vec<Value>,
+}
+
+impl Evaluator {
+    pub fn new(plan: QueryPlan) -> Evaluator {
+        use std::iter;
+
+        let num_variables = plan.definitions.len();
+        Evaluator {
+            plan: plan,
+            iters: iter::repeat_with(|| {
+                let empty_iter: ValueIter = Box::new(iter::empty());
+                empty_iter
+            }).take(num_variables).collect(),
+            values: iter::repeat(Value::min()).take(num_variables).collect(),
+        }
     }
 }
