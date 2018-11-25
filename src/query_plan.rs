@@ -274,7 +274,9 @@ impl<'a> Evaluator<'a> {
                     return true
                 }
                 None => {
-                    self.increment(i - 1);
+                    if !self.increment(i - 1) {
+                        return false
+                    }
                     self.iters[i] = self.make_iter(&self.plan.definitions[i]);
                 }
             }
