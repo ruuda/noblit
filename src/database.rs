@@ -183,10 +183,10 @@ impl Builtins {
 
 pub struct Database {
     pub builtins: Builtins,
-    eavt: BTreeSet<Eavt>,
-    aevt: BTreeSet<Aevt>,
-    avet: BTreeSet<Avet>,
-    vaet: BTreeSet<Vaet>,
+    pub eavt: BTreeSet<Eavt>,
+    pub aevt: BTreeSet<Aevt>,
+    pub avet: BTreeSet<Avet>,
+    pub vaet: BTreeSet<Vaet>,
     next_id: u64,
     next_transaction_id: u64,
 }

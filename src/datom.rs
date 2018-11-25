@@ -43,6 +43,17 @@ impl Aid {
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Tid(pub u64); // TODO: Non-pub field?
 
+impl Tid {
+    pub fn min() -> Tid {
+        Tid(0)
+    }
+
+    pub fn max() -> Tid {
+        // Transaction ids must be even.
+        Tid(std::u64::MAX - 1)
+    }
+}
+
 /// Transaction number and operation.
 ///
 /// A packed representation of an even transaction number and an operation. The
@@ -153,6 +164,10 @@ impl Value {
         // TODO: Check only the top bit, deal with out of band integers.
         debug_assert_eq!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be int for as_u64.");
         self.0 & 0x3fff_ffff_ffff_ffff
+    }
+
+    pub fn as_eid(&self) -> Eid {
+        Eid(self.as_u64())
     }
 
     pub fn as_bool(&self) -> bool {

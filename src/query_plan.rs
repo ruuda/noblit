@@ -12,7 +12,7 @@ use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use database::{Builtins, Database};
-use index::{Avet};
+use index::{Avet, Eavt};
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -164,7 +164,7 @@ impl QueryPlan {
     }
 }
 
-type ValueIter = Box<dyn Iterator<Item = Value>>;
+type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 
 /// Iterator that yields results from a given query plan.
 pub struct Evaluator<'a> {
@@ -172,7 +172,7 @@ pub struct Evaluator<'a> {
     plan: QueryPlan,
 
     /// One iterator for every variable.
-    iters: Vec<ValueIter>,
+    iters: Vec<ValueIter<'a>>,
 
     /// The current value for every variable.
     values: Vec<Value>,
@@ -184,16 +184,100 @@ pub struct Evaluator<'a> {
 impl<'a> Evaluator<'a> {
     pub fn new(plan: QueryPlan, database: &'a Database) -> Evaluator<'a> {
         use std::iter;
-
         let num_variables = plan.definitions.len();
-        Evaluator {
+
+        let iters = iter::repeat_with(|| {
+            let empty_iter: ValueIter = Box::new(iter::empty());
+            empty_iter
+        }).take(num_variables).collect();
+
+        let mut eval = Evaluator {
             database: database,
             plan: plan,
-            iters: iter::repeat_with(|| {
-                let empty_iter: ValueIter = Box::new(iter::empty());
-                empty_iter
-            }).take(num_variables).collect(),
+            iters: iters,
             values: iter::repeat(Value::min()).take(num_variables).collect(),
+        };
+
+        // Set only the first iterator: this is the one that we won't reset when
+        // it is exhausted. The others we'll reset during iteration.
+        eval.iters[0] = eval.make_iter(&eval.plan.definitions[0]);
+
+        eval
+    }
+
+    fn get_value(&self, var: Var) -> Value {
+        self.values[var.0 as usize]
+    }
+
+    fn make_iter(&self, def: &Definition) -> ValueIter<'a> {
+        match def.retrieval {
+            Retrieval::ScanAvetAny { attribute } => {
+                let min = Datom::new(Eid::min(), attribute, Value::min(), Tid::min(), Operation::Retract);
+                let max = Datom::new(Eid::max(), attribute, Value::max(), Tid::max(), Operation::Assert);
+                let iter = self
+                    .database
+                    .avet
+                    .range(Avet(min)..Avet(max))
+                    .map(|&Avet(ref datom)| Value::from_eid(datom.entity));
+                Box::new(iter)
+            }
+            Retrieval::ScanAvetConst { attribute, value } => {
+                let min = Datom::new(Eid::min(), attribute, value, Tid::min(), Operation::Retract);
+                let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Assert);
+                let iter = self
+                    .database
+                    .avet
+                    .range(Avet(min)..Avet(max))
+                    .map(|&Avet(ref datom)| Value::from_eid(datom.entity));
+                Box::new(iter)
+            }
+            // TODO: Use var_ prefix on variables.
+            Retrieval::ScanAvetVar { attribute, value } => {
+                let v = self.get_value(value);
+                let min = Datom::new(Eid::min(), attribute, v, Tid::min(), Operation::Retract);
+                let max = Datom::new(Eid::max(), attribute, v, Tid::max(), Operation::Assert);
+                let iter = self
+                    .database
+                    .avet
+                    .range(Avet(min)..Avet(max))
+                    .map(|&Avet(ref datom)| Value::from_eid(datom.entity));
+                Box::new(iter)
+            }
+            Retrieval::LookupEavt { entity, attribute } => {
+                let e = self.get_value(entity).as_eid();
+                let min = Datom::new(e, attribute, Value::min(), Tid::min(), Operation::Retract);
+                let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
+                let iter = self
+                    .database
+                    .eavt
+                    .range(Eavt(min)..Eavt(max))
+                    .map(|&Eavt(ref datom)| datom.value);
+                Box::new(iter)
+            }
+        }
+    }
+
+    /// Increment the i-th iterator.
+    ///
+    /// If it is exhausted, increment the (i-1)-th iterator and reset the ith
+    /// one, etc., until the 0th iterator is exhausted.
+    ///
+    /// Returns whether a new value was successfully stored.
+    fn increment(&mut self, i: usize) -> bool {
+        loop {
+            match self.iters[i].next() {
+                None if i == 0 => {
+                    return false
+                }
+                Some(v) => {
+                    self.values[i] = v;
+                    return true
+                }
+                None => {
+                    self.increment(i - 1);
+                    self.iters[i] = self.make_iter(&self.plan.definitions[i]);
+                }
+            }
         }
     }
 }
@@ -202,6 +286,10 @@ impl<'a> Iterator for Evaluator<'a> {
     type Item = Box<[Value]>;
 
     fn next(&mut self) -> Option<Box<[Value]>> {
-        None
+        let i = self.plan.definitions.len() - 1;
+        match self.increment(i) {
+            true => Some(self.values.clone().into_boxed_slice()),
+            false => None,
+        }
     }
 }
