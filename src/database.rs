@@ -119,28 +119,28 @@ impl Builtins {
 
         define_attribute! {
             aid: id_db_attr_name,
-            name: "name", // TODO: Long name.
+            name: "a.name", // TODO: Long name.
             type: id_db_type_string,
             unique: true,
             many: false,
         };
         define_attribute! {
             aid: id_db_attr_type,
-            name: "type", // TODO: Long name.
+            name: "a.type", // TODO: Long name.
             type: id_db_type_ref,
             unique: false,
             many: false,
         };
         define_attribute! {
             aid: id_db_attr_unique,
-            name: "unique", // TODO: Long name.
+            name: "a.uniq", // TODO: Long name.
             type: id_db_type_bool,
             unique: false,
             many: false,
         };
         define_attribute! {
             aid: id_db_attr_many,
-            name: "many", // TODO: Long name.
+            name: "a.many", // TODO: Long name.
             type: id_db_type_bool,
             unique: false,
             many: false,
@@ -150,14 +150,14 @@ impl Builtins {
         // attribute. This is how we can do schema, and "tables".
         define_attribute! {
             aid: id_db_type_name,
-            name: "name", // TODO: Long name.
+            name: "t.name", // TODO: Long name.
             type: id_db_type_string,
             unique: true,
             many: false,
         };
         define_attribute! {
             aid: id_db_transaction_time,
-            name: "time", // TODO: Long name.
+            name: "x.time", // TODO: Long name.
             type: id_db_type_uint64, // TODO: Time type.
             unique: false, // TODO: Timestamp uniqueness is debatable.
             many: false,

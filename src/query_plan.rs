@@ -118,23 +118,35 @@ impl QueryPlan {
     /// Return a query plan to query all attributes.
     ///
     /// This is intended for debugging, once there is a query planner, there
-    /// would be no more need to write a plan manually.
+    /// would be no more need to write a plan manually. The query corresponds to
+    ///
+    ///     where
+    ///       a db.attribute.name name
+    ///       a db.attribute.type t
+    ///       a db.attribute.unique unique
+    ///       a db.attribute.many many
+    ///       t db.type.name type
+    ///     select
+    ///       a, name, t, type, unique, many
     pub fn example_all_attributes(builtins: &Builtins) -> QueryPlan {
         let db_attr_name = builtins.attribute_db_attribute_name;
         let db_attr_type = builtins.attribute_db_attribute_type;
         let db_attr_unique = builtins.attribute_db_attribute_unique;
         let db_attr_many = builtins.attribute_db_attribute_many;
+        let db_type_name = builtins.attribute_db_type_name;
         QueryPlan {
             // Variables:
             // 0: Entity id (of the attribute): ref
             // 1: db.attribute.name: string
             // 2: db.attribute.type: ref
-            // 3: db.attribute.unique: bool
-            // 4: db.attribute.many: bool
+            // 3: db.type.name: string
+            // 4: db.attribute.unique: bool
+            // 5: db.attribute.many: bool
             types: vec![
                 Type::Ref,
                 Type::String,
                 Type::Ref,
+                Type::String,
                 Type::Bool,
                 Type::Bool,
             ],
@@ -149,6 +161,10 @@ impl QueryPlan {
                 },
                 Definition {
                     retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_type },
+                    filters: Vec::new(),
+                },
+                Definition {
+                    retrieval: Retrieval::LookupEavt { entity: Var(2), attribute: db_type_name },
                     filters: Vec::new(),
                 },
                 Definition {
@@ -184,6 +200,8 @@ pub struct Evaluator<'a> {
 impl<'a> Evaluator<'a> {
     pub fn new(plan: &'a QueryPlan, database: &'a Database) -> Evaluator<'a> {
         use std::iter;
+
+        plan.assert_valid(database);
         let num_variables = plan.definitions.len();
 
         let iters = iter::repeat_with(|| {

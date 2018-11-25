@@ -33,7 +33,7 @@ fn main() {
     let stdout = std::io::stdout();
     types::draw_table(
         &mut stdout.lock(),
-        ["id", "name", "type", "unique", "many"].iter().map(|s| &s[..]),
+        ["id", "name", "type", "type_name", "unique", "many"].iter().map(|s| &s[..]),
         rows.iter().map(|ref row| &row[..]),
         &plan.types[..],
     ).unwrap();
