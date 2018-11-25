@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
-use database::Database;
+use database::{Builtins, Database};
 use index::{Avet};
 use types::Type;
 
@@ -112,6 +112,54 @@ impl QueryPlan {
                     assert!(entity < v, "Variable {:?} refers to later variable {:?}.", v, entity);
                 }
             }
+        }
+    }
+
+    /// Return a query plan to query all attributes.
+    ///
+    /// This is intended for debugging, once there is a query planner, there
+    /// would be no more need to write a plan manually.
+    pub fn example_all_attributes(builtins: &Builtins) -> QueryPlan {
+        let db_attr_name = builtins.attribute_db_attribute_name;
+        let db_attr_type = builtins.attribute_db_attribute_type;
+        let db_attr_unique = builtins.attribute_db_attribute_unique;
+        let db_attr_many = builtins.attribute_db_attribute_many;
+        QueryPlan {
+            // Variables:
+            // 0: Entity id (of the attribute): ref
+            // 1: db.attribute.name: string
+            // 2: db.attribute.type: ref
+            // 3: db.attribute.unique: bool
+            // 4: db.attribute.many: bool
+            types: vec![
+                Type::Ref,
+                Type::String,
+                Type::Ref,
+                Type::Bool,
+                Type::Bool,
+            ],
+            definitions: vec![
+                Definition {
+                    retrieval: Retrieval::ScanAvetAny { attribute: db_attr_name },
+                    filters: Vec::new(),
+                },
+                Definition {
+                    retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_name },
+                    filters: Vec::new(),
+                },
+                Definition {
+                    retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_type },
+                    filters: Vec::new(),
+                },
+                Definition {
+                    retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_unique },
+                    filters: Vec::new(),
+                },
+                Definition {
+                    retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_many },
+                    filters: Vec::new(),
+                }
+            ],
         }
     }
 }
