@@ -18,14 +18,6 @@ fn main() {
     let db = Database::new();
     db.debug_print();
 
-    println!("\nAll attributes:\n");
-    let attributes = db.select_where_has_attribute(db.builtins.attribute_db_attribute_name);
-    db.debug_print_table(&attributes[..]);
-
-    println!("\nAll types:\n");
-    let types = db.select_where_has_attribute(db.builtins.attribute_db_type_name);
-    db.debug_print_table(&types[..]);
-
     {
         println!("\nAll attributes:");
         let plan = QueryPlan::example_all_attributes(&db.builtins);

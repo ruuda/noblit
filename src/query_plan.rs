@@ -7,10 +7,7 @@
 
 //! Defines query plans and their evaluation.
 
-use std::collections::BTreeSet;
-use std::collections::HashSet;
-
-use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
+use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use database::{Builtins, Database};
 use index::{Avet, Eavt};
 use types::Type;

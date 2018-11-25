@@ -67,7 +67,7 @@ where
         write!(writer, "{}", elem)?;
         let len = elem.chars().count();
         assert!(len <= w);
-        write!(writer, "{}", " ".repeat(w - len));
+        write!(writer, "{}", " ".repeat(w - len))?;
         needs_sep = true;
     }
     write!(writer, "{}", end)
@@ -99,7 +99,7 @@ where
         fmt_rows.push(fmt_row);
     }
 
-    let mut dashes: Vec<String> = widths.iter().map(|&w| "─".repeat(w)).collect();
+    let dashes: Vec<String> = widths.iter().map(|&w| "─".repeat(w)).collect();
 
     format_row(writer, "┌─", dashes.iter().map(|ref s| &s[..]), widths.iter().cloned(), "─┬─", "─┐\n")?;
     format_row(writer, "│ ", headers.into_iter(), widths.iter().cloned(), " │ ", " │\n")?;

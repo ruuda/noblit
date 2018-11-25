@@ -245,7 +245,7 @@ impl Database {
 
         let timestamp_aid = Aid(1);
         let timestamp_value = Value(0); // TODO
-        let attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid, Operation::Assert);
+        let _attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid, Operation::Assert);
 
         tid
     }
@@ -274,7 +274,7 @@ impl Database {
         // TODO: Could use Eavt or Aevt for this, which indicates it is probably
         // inefficient to do one by one. I could look up multiple attributes, or
         // multiple entities, at once.
-        let mut range = self.eavt.range(Eavt(min)..Eavt(max));
+        let range = self.eavt.range(Eavt(min)..Eavt(max));
         range.map(|&Eavt(tuple)| tuple.value).next_back()
     }
 
@@ -304,17 +304,6 @@ impl Database {
             k if k == self.builtins.entity_db_type_string.0 => Type::String,
             _ => panic!("Attribute has unsupported value type."),
         }
-    }
-
-    /// Return the entities for which the given attribute is set.
-    /// TODO: Should return iterator.
-    pub fn select_where_has_attribute(&self, attribute: Aid) -> Vec<Eid> {
-        let min = Datom::new(Eid::min(), attribute, Value::min(), Tid(0), Operation::Retract);
-        let max = Datom::new(Eid::max(), attribute, Value::max(), Tid(0), Operation::Retract);
-        self.aevt
-            .range(Aevt(min)..Aevt(max))
-            .map(|&Aevt(tuple)| tuple.entity)
-            .collect()
     }
 
     /// Return the attributes that are set for at least one of the entities.
@@ -365,76 +354,5 @@ impl Database {
                 }
             );
         }
-    }
-
-    pub fn debug_print_table(&self, entities: &[Eid]) {
-        let mut attributes: Vec<Aid> = self
-            .get_entity_attributes(entities)
-            .iter()
-            .cloned()
-            .collect();
-
-        if attributes.len() == 0 {
-            print!("No data.");
-            return
-        }
-
-        // The tuples collection is ordered by entity id and then attribute id.
-        // If we sort all of the attributes to print, then we can do one single
-        // pass over the tuples and print the table.
-        attributes.sort();
-
-        let mut attribute_types = Vec::new();
-
-        print!("id    ");
-        for &attribute in &attributes {
-            let attribute_name = self.lookup_attribute_name(attribute);
-            let attribute_type = self.lookup_attribute_type(attribute);
-            print!("{:12}  ", attribute_name.as_str());
-            attribute_types.push(attribute_type);
-        }
-        print!("\n----  ");
-        for _ in &attributes {
-            print!("------------  ");
-        }
-
-
-        for &eid in entities {
-            let min = Datom::new(eid, Aid::min(), Value::min(), Tid(0), Operation::Retract);
-            let max = Datom::new(eid, Aid::max(), Value::max(), Tid(0), Operation::Retract);
-
-            let mut current_attribute = 0;
-
-            for &Eavt(tuple) in self.eavt.range(Eavt(min)..Eavt(max)) {
-                if current_attribute == 0 {
-                    print!("\n{:4}  ", tuple.entity.0);
-                }
-
-                // Skip over all attributes that this entity does not have.
-                while attributes[current_attribute] != tuple.attribute {
-                    print!("<null>        ");
-                    current_attribute += 1;
-
-                    if current_attribute == attributes.len() {
-                        break
-                    }
-                }
-
-                if current_attribute < attributes.len() {
-                    // TODO: Deduplicate printing per type.
-                    match attribute_types[current_attribute] {
-                        Type::Bool if tuple.value.as_bool() => print!("true          "),
-                        Type::Bool   => print!("false         "),
-                        Type::Ref    => print!("{:>12}  ", tuple.value.as_u64()),
-                        Type::Uint64 => print!("{:>12}  ", tuple.value.as_u64()),
-                        Type::Bytes  => unimplemented!("TODO"),
-                        Type::String => print!("{:<12}  ", tuple.value.as_str()),
-                    }
-                    current_attribute += 1;
-                }
-            }
-        }
-
-        println!("");
     }
 }
