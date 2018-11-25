@@ -155,6 +155,7 @@ impl QueryPlan {
                     retrieval: Retrieval::ScanAvetAny { attribute: db_attr_name },
                     filters: Vec::new(),
                 },
+                // TODO: This attribute should be retrievable in the initial scan.
                 Definition {
                     retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_name },
                     filters: Vec::new(),
@@ -175,6 +176,39 @@ impl QueryPlan {
                     retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_attr_many },
                     filters: Vec::new(),
                 }
+            ],
+        }
+    }
+
+    /// Return a query plan to query all types.
+    ///
+    /// This is intended for debugging, once there is a query planner, there
+    /// would be no more need to write a plan manually. The query corresponds to
+    ///
+    ///     where
+    ///       t db.type.name name
+    ///     select
+    ///       t, name
+    pub fn example_all_types(builtins: &Builtins) -> QueryPlan {
+        let db_type_name = builtins.attribute_db_type_name;
+        QueryPlan {
+            // Variables:
+            // 0: Entity id (of the attribute): ref
+            // 1: db.type.name: string
+            types: vec![
+                Type::Ref,
+                Type::String,
+            ],
+            definitions: vec![
+                Definition {
+                    retrieval: Retrieval::ScanAvetAny { attribute: db_type_name },
+                    filters: Vec::new(),
+                },
+                // TODO: This attribute should be retrievable in the initial scan.
+                Definition {
+                    retrieval: Retrieval::LookupEavt { entity: Var(0), attribute: db_type_name },
+                    filters: Vec::new(),
+                },
             ],
         }
     }

@@ -26,15 +26,31 @@ fn main() {
     let types = db.select_where_has_attribute(db.builtins.attribute_db_type_name);
     db.debug_print_table(&types[..]);
 
-    println!("\nAll attributes, via query plan:\n");
-    let plan = QueryPlan::example_all_attributes(&db.builtins);
-    let eval = Evaluator::new(&plan, &db);
-    let rows: Vec<_> = eval.collect();
-    let stdout = std::io::stdout();
-    types::draw_table(
-        &mut stdout.lock(),
-        ["id", "name", "type", "type_name", "unique", "many"].iter().map(|s| &s[..]),
-        rows.iter().map(|ref row| &row[..]),
-        &plan.types[..],
-    ).unwrap();
+    {
+        println!("\nAll attributes:");
+        let plan = QueryPlan::example_all_attributes(&db.builtins);
+        let eval = Evaluator::new(&plan, &db);
+        let rows: Vec<_> = eval.collect();
+        let stdout = std::io::stdout();
+        types::draw_table(
+            &mut stdout.lock(),
+            ["id", "name", "type", "type_name", "unique", "many"].iter().map(|s| &s[..]),
+            rows.iter().map(|ref row| &row[..]),
+            &plan.types[..],
+        ).unwrap();
+    }
+
+    {
+        println!("\nAll types:");
+        let plan = QueryPlan::example_all_types(&db.builtins);
+        let eval = Evaluator::new(&plan, &db);
+        let rows: Vec<_> = eval.collect();
+        let stdout = std::io::stdout();
+        types::draw_table(
+            &mut stdout.lock(),
+            ["id", "name"].iter().map(|s| &s[..]),
+            rows.iter().map(|ref row| &row[..]),
+            &plan.types[..],
+        ).unwrap();
+    }
 }
