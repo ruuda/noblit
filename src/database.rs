@@ -74,108 +74,121 @@ impl Builtins {
             entity_db_type_string: Eid(id_db_type_string),
         };
 
-        let tuples = vec![
-            Datom::new(
-                Eid(id_db_attr_name),
-                Aid(id_db_attr_name), Value::from_str("name"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_name),
-                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_string)),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_name),
-                Aid(id_db_attr_unique), Value::from_bool(true),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_type),
-                Aid(id_db_attr_name), Value::from_str("type"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_type),
-                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_ref)),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_unique),
-                Aid(id_db_attr_name), Value::from_str("unique"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_unique),
-                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_bool)),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_many),
-                Aid(id_db_attr_name), Value::from_str("many"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_attr_many),
-                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_bool)),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_name),
-                Aid(id_db_attr_name), Value::from_str("name"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_name),
-                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_string)),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_name),
-                Aid(id_db_attr_unique), Value::from_bool(true),
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_transaction_time),
-                Aid(id_db_attr_name), Value::from_str("time"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_transaction_time),
-                Aid(id_db_attr_type), Value::from_eid(Eid(id_db_type_uint64)), // TODO: Time type.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_bool),
-                Aid(id_db_type_name), Value::from_str("bool"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_ref),
-                Aid(id_db_type_name), Value::from_str("ref"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_uint64),
-                Aid(id_db_type_name), Value::from_str("uint64"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_bytes),
-                Aid(id_db_type_name), Value::from_str("bytes"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_db_type_string),
-                Aid(id_db_type_name), Value::from_str("string"), // TODO: Long name.
-                Tid(id_transaction), Operation::Assert,
-            ),
-            Datom::new(
-                Eid(id_transaction),
-                Aid(id_db_transaction_time), Value::from_u64(0),
-                Tid(id_transaction), Operation::Assert,
-            ),
-        ];
+        let mut tuples = Vec::new();
+
+        macro_rules! define_attribute {
+            {
+                aid: $attribute:expr,
+                name: $name:expr,
+                type: $type:expr,
+                unique: $unique:expr,
+                many: $many:expr,
+            } => {
+                tuples.push(Datom::new(
+                    Eid($attribute),
+                    Aid(id_db_attr_name), Value::from_str($name),
+                    Tid(id_transaction), Operation::Assert,
+                ));
+                tuples.push(Datom::new(
+                    Eid($attribute),
+                    Aid(id_db_attr_type), Value::from_eid(Eid($type)),
+                    Tid(id_transaction), Operation::Assert,
+                ));
+                tuples.push(Datom::new(
+                    Eid($attribute),
+                    Aid(id_db_attr_unique), Value::from_bool($unique),
+                    Tid(id_transaction), Operation::Assert,
+                ));
+                tuples.push(Datom::new(
+                    Eid($attribute),
+                    Aid(id_db_attr_many), Value::from_bool($many),
+                    Tid(id_transaction), Operation::Assert,
+                ));
+            }
+        };
+
+        macro_rules! define_type {
+            { eid: $entity:expr, name: $name:expr, } => {
+                tuples.push(Datom::new(
+                    Eid($entity),
+                    Aid(id_db_type_name), Value::from_str($name),
+                    Tid(id_transaction), Operation::Assert,
+                ));
+            }
+        };
+
+        define_attribute! {
+            aid: id_db_attr_name,
+            name: "name", // TODO: Long name.
+            type: id_db_type_string,
+            unique: true,
+            many: false,
+        };
+        define_attribute! {
+            aid: id_db_attr_type,
+            name: "type", // TODO: Long name.
+            type: id_db_type_ref,
+            unique: false,
+            many: false,
+        };
+        define_attribute! {
+            aid: id_db_attr_unique,
+            name: "unique", // TODO: Long name.
+            type: id_db_type_bool,
+            unique: false,
+            many: false,
+        };
+        define_attribute! {
+            aid: id_db_attr_many,
+            name: "many", // TODO: Long name.
+            type: id_db_type_bool,
+            unique: false,
+            many: false,
+        };
+        // TODO: Add attribute attribute that indicates that the presence of
+        // this attribute implies (or requires) the presence of another
+        // attribute. This is how we can do schema, and "tables".
+        define_attribute! {
+            aid: id_db_type_name,
+            name: "name", // TODO: Long name.
+            type: id_db_type_string,
+            unique: true,
+            many: false,
+        };
+        define_attribute! {
+            aid: id_db_transaction_time,
+            name: "time", // TODO: Long name.
+            type: id_db_type_uint64, // TODO: Time type.
+            unique: false, // TODO: Timestamp uniqueness is debatable.
+            many: false,
+        };
+
+        define_type! {
+            eid: id_db_type_bool,
+            name: "bool", // TODO: Long name.
+        };
+        define_type! {
+            eid: id_db_type_ref,
+            name: "ref", // TODO: Long name.
+        };
+        define_type! {
+            eid: id_db_type_uint64,
+            name: "uint64", // TODO: Long name.
+        };
+        define_type! {
+            eid: id_db_type_bytes,
+            name: "bytes", // TODO: Long name.
+        };
+        define_type! {
+            eid: id_db_type_string,
+            name: "string", // TODO: Long name.
+        };
+
+        tuples.push(Datom::new(
+            Eid(id_transaction),
+            Aid(id_db_transaction_time), Value::from_u64(0),
+            Tid(id_transaction), Operation::Assert,
+        ));
 
         (builtins, tuples)
     }
