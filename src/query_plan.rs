@@ -167,7 +167,7 @@ impl QueryPlan {
 type ValueIter = Box<dyn Iterator<Item = Value>>;
 
 /// Iterator that yields results from a given query plan.
-pub struct Evaluator {
+pub struct Evaluator<'a> {
     /// The query plan.
     plan: QueryPlan,
 
@@ -176,14 +176,18 @@ pub struct Evaluator {
 
     /// The current value for every variable.
     values: Vec<Value>,
+
+    /// The database to query.
+    database: &'a Database,
 }
 
-impl Evaluator {
-    pub fn new(plan: QueryPlan) -> Evaluator {
+impl<'a> Evaluator<'a> {
+    pub fn new(plan: QueryPlan, database: &'a Database) -> Evaluator<'a> {
         use std::iter;
 
         let num_variables = plan.definitions.len();
         Evaluator {
+            database: database,
             plan: plan,
             iters: iter::repeat_with(|| {
                 let empty_iter: ValueIter = Box::new(iter::empty());
@@ -191,5 +195,13 @@ impl Evaluator {
             }).take(num_variables).collect(),
             values: iter::repeat(Value::min()).take(num_variables).collect(),
         }
+    }
+}
+
+impl<'a> Iterator for Evaluator<'a> {
+    type Item = Box<[Value]>;
+
+    fn next(&mut self) -> Option<Box<[Value]>> {
+        None
     }
 }
