@@ -28,12 +28,13 @@ fn main() {
 
     println!("\nAll attributes, via query plan:\n");
     let plan = QueryPlan::example_all_attributes(&db.builtins);
-    let eval = Evaluator::new(plan, &db);
-    for tuple in eval {
-        for field_value in &tuple[..] {
-            // TODO: Type-based formatter.
-            print!("{}\t", field_value.0);
-        }
-        println!("");
-    }
+    let eval = Evaluator::new(&plan, &db);
+    let rows: Vec<_> = eval.collect();
+    let stdout = std::io::stdout();
+    types::draw_table(
+        &mut stdout.lock(),
+        ["id", "name", "type", "unique", "many"].iter().map(|s| &s[..]),
+        rows.iter().map(|ref row| &row[..]),
+        &plan.types[..],
+    ).unwrap();
 }

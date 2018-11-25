@@ -73,10 +73,10 @@ pub struct Definition {
 /// innermost loop yields the results.
 pub struct QueryPlan {
     /// The definition of every numbered variable.
-    definitions: Vec<Definition>,
+    pub definitions: Vec<Definition>,
 
     /// The type of every numbered variable.
-    types: Vec<Type>,
+    pub types: Vec<Type>,
 }
 
 impl QueryPlan {
@@ -169,7 +169,7 @@ type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 /// Iterator that yields results from a given query plan.
 pub struct Evaluator<'a> {
     /// The query plan.
-    plan: QueryPlan,
+    plan: &'a QueryPlan,
 
     /// One iterator for every variable.
     iters: Vec<ValueIter<'a>>,
@@ -182,7 +182,7 @@ pub struct Evaluator<'a> {
 }
 
 impl<'a> Evaluator<'a> {
-    pub fn new(plan: QueryPlan, database: &'a Database) -> Evaluator<'a> {
+    pub fn new(plan: &'a QueryPlan, database: &'a Database) -> Evaluator<'a> {
         use std::iter;
         let num_variables = plan.definitions.len();
 
