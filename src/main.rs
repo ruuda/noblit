@@ -8,6 +8,7 @@
 mod database;
 mod datom;
 mod index;
+mod query;
 mod query_plan;
 mod types;
 
@@ -19,6 +20,27 @@ fn main() {
     db.debug_print();
 
     {
+        use query::{Query, Statement, Var};
+        let query = Query {
+            variable_names: vec![
+                "id".to_string(),
+                "name".to_string(),
+                "type".to_string(),
+                "type_name".to_string(),
+                "unique".to_string(),
+                "many".to_string(),
+            ],
+            where_statements: vec![
+                Statement::named_var(Var(0), "a.name".to_string(), Var(1)),
+                Statement::named_var(Var(0), "a.type".to_string(), Var(2)),
+                Statement::named_var(Var(2), "t.name".to_string(), Var(3)),
+                Statement::named_var(Var(0), "a.uniq".to_string(), Var(4)),
+                Statement::named_var(Var(0), "a.many".to_string(), Var(5)),
+            ],
+        };
+
+        // TODO: Build the plan from the above query.
+
         println!("\nAll attributes:");
         let plan = QueryPlan::example_all_attributes(&db.builtins);
         let eval = Evaluator::new(&plan, &db);
@@ -26,9 +48,9 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            ["id", "name", "type", "type_name", "unique", "many"].iter().map(|s| &s[..]),
+            plan.variable_names.iter().map(|s| &s[..]),
             rows.iter().map(|ref row| &row[..]),
-            &plan.types[..],
+            &plan.variable_types[..],
         ).unwrap();
     }
 
@@ -40,9 +62,9 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            ["id", "name"].iter().map(|s| &s[..]),
+            plan.variable_names.iter().map(|s| &s[..]),
             rows.iter().map(|ref row| &row[..]),
-            &plan.types[..],
+            &plan.variable_types[..],
         ).unwrap();
     }
 }

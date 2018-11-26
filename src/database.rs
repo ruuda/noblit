@@ -275,7 +275,22 @@ impl Database {
         // inefficient to do one by one. I could look up multiple attributes, or
         // multiple entities, at once.
         let range = self.eavt.range(Eavt(min)..Eavt(max));
-        range.map(|&Eavt(tuple)| tuple.value).next_back()
+        range.map(|&Eavt(datom)| datom.value).next_back()
+    }
+
+    pub fn lookup_entity(&self, attribute: Aid, value: Value) -> Option<Eid> {
+        // TODO: This function should return an iterator of values, from newer
+        // to older, with retracted tuples deleted.
+        let min = Datom::new(Eid::min(), attribute, value, Tid::min(), Operation::Retract);
+        let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Retract);
+        let range = self.avet.range(Avet(min)..Avet(max));
+        range.map(|&Avet(datom)| datom.entity).next_back()
+    }
+
+    pub fn lookup_attribute_id(&self, name: &str) -> Option<Aid> {
+        // TODO: How am I going to deal with temporary on-heap values?
+        self.lookup_entity(self.builtins.attribute_db_attribute_name, Value::from_str(name))
+            .map(|Eid(id)| Aid(id))
     }
 
     pub fn lookup_attribute_name(&self, attribute: Aid) -> Value {

@@ -7,9 +7,10 @@
 
 //! Defines query plans and their evaluation.
 
-use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use database::{Builtins, Database};
+use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use index::{Avet, Eavt};
+use query::Query;
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -73,13 +74,33 @@ pub struct QueryPlan {
     pub definitions: Vec<Definition>,
 
     /// The type of every numbered variable.
-    pub types: Vec<Type>,
+    pub variable_types: Vec<Type>,
+
+    /// The name of every numbered variable.
+    ///
+    /// Variables are identified by number, not by name; the name is only there
+    /// to have human-meaningful names which can be used as column headers when
+    /// debug-printing tables, etc.
+    pub variable_names: Vec<String>,
 }
 
 impl QueryPlan {
+    /// Plan a query.
+    fn from_query(query: Query) -> QueryPlan {
+        let mut plan = QueryPlan {
+            definitions: Vec::new(),
+            variable_types: Vec::new(),
+            variable_names: query.variable_names,
+        };
+
+        // TODO: Construct the plan.
+
+        plan
+    }
+
     /// Return the type of a variable in this query plan.
     fn get_type(&self, var: Var) -> Type {
-        self.types[var.0 as usize]
+        self.variable_types[var.0 as usize]
     }
 
     /// Assert that all invariants are respected.
@@ -139,13 +160,21 @@ impl QueryPlan {
             // 3: db.type.name: string
             // 4: db.attribute.unique: bool
             // 5: db.attribute.many: bool
-            types: vec![
+            variable_types: vec![
                 Type::Ref,
                 Type::String,
                 Type::Ref,
                 Type::String,
                 Type::Bool,
                 Type::Bool,
+            ],
+            variable_names: vec![
+                "id".to_string(),
+                "name".to_string(),
+                "type".to_string(),
+                "type_name".to_string(),
+                "unique".to_string(),
+                "many".to_string(),
             ],
             definitions: vec![
                 Definition {
@@ -192,9 +221,13 @@ impl QueryPlan {
             // Variables:
             // 0: Entity id (of the attribute): ref
             // 1: db.type.name: string
-            types: vec![
+            variable_types: vec![
                 Type::Ref,
                 Type::String,
+            ],
+            variable_names: vec![
+                "id".to_string(),
+                "name".to_string(),
             ],
             definitions: vec![
                 Definition {
