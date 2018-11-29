@@ -16,7 +16,30 @@ use database::Database;
 use query_plan::{Evaluator, QueryPlan};
 
 fn main() {
-    let db = Database::new();
+    let mut db = Database::new();
+
+    {
+        // Insert a bit of test data: a new attribute "level" in transaction 0,
+        // and a few entities with different levels in transaction 1.
+        use datom::{Aid, Operation, Value};
+        let db_attr_name = db.builtins.attribute_db_attribute_name;
+        let db_attr_type = db.builtins.attribute_db_attribute_type;
+        let db_attr_unique = db.builtins.attribute_db_attribute_unique;
+        let db_attr_many = db.builtins.attribute_db_attribute_many;
+        let db_type_uint64 = db.builtins.entity_db_type_uint64;
+
+        let t0 = db.create_transaction();
+        let eid = db.create_entity(db_attr_name, Value::from_str("level"), t0);
+        db.assert(eid, db_attr_type, Value::from_eid(db_type_uint64), t0);
+        db.assert(eid, db_attr_unique, Value::from_bool(false), t0);
+        db.assert(eid, db_attr_many, Value::from_bool(false), t0);
+
+        let attr_level = Aid(eid.0);
+        let t1 = db.create_transaction();
+        let l5 = db.create_entity(attr_level, Value::from_u64(5), t1);
+        let l10 = db.create_entity(attr_level, Value::from_u64(10), t1);
+        let l11 = db.create_entity(attr_level, Value::from_u64(11), t1);
+    }
 
     {
         // where

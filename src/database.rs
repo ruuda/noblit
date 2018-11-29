@@ -206,7 +206,7 @@ pub struct Database {
 
 impl Database {
     pub fn new() -> Database {
-        let (builtins, genisis_tuples) = Builtins::new();
+        let (builtins, genisis_datoms) = Builtins::new();
         let mut db = Database {
             eavt: BTreeSet::new(),
             aevt: BTreeSet::new(),
@@ -225,18 +225,18 @@ impl Database {
             next_transaction_id: 100,
         };
 
-        for tuple in &genisis_tuples[..] {
-            db.insert(tuple);
+        for datom in &genisis_datoms[..] {
+            db.insert(datom);
         }
 
         db
     }
 
-    pub fn insert(&mut self, tuple: &Datom) {
-        self.eavt.insert(Eavt(*tuple));
-        self.aevt.insert(Aevt(*tuple));
-        self.avet.insert(Avet(*tuple));
-        self.vaet.insert(Vaet(*tuple));
+    pub fn insert(&mut self, datom: &Datom) {
+        self.eavt.insert(Eavt(*datom));
+        self.aevt.insert(Aevt(*datom));
+        self.avet.insert(Avet(*datom));
+        self.vaet.insert(Vaet(*datom));
     }
 
     pub fn create_transaction(&mut self) -> Tid {
@@ -245,25 +245,36 @@ impl Database {
 
         let timestamp_aid = Aid(1);
         let timestamp_value = Value(0); // TODO
-        let _attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid, Operation::Assert);
+        let _attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid);
 
         tid
     }
 
-    pub fn create_entity(&mut self, attribute: Aid, value: Value, transaction: Tid, operation: Operation) -> Eid {
+    pub fn create_entity(&mut self, attribute: Aid, value: Value, transaction: Tid) -> Eid {
         let eid = Eid(self.next_id);
-        self.next_transaction_id += 2;
+        self.next_id += 2;
 
-        let tuple = Datom {
+        let datom = Datom {
             entity: eid,
             attribute: attribute,
             value: value,
-            transaction_operation: TidOp::new(transaction, operation),
+            transaction_operation: TidOp::new(transaction, Operation::Assert),
         };
 
-        self.insert(&tuple);
+        self.insert(&datom);
 
         eid
+    }
+
+    pub fn assert(&mut self, entity: Eid, attribute: Aid, value: Value, transaction: Tid) {
+        let datom = Datom {
+            entity: entity,
+            attribute: attribute,
+            value: value,
+            transaction_operation: TidOp::new(transaction, Operation::Assert),
+        };
+
+        self.insert(&datom);
     }
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
