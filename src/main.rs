@@ -27,7 +27,7 @@ fn main() {
         //   a db.attribute.many many
         //   t db.type.name type
         // select
-        //   a, name, t, type, unique, many
+        //   a, name, type, unique, many
 
         use query::{Query, Statement, Var};
         let mut query = Query {
@@ -57,9 +57,9 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            plan.variable_names.iter().map(|s| &s[..]),
+            plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
-            &plan.variable_types[..],
+            &plan.select_types[..],
         ).unwrap();
     }
 
@@ -89,9 +89,9 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            plan.variable_names.iter().map(|s| &s[..]),
+            plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
-            &plan.variable_types[..],
+            &plan.select_types[..],
         ).unwrap();
     }
 }

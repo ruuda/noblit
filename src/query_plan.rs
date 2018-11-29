@@ -85,6 +85,9 @@ pub struct QueryPlan {
 
     /// The variables to return in the result, and in which order.
     pub select: Vec<Var>,
+
+    /// The types of the selectde variables only.
+    pub select_types: Vec<Type>,
 }
 
 /// Maps numbered variables in the query to variables in the plan.
@@ -235,7 +238,9 @@ impl QueryPlan {
         let types: Vec<Type> = (0..definitions.len()).map(
             |i| perm_types[mapping.unget(Var(i as u32)).0 as usize]
         ).collect();
+
         let select: Vec<Var> = query.select.iter().map(|&v| mapping.get(v)).collect();
+        let select_types: Vec<Type> = select.iter().map(|&v| types[v.0 as usize]).collect();
 
 
         let mut plan = QueryPlan {
@@ -243,6 +248,7 @@ impl QueryPlan {
             variable_types: types,
             variable_names: names,
             select: select,
+            select_types: select_types,
         };
 
         plan
@@ -354,6 +360,14 @@ impl QueryPlan {
                 }
             ],
             select: vec![Var(0), Var(1), Var(2), Var(3), Var(4), Var(5)],
+            select_types: vec![
+                Type::Ref,
+                Type::String,
+                Type::Ref,
+                Type::String,
+                Type::Bool,
+                Type::Bool
+            ],
         }
     }
 
@@ -392,6 +406,7 @@ impl QueryPlan {
                 },
             ],
             select: vec![Var(0), Var(1)],
+            select_types: vec![Type::Ref, Type::String],
         }
     }
 }
@@ -524,8 +539,17 @@ impl<'a> Iterator for Evaluator<'a> {
     fn next(&mut self) -> Option<Box<[Value]>> {
         let i = self.plan.definitions.len() - 1;
         match self.increment(i) {
-            true => Some(self.values.clone().into_boxed_slice()),
             false => None,
+            true => {
+                let results: Vec::<Value> = self
+                    .plan
+                    .select
+                    .iter()
+                    .map(|&v| self.get_value(v))
+                    .collect();
+
+                Some(results.into_boxed_slice())
+            }
         }
     }
 }
