@@ -45,18 +45,18 @@ pub struct Statement {
 }
 
 impl Statement {
-    pub fn named_var(entity: Var, attribute: String, value: Var) -> Statement {
+    pub fn named_var(entity: Var, attribute: &str, value: Var) -> Statement {
         Statement {
             entity: entity,
-            attribute: QueryAttribute::Named(attribute),
+            attribute: QueryAttribute::Named(attribute.to_string()),
             value: QueryValue::Var(value),
         }
     }
 
-    pub fn named_const(entity: Var, attribute: String, value: Value) -> Statement {
+    pub fn named_const(entity: Var, attribute: &str, value: Value) -> Statement {
         Statement {
             entity: entity,
-            attribute: QueryAttribute::Named(attribute),
+            attribute: QueryAttribute::Named(attribute.to_string()),
             value: QueryValue::Const(value),
         }
     }

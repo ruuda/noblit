@@ -20,29 +20,37 @@ fn main() {
     db.debug_print();
 
     {
+        // where
+        //   a db.attribute.name name
+        //   a db.attribute.type t
+        //   a db.attribute.unique unique
+        //   a db.attribute.many many
+        //   t db.type.name type
+        // select
+        //   a, name, t, type, unique, many
+
         use query::{Query, Statement, Var};
-        let query = Query {
+        let mut query = Query {
             variable_names: vec![
-                "id".to_string(),
-                "name".to_string(),
-                "type".to_string(),
-                "type_name".to_string(),
-                "unique".to_string(),
-                "many".to_string(),
+                "a".to_string(),        // 0
+                "t".to_string(),        // 1
+                "name".to_string(),     // 2
+                "unique".to_string(),   // 3
+                "many".to_string(),     // 4
+                "type".to_string(),     // 5
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "a.name".to_string(), Var(1)),
-                Statement::named_var(Var(0), "a.type".to_string(), Var(2)),
-                Statement::named_var(Var(2), "t.name".to_string(), Var(3)),
-                Statement::named_var(Var(0), "a.uniq".to_string(), Var(4)),
-                Statement::named_var(Var(0), "a.many".to_string(), Var(5)),
+                Statement::named_var(Var(0), "a.name", Var(2)),
+                Statement::named_var(Var(0), "a.type", Var(1)),
+                Statement::named_var(Var(0), "a.uniq", Var(3)),
+                Statement::named_var(Var(0), "a.many", Var(4)),
+                Statement::named_var(Var(1), "t.name", Var(5)),
             ],
         };
-
-        // TODO: Build the plan from the above query.
+        query.fix_attributes(&db);
+        let plan = QueryPlan::new(query, &db);
 
         println!("\nAll attributes:");
-        let plan = QueryPlan::example_all_attributes(&db.builtins);
         let eval = Evaluator::new(&plan, &db);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();

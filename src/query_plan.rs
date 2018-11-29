@@ -125,7 +125,7 @@ impl QueryPlan {
     ///
     /// For now, this uses an extremely naive query planner, which loops over
     /// all variables in the order that they appear.
-    fn from_query(query: Query, database: &Database) -> QueryPlan {
+    pub fn new(query: Query, database: &Database) -> QueryPlan {
         use std::iter;
 
         // Map variables in the query to variables in the plan. They may have
@@ -215,7 +215,7 @@ impl QueryPlan {
                             definitions.push(def_value);
                         } else {
                             // The second variable is already defined.
-                            unimplemented!("TODO: Add filter to check for var.")
+                            unimplemented!("TODO: Add filter to check for var {:?} (mapped {:?}).", v, vvar)
                         }
                     }
                 }
