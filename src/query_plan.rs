@@ -106,11 +106,11 @@ impl Mapping {
         match current {
             Some(x) => x,
             None => {
-                let var = Var(self.fresh);
-                self.mapping[var.0 as usize] = Some(var);
+                let mapped = Var(self.fresh);
+                self.mapping[var.0 as usize] = Some(mapped);
                 self.unmapping[self.fresh as usize] = query::Var(var.0);
                 self.fresh += 1;
-                var
+                mapped
             }
         }
     }
