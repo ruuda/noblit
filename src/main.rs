@@ -63,8 +63,25 @@ fn main() {
     }
 
     {
+        // where
+        //   t db.type.name name
+        // select
+        //   t, name
+
+        use query::{Query, Statement, Var};
+        let mut query = Query {
+            variable_names: vec![
+                "t".to_string(),        // 0
+                "name".to_string(),     // 1
+            ],
+            where_statements: vec![
+                Statement::named_var(Var(0), "t.name", Var(1)),
+            ],
+        };
+        query.fix_attributes(&db);
+        let plan = QueryPlan::new(query, &db);
+
         println!("\nAll types:");
-        let plan = QueryPlan::example_all_types(&db.builtins);
         let eval = Evaluator::new(&plan, &db);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
