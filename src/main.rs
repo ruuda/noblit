@@ -17,7 +17,6 @@ use query_plan::{Evaluator, QueryPlan};
 
 fn main() {
     let db = Database::new();
-    db.debug_print();
 
     {
         // where
