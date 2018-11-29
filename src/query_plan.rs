@@ -10,7 +10,7 @@
 use database::{Builtins, Database};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use index::{Avet, Eavt};
-use query::Query;
+use query::{self, Query};
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -84,19 +84,160 @@ pub struct QueryPlan {
     pub variable_names: Vec<String>,
 }
 
+/// Maps numbered variables in the query to variables in the plan.
+struct Mapping {
+    mapping: Vec<Option<Var>>,
+    unmapping: Vec<query::Var>,
+    fresh: u32,
+}
+
+impl Mapping {
+    pub fn new(n: usize) -> Mapping {
+        use std::iter;
+        Mapping {
+            mapping: iter::repeat(None).take(n).collect(),
+            unmapping: iter::repeat(query::Var(0)).take(n).collect(),
+            fresh: 0,
+        }
+    }
+
+    pub fn get(&mut self, var: query::Var) -> Var {
+        let current = self.mapping[var.0 as usize];
+        match current {
+            Some(x) => x,
+            None => {
+                let var = Var(self.fresh);
+                self.mapping[var.0 as usize] = Some(var);
+                self.unmapping[self.fresh as usize] = query::Var(var.0);
+                self.fresh += 1;
+                var
+            }
+        }
+    }
+
+    pub fn unget(&self, var: Var) -> query::Var {
+        self.unmapping[var.0 as usize]
+    }
+}
+
 impl QueryPlan {
     /// Plan a query.
     ///
     /// For now, this uses an extremely naive query planner, which loops over
     /// all variables in the order that they appear.
-    fn from_query(query: Query) -> QueryPlan {
-        let mut plan = QueryPlan {
-            definitions: Vec::new(),
-            variable_types: Vec::new(),
-            variable_names: query.variable_names,
-        };
+    fn from_query(query: Query, database: &Database) -> QueryPlan {
+        use std::iter;
 
-        // TODO: Construct the plan.
+        // Map variables in the query to variables in the plan. They may have
+        // different indices.
+        let mut mapping = Mapping::new(query.variable_names.len());
+        let mut definitions = Vec::new();
+
+        for statement in &query.where_statements {
+            let aid = match statement.attribute {
+                query::QueryAttribute::Named(..) => panic!("Attributes should be fixed before planning."),
+                query::QueryAttribute::Fixed(id) => id,
+            };
+
+            let evar = mapping.get(statement.entity);
+            if definitions.len() <= evar.0 as usize {
+                // The variable is not yet defined. We need to introduce a
+                // definition.
+
+                match statement.value {
+                    query::QueryValue::Const(v) => {
+                        let def_entity = Definition {
+                            retrieval: Retrieval::ScanAvetConst {
+                                attribute: aid,
+                                value: v,
+                            },
+                            filters: Vec::new(),
+                        };
+                        definitions.push(def_entity);
+                    }
+                    query::QueryValue::Var(v) => {
+                        let vvar = mapping.get(v);
+                        if definitions.len() <= vvar.0 as usize{
+                            // The second variable is also not defined yet. We
+                            // need to define it too.
+                            let def_entity = Definition {
+                                retrieval: Retrieval::ScanAvetAny {
+                                    attribute: aid,
+                                },
+                                filters: Vec::new(),
+                            };
+                            let def_value = Definition {
+                                // NOTE: Aevt would be more appropriate here,
+                                // because the outer loop is over a single
+                                // attribute, so aevt would have more locality.
+                                retrieval: Retrieval::LookupEavt {
+                                    entity: evar,
+                                    attribute: aid,
+                                },
+                                filters: Vec::new(),
+                            };
+                            definitions.push(def_entity);
+                            definitions.push(def_value);
+                        } else {
+                            // The second variable does exit already, so we can
+                            // refer to it.
+                            let def_entity = Definition {
+                                retrieval: Retrieval::ScanAvetVar {
+                                    attribute: aid,
+                                    value: vvar,
+                                },
+                                filters: Vec::new(),
+                            };
+                            definitions.push(def_entity);
+                        }
+                    }
+                }
+            } else {
+                // The variable is defined already. We either need to define the
+                // second variable, or we need to add a restriction somewhere.
+
+                match statement.value {
+                    query::QueryValue::Const(v) => {
+                        unimplemented!("TODO: Add filter to check for const.")
+                    }
+                    query::QueryValue::Var(v) => {
+                        let vvar = mapping.get(v);
+                        if definitions.len() <= vvar.0 as usize {
+                            // The second variable is not defined yet. We need
+                            // to define it.
+                            let def_value = Definition {
+                                retrieval: Retrieval::LookupEavt {
+                                    entity: evar,
+                                    attribute: aid,
+                                },
+                                filters: Vec::new(),
+                            };
+                            definitions.push(def_value);
+                        } else {
+                            // The second variable is already defined.
+                            unimplemented!("TODO: Add filter to check for var.")
+                        }
+                    }
+                }
+            }
+        }
+
+        let perm_types = query.infer_types(database).expect("TODO: Handle type errors.");
+        let perm_names = query.variable_names;
+
+        // TODO: Do a true permutation, avoid the clone.
+        let names: Vec<String> = (0..definitions.len()).map(
+            |i| perm_names[mapping.unget(Var(i as u32)).0 as usize].clone()
+        ).collect();
+        let types: Vec<Type> = (0..definitions.len()).map(
+            |i| perm_types[mapping.unget(Var(i as u32)).0 as usize]
+        ).collect();
+
+        let mut plan = QueryPlan {
+            definitions: definitions,
+            variable_types: types,
+            variable_names: names,
+        };
 
         plan
     }
