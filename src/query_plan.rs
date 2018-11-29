@@ -82,6 +82,9 @@ pub struct QueryPlan {
     /// to have human-meaningful names which can be used as column headers when
     /// debug-printing tables, etc.
     pub variable_names: Vec<String>,
+
+    /// The variables to return in the result, and in which order.
+    pub select: Vec<Var>,
 }
 
 /// Maps numbered variables in the query to variables in the plan.
@@ -232,11 +235,14 @@ impl QueryPlan {
         let types: Vec<Type> = (0..definitions.len()).map(
             |i| perm_types[mapping.unget(Var(i as u32)).0 as usize]
         ).collect();
+        let select: Vec<Var> = query.select.iter().map(|&v| mapping.get(v)).collect();
+
 
         let mut plan = QueryPlan {
             definitions: definitions,
             variable_types: types,
             variable_names: names,
+            select: select,
         };
 
         plan
@@ -347,6 +353,7 @@ impl QueryPlan {
                     filters: Vec::new(),
                 }
             ],
+            select: vec![Var(0), Var(1), Var(2), Var(3), Var(4), Var(5)],
         }
     }
 
@@ -384,6 +391,7 @@ impl QueryPlan {
                     filters: Vec::new(),
                 },
             ],
+            select: vec![Var(0), Var(1)],
         }
     }
 }

@@ -69,6 +69,9 @@ pub struct Query {
 
     /// Relations that must be true about the results.
     pub where_statements: Vec<Statement>,
+
+    /// The variables to return results for, and their order.
+    pub select: Vec<Var>,
 }
 
 impl Query {

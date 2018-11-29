@@ -46,6 +46,7 @@ fn main() {
                 Statement::named_var(Var(0), "a.many", Var(4)),
                 Statement::named_var(Var(1), "t.name", Var(5)),
             ],
+            select: vec![Var(0), Var(2), Var(5), Var(3), Var(4)],
         };
         query.fix_attributes(&db);
         let plan = QueryPlan::new(query, &db);
@@ -77,6 +78,7 @@ fn main() {
             where_statements: vec![
                 Statement::named_var(Var(0), "t.name", Var(1)),
             ],
+            select: vec![Var(0), Var(1)],
         };
         query.fix_attributes(&db);
         let plan = QueryPlan::new(query, &db);
