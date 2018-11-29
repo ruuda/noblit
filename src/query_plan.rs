@@ -86,6 +86,9 @@ pub struct QueryPlan {
 
 impl QueryPlan {
     /// Plan a query.
+    ///
+    /// For now, this uses an extremely naive query planner, which loops over
+    /// all variables in the order that they appear.
     fn from_query(query: Query) -> QueryPlan {
         let mut plan = QueryPlan {
             definitions: Vec::new(),

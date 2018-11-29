@@ -12,6 +12,7 @@
 
 use database::Database;
 use datom::{Eid, Aid, Value};
+use types::Type;
 
 /// A placeholder variable in a query.
 ///
@@ -33,7 +34,7 @@ pub enum QueryAttribute {
 /// The value in a query can be a constant or a variable.
 pub enum QueryValue {
     Const(Value),
-    Variable(Var),
+    Var(Var),
 }
 
 /// A statement that relates an entity, attribute, and a value.
@@ -48,7 +49,7 @@ impl Statement {
         Statement {
             entity: entity,
             attribute: QueryAttribute::Named(attribute),
-            value: QueryValue::Variable(value),
+            value: QueryValue::Var(value),
         }
     }
 
@@ -82,5 +83,55 @@ impl Query {
 
             stmt.attribute = QueryAttribute::Fixed(aid);
         }
+    }
+
+    /// Infer the type of every variables.
+    pub fn infer_types(&self, database: &Database) -> Result<Vec<Type>, String> {
+        let mut types: Vec<Option<Type>> = self.variable_names.iter().map(|_| None).collect();
+
+        for statement in &self.where_statements {
+            let entity_type = types[statement.entity.0 as usize];
+            let entity_name = &self.variable_names[statement.entity.0 as usize];
+            match entity_type {
+                None => types[statement.entity.0 as usize] = Some(Type::Ref),
+                Some(Type::Ref) => { /* Ok, the types unify. */ }
+                Some(t) => return Err(format!(
+                    "Type mismatch for variable '{}': used as ref and {:?}.", entity_name, t
+                )),
+            };
+
+            let aid = match statement.attribute {
+                QueryAttribute::Fixed(id) => id,
+                QueryAttribute::Named(..) =>
+                    panic!("Should have fixed attributes before type inference."),
+            };
+            // TODO: What if the attribute does not exist?
+            let attr_type = database.lookup_attribute_type(aid);
+
+            let value = match statement.value {
+                QueryValue::Const(..) => continue,
+                QueryValue::Var(v) => v,
+            };
+            let value_type = types[value.0 as usize];
+            let value_name = &self.variable_names[value.0 as usize];
+            match value_type {
+                None => types[value.0 as usize] = Some(attr_type),
+                Some(t) if t == attr_type => { /* Ok, the types unify. */ },
+                Some(t) => return Err(format!(
+                    "Type mismatch for variable '{}': used as {:?} and {:?}.", value_name, t, attr_type
+                )),
+            }
+        }
+
+        let result = types
+            .iter()
+            .map(|opt_t| match opt_t {
+                Some(t) => t,
+                None => panic!("A variable did not occur in any statement."),
+            })
+            .cloned()
+            .collect();
+
+        Ok(result)
     }
 }
