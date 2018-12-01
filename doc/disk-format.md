@@ -47,7 +47,7 @@ an index consists of multiple immutable B+ trees. A traversal of the index would
 traverse the individual B+ trees, and do a merge sort of the results on the fly.
 Noblit accumulates new datoms in memory first. When there is enough new data, it
 writes a new, immutable B+ tree to disk. To prevent the number of B+ trees from
-growing, too large, trees are occasionally merged into larger trees. The old
+growing too large, trees are occasionally merged into larger trees. The old
 smaller trees can then be garbage collected.
 
 ## The Heap
@@ -77,7 +77,8 @@ somewhere?
 
 The value heap might store duplicates. Because values are immutable once stored,
 deduplication is safe. If a Datom contains a value that already exists on the
-heap, it is safe to reuse the existing value. Noblit may do this, but
-identifying duplicates is not free, hence Noblit may store the same value twice.
+heap, it is safe to reference the existing value, rather than storing it again
+on the heap. Noblit may do this, but identifying duplicates is not free, hence
+Noblit may store the same value twice.
 
 TODO: Persist a hash table of values too, to identify duplicates?
