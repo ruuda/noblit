@@ -19,7 +19,8 @@ files to cut out parts of a file?
 
 Indexes in Noblit are sorted sets of datoms. Each dataom is 32 bytes. (For large
 values, the datom contains a reference to a value on the heap.) The indexes
-store the datoms themselves: they are sorted sets, not key-values maps.
+store the datoms themselves: they are sorted sets, not key-values maps. In other
+words, indexes are *covering indexes*.
 
 Trees in Noblit are based on B-trees, which means that datoms in the interior
 nodes are *not* repeated in the leaf nodes. (Unlike a B+ tree, which would store
@@ -33,7 +34,7 @@ This modification is what makes the tree a hitchhiker tree.
 
 Tree nodes are 4096 bytes.
 
- * Byte 0 contains the depth of the nodes (0 for a leaf, 1 for its parent, etc.).
+ * Byte 0 contains the depth of the node (0 for a leaf, 1 for its parent, etc.).
  * Byte 1 contains the number of child nodes, say <var>k</var>.
  * Byte 2 contains the number of pending values, say <var>p</var>.
  * Bytes 3 through 31 are currently not used.
@@ -44,10 +45,9 @@ Tree nodes are 4096 bytes.
  * At byte 4096 - 8<var>k</var>, the child array starts. It contains 64-bit
    pointers to the child nodes. TODO: Page index, or page byte offset?
 
-The child datoms and pending datoms are both sorted. Because they occupy the
-same space, the child midpoints and pending values compete for space in the
-node. This is not a problem, because the kind of update determines where to add
-new datoms:
+The child datoms and pending datoms are both sorted. The child midpoints and
+pending values compete for space in the node. This is not a problem, because
+the kind of update determines where to add new datoms:
 
  * For inserts, we insert datoms as pending datoms if possible. If this would
    overflow the node, then the datoms to be inserted, as well as the pending
