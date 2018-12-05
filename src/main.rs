@@ -7,6 +7,7 @@
 
 mod database;
 mod datom;
+mod htree;
 mod index;
 mod query;
 mod query_plan;
