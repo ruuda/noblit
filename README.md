@@ -43,7 +43,7 @@ Non-goals:
    store might be better suited for this.
  * High write throughput. If you produce large volumes of data quickly, probably
    not all of it remains valuable for a long time, and storage space might
-   become a concern. A time series database or persistent message queue might be
+   become a concern. A time series database or durable message queue might be
    a better alternative.
  * Portability. Little-endian architectures that run Linux are the only target
    for now.
