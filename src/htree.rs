@@ -15,7 +15,7 @@ use datom::Datom;
 ///
 /// A page id is the offset of the page (counted in pages) from the start of the
 /// file that contains it. For 4096-byte pages, page 0 starts at byte 0, page
-/// 2 starts at byte 8106, etc.
+/// 2 starts at byte 8192, etc.
 pub struct Pid(u64);
 
 /// The number of bytes in a page. A page stores exactly one tree node.
