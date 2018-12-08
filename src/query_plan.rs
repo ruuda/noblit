@@ -132,8 +132,6 @@ impl QueryPlan {
     /// For now, this uses an extremely naive query planner, which loops over
     /// all variables in the order that they appear.
     pub fn new(query: Query, database: &Database) -> QueryPlan {
-        use std::iter;
-
         // Map variables in the query to variables in the plan. They may have
         // different indices.
         let mut mapping = Mapping::new(query.variable_names.len());
@@ -203,7 +201,7 @@ impl QueryPlan {
                 // second variable, or we need to add a restriction somewhere.
 
                 match statement.value {
-                    query::QueryValue::Const(v) => {
+                    query::QueryValue::Const(_v) => {
                         unimplemented!("TODO: Add filter to check for const.")
                     }
                     query::QueryValue::Var(v) => {
@@ -243,7 +241,7 @@ impl QueryPlan {
         let select_types: Vec<Type> = select.iter().map(|&v| types[v.0 as usize]).collect();
 
 
-        let mut plan = QueryPlan {
+        let plan = QueryPlan {
             definitions: definitions,
             variable_types: types,
             variable_names: names,
@@ -541,7 +539,7 @@ impl<'a> Iterator for Evaluator<'a> {
         match self.increment(i) {
             false => None,
             true => {
-                let results: Vec::<Value> = self
+                let results: Vec<Value> = self
                     .plan
                     .select
                     .iter()

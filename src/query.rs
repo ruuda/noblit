@@ -11,7 +11,7 @@
 //! evaluated.
 
 use database::Database;
-use datom::{Eid, Aid, Value};
+use datom::{Aid, Value};
 use types::Type;
 
 /// A placeholder variable in a query.

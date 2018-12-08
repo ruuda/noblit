@@ -22,7 +22,7 @@ fn main() {
     {
         // Insert a bit of test data: a new attribute "level" in transaction 0,
         // and a few entities with different levels in transaction 1.
-        use datom::{Aid, Operation, Value};
+        use datom::{Aid, Value};
         let db_attr_name = db.builtins.attribute_db_attribute_name;
         let db_attr_type = db.builtins.attribute_db_attribute_type;
         let db_attr_unique = db.builtins.attribute_db_attribute_unique;
@@ -37,9 +37,9 @@ fn main() {
 
         let attr_level = Aid(eid.0);
         let t1 = db.create_transaction();
-        let l5 = db.create_entity(attr_level, Value::from_u64(5), t1);
-        let l10 = db.create_entity(attr_level, Value::from_u64(10), t1);
-        let l11 = db.create_entity(attr_level, Value::from_u64(11), t1);
+        db.create_entity(attr_level, Value::from_u64(5), t1);
+        db.create_entity(attr_level, Value::from_u64(10), t1);
+        db.create_entity(attr_level, Value::from_u64(11), t1);
     }
 
     {
