@@ -10,10 +10,14 @@
 use std;
 use datom::Datom;
 
-/// A node id.
-pub struct Nid(u64);
+/// A page id.
+///
+/// A page id is the offset of the page (counted in pages) from the start of the
+/// file that contains it. For 4096-byte pages, page 0 starts at byte 0, page
+/// 2 starts at byte 8106, etc.
+pub struct Pid(u64);
 
-/// A hitchhiker tree node.
+/// A tree node.
 pub struct Node<'a> {
     /// Depth: 0 for leaves, 1 + depth of children for interior nodes.
     pub depth: u8,
@@ -27,7 +31,7 @@ pub struct Node<'a> {
     /// Child node page indices.
     ///
     /// The length is `midpoints.len() + 1`.
-    pub children: &'a [Nid],
+    pub children: &'a [Pid],
 
     /// Datoms that need to be flushed into child nodes.
     pub pending: &'a [Datom],
@@ -46,7 +50,7 @@ impl<'a> HTree<'a> {
         unimplemented!()
     }
 
-    pub fn get(node: Nid) -> Node<'a> {
+    pub fn get(node: Pid) -> Node<'a> {
         unimplemented!()
     }
 }
