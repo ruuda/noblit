@@ -54,13 +54,17 @@ Implementation:
    tuple, like in Datomic.
  * There are four indexes that store these tuples in order: EAVT, AEVT, AVET,
    and VAET, like in Datomic.
- * I am not yet sure about the disk format. One possibility is to use one
-   LevelDB for each index and to be done with it, but I would like something
-   with less dependencies and more control.
- * Alternatively, the disk format would be a log-structured merge tree (like
-   LevelDB) based on B-trees. An immutable on-disk format seems simpler to me
-   than something like fractal trees.
+ * The disk format consists of hitchhiker tree indices and a
+   heap file for large values that cannot be inlined in the index.
+   See also [Disk Format](doc/disk-format.md) and [htree](doc/htree.md).
+ * In addition to the data being semantically immutable, trees on disk are also
+   immutable, and the index files are append-only. They would need to be
+   rewritten periodically if too much unreferenced tree nodes accumulate.
+ * Alternatively, I could keep a free list, but that breaks the immutability
+   property, and reusing old names (or addresses) for new things always makes
+   caching a nightmare.
  * Getting durability right is very hard and not a first priority.
+   Never updating things in place does make it easier though.
  * Rely on the kernel for caching and scheduling: use mmaps and blocking IO.
 
 Remarks:
