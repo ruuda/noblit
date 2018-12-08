@@ -55,10 +55,38 @@ unsafe fn transmute_slice<T, U>(ts: &[T]) -> &[U] {
 }
 
 impl<'a> Node<'a> {
+    /// Interpret a page-sized byte slice as node.
+    pub fn from_bytes(bytes: &'a [u8]) -> Node<'a> {
+        assert_eq!(bytes.len(), PAGE_SIZE);
+        // TODO: Assert alignment of byte array.
+
+        // TODO: Check that these are within range. Should return Result then.
+        let num_children = bytes[1] as usize;
+        let num_pending = bytes[2] as usize;
+
+        // The datom array stores the midpoints and pending datoms after each
+        // other, and it starts at byte 32.
+        let num_datom_bytes = 32 * (num_children + num_pending - 1);
+        let datoms: &[Datom] = unsafe {
+            transmute_slice(&bytes[32..32 + num_datom_bytes])
+        };
+
+        // The array with child page ids is at the end of the page.
+        let num_children_bytes = 8 * num_children;
+        let children: &[Pid] = unsafe {
+            transmute_slice(&bytes[PAGE_SIZE - num_children_bytes..])
+        };
+
+        Node {
+            depth: bytes[0],
+            midpoints: &datoms[..num_children - 1],
+            pending: &datoms[num_children - 1..],
+            children: children,
+        }
+    }
+
     /// Write the node to backing storage.
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
-        use std::mem;
-
         // The first 32 bytes (the size of a datom) do not contain a datom,
         // but the node header. See also doc/htree.md for more information.
         let mut header = [0u8; 32];
@@ -84,7 +112,8 @@ impl<'a> Node<'a> {
         let mut num_zeros_written = 0;
         while num_zeros_written < num_zeros {
             let num_zeros_left = num_zeros - num_zeros_written;
-            num_zeros_written += writer.write(&zeros[..num_zeros_left])?;
+            let num_zeros_write = num_zeros_left.min(zeros.len());
+            num_zeros_written += writer.write(&zeros[..num_zeros_write])?;
         }
 
         // At the end of the page is the child page id array.
@@ -117,5 +146,39 @@ impl<'a> HTree<'a> {
 
     pub fn get(node: Pid) -> Node<'a> {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Node, Pid};
+
+    #[test]
+    fn node_write_after_read_is_identity() {
+        use std::iter;
+        use datom::{Aid, Datom, Eid, Operation, Tid, Value};
+
+        // TODO: Generate some test data.
+        let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
+        let datoms: Vec<_> = iter::repeat(datom).take(17).collect();
+        let child_ids = [Pid(2), Pid(3), Pid(5), Pid(7), Pid(11)];
+
+        // TODO: Test various combinations of child nodes and pending datoms.
+        let node = Node {
+            depth: 0,
+            midpoints: &datoms[..4],
+            pending: &datoms[4..],
+            children: &child_ids[..],
+        };
+
+        let mut buffer_a: Vec<u8> = Vec::new();
+        node.write(&mut buffer_a);
+
+        let node_a = Node::from_bytes(&buffer_a[..]);
+
+        let mut buffer_b: Vec<u8> = Vec::new();
+        node_a.write(&mut buffer_b);
+
+        assert_eq!(buffer_a, buffer_b);
     }
 }

@@ -207,6 +207,16 @@ impl Datom {
         }
     }
 
+    /// Shorthand for `new` with operation `Assert`.
+    pub fn assert(entity: Eid, attribute: Aid, value: Value, transaction: Tid) -> Datom {
+        Datom::new(entity, attribute, value, transaction, Operation::Assert)
+    }
+
+    /// Shorthand for `new` with operation `Retract`.
+    pub fn retract(entity: Eid, attribute: Aid, value: Value, transaction: Tid) -> Datom {
+        Datom::new(entity, attribute, value, transaction, Operation::Retract)
+    }
+
     /// The (attribute, entity, value, transaction) tuple.
     pub fn aevt(&self) -> (u64, u64, u64, u64) {
         // TODO: Deref the value.
@@ -230,16 +240,4 @@ impl Datom {
         // TODO: Deref the value.
         (self.value.0, self.attribute.0, self.value.0, self.transaction_operation.0)
     }
-
-    /// Return the datom, with operation set to `Operation::Assert`.
-    pub fn assert(&self) -> Datom {
-        let transaction = self.transaction_operation.transaction();
-        Datom {
-            entity: self.entity,
-            attribute: self.attribute,
-            value: self.value,
-            transaction_operation: TidOp::new(transaction, Operation::Assert),
-        }
-    }
 }
-
