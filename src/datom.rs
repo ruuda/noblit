@@ -10,6 +10,7 @@
 use std;
 
 /// Entity id.
+#[repr(align(8))]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Eid(pub u64); // TODO: non-pub field?
 
@@ -24,6 +25,7 @@ impl Eid {
 }
 
 /// Attribute id.
+#[repr(align(8))]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Aid(pub u64); // TODO: Non-pub field?
 
@@ -62,6 +64,7 @@ impl Tid {
 ///
 /// * 0 indicates a retraction.
 /// * 1 indicates an assertion.
+#[repr(align(8))]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TidOp(u64);
 
@@ -112,6 +115,7 @@ impl TidOp {
 ///       represented as `0x8000_0000_0000_0000`.
 /// * 11: A string stored externally. The remaining 62 bits indicate its storage
 ///       address.
+#[repr(align(8))]
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Value(pub u64); // TODO: Non-public field?
 
@@ -189,6 +193,7 @@ impl Value {
 }
 
 /// An (entity, attribute, value, transaction, operation) tuple.
+#[repr(align(32))]
 #[derive(Copy, Clone)]
 pub struct Datom {
     pub entity: Eid,
