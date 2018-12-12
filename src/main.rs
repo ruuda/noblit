@@ -11,6 +11,7 @@ mod htree;
 mod index;
 mod query;
 mod query_plan;
+mod store;
 mod types;
 
 use database::Database;

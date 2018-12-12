@@ -9,17 +9,8 @@
 
 use std;
 use std::io;
+use store::{PAGE_SIZE, PageId};
 use datom::Datom;
-
-/// A page id.
-///
-/// A page id is the offset of the page (counted in pages) from the start of the
-/// file that contains it. For 4096-byte pages, page 0 starts at byte 0, page
-/// 2 starts at byte 8192, etc.
-pub struct Pid(u64);
-
-/// The number of bytes in a page. A page stores exactly one tree node.
-pub const PAGE_SIZE: usize = 4096;
 
 /// A tree node.
 pub struct Node<'a> {
@@ -35,7 +26,7 @@ pub struct Node<'a> {
     /// Child node page indices.
     ///
     /// The length is `midpoints.len() + 1`.
-    pub children: &'a [Pid],
+    pub children: &'a [PageId],
 
     /// Datoms that need to be flushed into child nodes.
     pub pending: &'a [Datom],
@@ -73,7 +64,7 @@ impl<'a> Node<'a> {
 
         // The array with child page ids is at the end of the page.
         let num_children_bytes = 8 * num_children;
-        let children: &[Pid] = unsafe {
+        let children: &[PageId] = unsafe {
             transmute_slice(&bytes[PAGE_SIZE - num_children_bytes..])
         };
 
@@ -128,11 +119,6 @@ impl<'a> Node<'a> {
     }
 }
 
-/// An ordering on datoms.
-trait DatomOrd {
-    fn cmp(lhs: &Datom, rhs: &Datom) -> std::cmp::Ordering;
-}
-
 /// A hittchhiker tree.
 struct HTree<'a> {
     root: Node<'a>,
@@ -144,14 +130,15 @@ impl<'a> HTree<'a> {
         unimplemented!()
     }
 
-    pub fn get(node: Pid) -> Node<'a> {
+    pub fn get(node: PageId) -> Node<'a> {
         unimplemented!()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Node, Pid};
+    use store::PageId;
+    use super::Node;
 
     #[test]
     fn node_write_after_read_is_identity() {
@@ -161,7 +148,7 @@ mod test {
         // TODO: Generate some test data.
         let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
         let datoms: Vec<_> = iter::repeat(datom).take(17).collect();
-        let child_ids = [Pid(2), Pid(3), Pid(5), Pid(7), Pid(11)];
+        let child_ids = [PageId(2), PageId(3), PageId(5), PageId(7), PageId(11)];
 
         // TODO: Test various combinations of child nodes and pending datoms.
         let node = Node {
