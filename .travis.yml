@@ -1,0 +1,8 @@
+# Don't spam me please, I'll check Travis manually.
+notifications:
+  email: false
+
+language: rust
+
+rust:
+  - 1.28.0
