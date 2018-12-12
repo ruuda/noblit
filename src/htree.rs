@@ -122,7 +122,7 @@ impl<'a> Node<'a> {
 /// Write a sorted slice of datoms as a tree.
 ///
 /// Returns the page id of the root node.
-pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> PageId {
+pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageId> {
     // Keep track of a stack of parent nodes. The top of the stack contains the
     // parent node of the node that we are currently writing, below is its
     // parent, etc.
@@ -150,7 +150,7 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> PageId {
         let mut depth = 0;
 
         let mut child_id = store.allocate_page();
-        leaf_node.write(store.writer());
+        leaf_node.write(store.writer())?;
 
         loop {
             if let Some((mut parent_children, parent_midpoints)) = stack.pop() {
@@ -168,7 +168,7 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> PageId {
                     };
 
                     child_id = store.allocate_page();
-                    parent_node.write(store.writer());
+                    parent_node.write(store.writer())?;
                 } else {
                     stack.push((parent_children, parent_midpoints));
                     break
@@ -194,7 +194,7 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> PageId {
     let (ref root_children, ref root_midpoints) = stack[0];
 
     // TODO: Assert that it has a single child.
-    root_children[0]
+    Ok(root_children[0])
 }
 
 /// A hittchhiker tree.
