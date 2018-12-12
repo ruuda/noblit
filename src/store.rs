@@ -15,7 +15,8 @@ use std::io;
 /// file that contains it. For 4096-byte pages, page 0 starts at byte 0, page
 /// 2 starts at byte 8192, etc.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct PageId(u64);
+// TODO: Field should not be pub, but it's useful in tests.
+pub struct PageId(pub u64);
 
 /// The number of bytes in a page. A page stores exactly one tree node.
 // TODO: Make this an associated constant of `Store`, to facilitate testing with

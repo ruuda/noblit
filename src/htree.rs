@@ -221,7 +221,7 @@ mod test {
     #[test]
     fn node_write_after_read_is_identity() {
         use std::iter;
-        use datom::{Aid, Datom, Eid, Operation, Tid, Value};
+        use datom::{Aid, Datom, Eid, Tid, Value};
 
         // TODO: Generate some test data.
         let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
@@ -237,12 +237,12 @@ mod test {
         };
 
         let mut buffer_a: Vec<u8> = Vec::new();
-        node.write(&mut buffer_a);
+        node.write(&mut buffer_a).unwrap();
 
         let node_a = Node::from_bytes(&buffer_a[..]);
 
         let mut buffer_b: Vec<u8> = Vec::new();
-        node_a.write(&mut buffer_b);
+        node_a.write(&mut buffer_b).unwrap();
 
         assert_eq!(buffer_a, buffer_b);
     }
