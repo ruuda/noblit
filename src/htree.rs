@@ -7,9 +7,9 @@
 
 //! Defines on-disk hitchhiker trees.
 
-use std;
+use std::cmp;
 use std::io;
-use store::{PAGE_SIZE, PageId};
+use store::{PAGE_SIZE, PageId, Store};
 use datom::Datom;
 
 /// A tree node.
@@ -117,6 +117,84 @@ impl<'a> Node<'a> {
 
         Ok(())
     }
+}
+
+/// Write a sorted slice of datoms as a tree.
+///
+/// Returns the page id of the root node.
+pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> PageId {
+    // Keep track of a stack of parent nodes. The top of the stack contains the
+    // parent node of the node that we are currently writing, below is its
+    // parent, etc.
+    let mut stack: Vec<(Vec<PageId>, Vec<Datom>)> = Vec::new();
+
+    // TODO: Max pending and children depends on the page size.
+    let max_pending = 127;
+    let max_children = 102;
+
+    let mut left = datoms;
+    while left.len() > 0 {
+        let num_pending = cmp::min(left.len(), max_pending);
+
+        let leaf_node = Node {
+            depth: 0,
+            midpoints: &[],
+            pending: &left[..num_pending],
+            children: &[],
+        };
+
+        left = &left[num_pending..];
+
+        // The depth of the current node in the tree. Leaves have depth 0,
+        // parents of leaves have depth 1, etc.
+        let mut depth = 0;
+
+        let mut child_id = store.allocate_page();
+        leaf_node.write(store.writer());
+
+        loop {
+            if let Some((mut parent_children, parent_midpoints)) = stack.pop() {
+                parent_children.push(child_id);
+
+                // If the parent node is full, flush it.
+                if parent_children.len() == max_children {
+                    depth += 1;
+
+                    let parent_node = Node {
+                        depth: depth,
+                        midpoints: &parent_midpoints[..],
+                        pending: &[],
+                        children: &parent_children[..],
+                    };
+
+                    child_id = store.allocate_page();
+                    parent_node.write(store.writer());
+                } else {
+                    stack.push((parent_children, parent_midpoints));
+                    break
+                }
+            } else {
+                // No parent yet, start a new one.
+                stack.push((vec![child_id], vec![]));
+            }
+        }
+
+        // If the parent node is not full, and if there are more datoms to come,
+        // take one datom and insert it as midpoint.
+        if let Some((parent_children, parent_midpoints)) = stack.last_mut() {
+            if left.len() > 0 {
+                parent_midpoints.push(left[0]);
+                left = &left[1..];
+            }
+        }
+    }
+
+    // TODO: Flush remaining datoms.
+
+    let (ref root_children, ref root_midpoints) = stack[0];
+
+    // TODO: Assert that it has a single child.
+    root_children[0]
 }
 
 /// A hittchhiker tree.
