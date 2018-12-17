@@ -190,7 +190,8 @@ impl Value {
 
 /// An (entity, attribute, value, transaction, operation) tuple.
 // TODO: Make copy explicit?
-#[derive(Copy, Clone)]
+// TODO: Proper debug impl, and something to compare in tests that is not Eq.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Datom {
     pub entity: Eid,
     pub attribute: Aid,

@@ -17,7 +17,14 @@ trait DatomOrd {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
 }
 
+impl DatomOrd for () {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+        Ordering::Less
+    }
+}
+
 /// A tree node.
+#[derive(Clone)]
 pub struct Node<'a> {
     /// Depth: 0 for leaves, 1 + depth of children for interior nodes.
     pub depth: u8,
@@ -79,6 +86,12 @@ impl<'a> Node<'a> {
 
     /// Write the node to backing storage.
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        assert_eq!(
+            self.datoms.len() + 1,
+            self.children.len(),
+            "Node must have one more child than datoms.",
+        );
+
         let datom_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
         let children_bytes: &[u8] = unsafe { transmute_slice(self.children) };
 
@@ -144,19 +157,19 @@ struct Route {
 }
 
 /// A hittchhiker tree.
-struct HTree<'a, Cmp: 'a + DatomOrd> {
+struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     root: Node<'a>,
-    data: &'a [u8],
     comparator: &'a Cmp,
+    store: S,
 }
 
-impl<'a, Cmp: DatomOrd> HTree<'a, Cmp> {
-    pub fn new(data: &'a [u8], comparator: &'a Cmp) -> HTree<'a, Cmp> {
+impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
+    pub fn new(store: S, comparator: &'a Cmp) -> HTree<'a, Cmp, S> {
         unimplemented!()
     }
 
-    pub fn get(&self, node: PageId) -> Node<'a> {
-        unimplemented!()
+    pub fn get(&self, page: PageId) -> Node {
+        Node::from_bytes(self.store.get(page))
     }
 
     /// Locate the first datom that is greater than or equal to the queried one.
@@ -165,9 +178,9 @@ impl<'a, Cmp: DatomOrd> HTree<'a, Cmp> {
     }
 }
 
-struct Iter<'a, Cmp: 'a + DatomOrd> {
+struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     /// The tree to iterate.
-    tree: &'a HTree<'a, Cmp>,
+    tree: &'a HTree<'a, Cmp, S>,
 
     /// The node into which `begin` points.
     node: Node<'a>,
@@ -179,8 +192,8 @@ struct Iter<'a, Cmp: 'a + DatomOrd> {
     end: Route,
 }
 
-impl<'a, Cmp: DatomOrd> Iter<'a, Cmp> {
-    fn new(tree: &'a HTree<'a, Cmp>, begin: Route, end: Route) -> Iter<'a, Cmp> {
+impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
+    fn new(tree: &'a HTree<'a, Cmp, S>, begin: Route, end: Route) -> Iter<'a, Cmp, S> {
         Iter {
             tree: tree,
             node: tree.get(*begin.pages.last().unwrap()),
@@ -190,7 +203,7 @@ impl<'a, Cmp: DatomOrd> Iter<'a, Cmp> {
     }
 }
 
-impl<'a, Cmp: DatomOrd> Iterator for Iter<'a, Cmp> {
+impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
     type Item = &'a Datom;
 
     fn next(&mut self) -> Option<&'a Datom> {
@@ -239,18 +252,18 @@ impl<'a, Cmp: DatomOrd> Iterator for Iter<'a, Cmp> {
 
 #[cfg(test)]
 mod test {
-    use store::PageId;
-    use super::Node;
+    use std::iter;
+
+    use datom::{Aid, Datom, Eid, Tid, Value};
+    use store::{MemoryStore, PageId, Store};
+    use super::{HTree, Iter, Node, Route};
 
     #[test]
     fn node_write_after_read_is_identity() {
-        use std::iter;
-        use datom::{Aid, Datom, Eid, Tid, Value};
-
         // TODO: Generate some test data.
         let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
         let datoms: Vec<_> = iter::repeat(datom).take(17).collect();
-        let child_ids: Vec<_> = (0..17).map(|i| PageId(i)).collect();
+        let child_ids: Vec<_> = (0..18).map(|i| PageId(i)).collect();
 
         let node = Node {
             depth: 0,
@@ -267,5 +280,48 @@ mod test {
         node_a.write(&mut buffer_b).unwrap();
 
         assert_eq!(buffer_a, buffer_b);
+    }
+
+    #[test]
+    fn iter_iterates_single_page() {
+        let datoms: Vec<_> = (0..13)
+            .map(|i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max()))
+            .collect();
+        let child_ids: Vec<_> = iter::repeat(PageId::max())
+            .take(14)
+            .collect();
+
+        let node = Node {
+            depth: 0,
+            datoms: &datoms[..],
+            children: &child_ids[..],
+        };
+
+        let mut store = MemoryStore::new();
+        let page = store.allocate_page();
+        node.write(store.writer()).unwrap();
+
+        let tree = HTree {
+            root: node,
+            comparator: &(),
+            store: store,
+        };
+
+        let iter = Iter {
+            tree: &tree,
+            node: tree.root.clone(),
+            begin: Route {
+                pages: vec![page],
+                indices: vec![0],
+            },
+            end: Route {
+                pages: vec![page],
+                indices: vec![0],
+            },
+        };
+
+        for (&x, &y) in iter.zip(datoms.iter()) {
+            assert_eq!(x, y);
+        }
     }
 }

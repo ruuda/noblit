@@ -43,6 +43,9 @@ pub trait Store {
     /// of the caller.
     // TODO: Can this be safer?
     fn allocate_page(&mut self) -> PageId;
+
+    /// Retrieve a page.
+    fn get(&self, page: PageId) -> &[u8];
 }
 
 /// An in-memory page store, not backed by a file.
@@ -78,5 +81,13 @@ impl Store for MemoryStore {
         let pid = self.fresh;
         self.fresh += 1;
         PageId(pid)
+    }
+
+    fn get(&self, page: PageId) -> &[u8] {
+        assert!(page != PageId::max(), "Should never get() PageId::max().");
+        let begin = page.0 as usize * PAGE_SIZE;
+        let end = (1 + page.0 as usize) * PAGE_SIZE;
+
+        &self.buffer[begin..end]
     }
 }
