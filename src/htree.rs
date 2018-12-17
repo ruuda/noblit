@@ -136,8 +136,11 @@ struct Route {
     // branching factor of 102: more datoms are not addressable with 64 bits.
     pages: Vec<PageId>,
 
-    /// Index of the datom in the datoms array.
-    index: usize,
+    /// Index of the datom in the datoms array that we followed.
+    ///
+    /// For the last element, this is the index into the `datoms` array. For the
+    /// preceding elements, this is the index into the `children` array.
+    indices: Vec<usize>,
 }
 
 /// A hittchhiker tree.
@@ -191,12 +194,45 @@ impl<'a, Cmp: DatomOrd> Iterator for Iter<'a, Cmp> {
     type Item = &'a Datom;
 
     fn next(&mut self) -> Option<&'a Datom> {
-        // TODO: Increment begin.
+        let mut index = *self.begin.indices.last().unwrap();
 
-        if self.begin == self.end {
-            None
-        } else {
-            Some(&self.node.datoms[self.begin.index])
+        // First of all, try to move into a child node, if there is any.
+        let child_page = self.node.children[index];
+        if child_page != PageId::max() {
+            self.begin.pages.push(child_page);
+            self.begin.indices.push(0);
+            self.node = self.tree.get(child_page);
+
+            // Tail call: yield from the child page.
+            return self.next();
+        }
+
+        // TODO: Check if we reached the end, and stop if so.
+
+        loop {
+            // There are no children left at the curent index, so we can yield
+            // the midpoint datom, if there is any. If we exhausted all datoms
+            // in this node, then we need to move up one node in the tree.
+            if index < self.node.datoms.len() {
+                // There is a midpoint datom, yield it.
+                let result = &self.node.datoms[index];
+                *self.begin.indices.last_mut().unwrap() += 1;
+                return Some(result);
+            } else {
+                // We exhausted this node, move up one node, then loop. If we
+                // loop, we will yield the datom that is there, otherwise we
+                // will move up all the way if the tree is exhausted.
+                self.begin.pages.pop();
+                self.begin.indices.pop();
+                if let Some(parent_page) = self.begin.pages.last() {
+                    // There is still a parent. Move up.
+                    index = *self.begin.indices.last().unwrap();
+                    self.node = self.tree.get(*parent_page);
+                } else {
+                    // The tree is exhausted.
+                    return None
+                }
+            }
         }
     }
 }
