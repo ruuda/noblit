@@ -35,27 +35,18 @@ This modification is what makes the tree a hitchhiker tree.
 Tree nodes are 4096 bytes.
 
  * Byte 0 contains the depth of the node (0 for a leaf, 1 for its parent, etc.).
- * Byte 1 contains the number of child nodes, say <var>k</var>.
- * Byte 2 contains the number of pending values, say <var>p</var>.
- * Bytes 3 through 31 are currently not used.
+ * Byte 1 contains the number of datoms in the node internally, say <var>k</var>.
+   <var>k</var> is at most 101.
+ * Bytes 2 through 31 are currently not used.
    TODO: I could store a checksum there.
- * At byte 32, the datom array starts. It contains <var>k</var> - 1 +
-   <var>p</var> datoms: <var>k</var> midpoints that separate the child nodes,
-   and <var>p</var> pending values.
- * At byte 4096 - 8<var>k</var>, the child array starts. It contains 64-bit
-   pointers to the child nodes. TODO: Page index, or page byte offset?
-
-The child datoms and pending datoms are both sorted. The child midpoints and
-pending values compete for space in the node. This is not a problem, because
-the kind of update determines where to add new datoms:
-
- * For inserts, we insert datoms as pending datoms if possible. If this would
-   overflow the node, then the datoms to be inserted, as well as the pending
-   datoms in the node, are all flushed.
- * For splits, we add a midpoint to the parent.
-
-TODO: But then there is no upper bound on midpoints, and we might be left with
-no space for pending datoms.
-
-A leaf stores all of its datoms as pending datoms, and it fits 127 datoms.
-A fully-loaded interior node has 102 children and stores 101 midpoint datoms.
+   TODO: I might add a marker byte for leaf nodes. These could store 127 datoms
+   and no child page ids, as opposed to 101 midpoints.
+ * At byte 32, the datom array starts. It contains <var>k</var> datoms in
+   increasing order.
+ * At byte 3280, the child array starts. It contains 64-bit page ids of the
+   child nodes. The child array has <var>k</var> + 1 elements, such that all
+   datoms in node `children[i]` order before `datoms[i]`. The special value
+   `0xffffffffffffffff` indicates that there is no child node in this slot.
+   If this is the case for slot <var>i</var>, then datom <var>i</var> is a
+   *pending* datom rather than a midpoint, and that datom should be flushed
+   to a child node if space runs out in the node.
