@@ -99,8 +99,3 @@ impl PartialEq for Vaet {
         self.0.vaet().eq(&other.0.vaet())
     }
 }
-
-/// An ordering on datoms.
-trait DatomOrd {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
-}

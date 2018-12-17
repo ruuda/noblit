@@ -7,9 +7,15 @@
 
 //! Defines on-disk hitchhiker trees.
 
+use datom::Datom;
+use std::cmp::Ordering;
 use std::io;
 use store::{PAGE_SIZE, PageId, Store};
-use datom::Datom;
+
+/// An ordering on datoms.
+trait DatomOrd {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
+}
 
 /// A tree node.
 pub struct Node<'a> {
@@ -119,58 +125,81 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
     unimplemented!()
 }
 
-/// A hittchhiker tree.
-struct HTree<'a> {
-    root: Node<'a>,
-    data: &'a [u8],
-}
-
-impl<'a> HTree<'a> {
-    pub fn new(data: &'a [u8]) -> HTree<'a> {
-        unimplemented!()
-    }
-
-    pub fn get(node: PageId) -> Node<'a> {
-        unimplemented!()
-    }
-}
-
-/*
 /// Indicates how to reach a datom in the tree.
-struct DatomPointer {
-    /// The pages to traverse.
+#[derive(Eq, PartialEq)]
+struct Route {
+    /// The pages to traverse from the root.
     ///
     /// The first element is the root node, the last element is the node that
     /// contains the datom.
-    route: Vec<PageId>,
+    // TODO: Could use a small slice: depth will not be more than 9 anyway for a
+    // branching factor of 102: more datoms are not addressable with 64 bits.
+    pages: Vec<PageId>,
+
+    /// Index of the datom in the datoms array.
+    index: usize,
 }
 
-struct Iter<'a, Cmp: DatomOrd> {
+/// A hittchhiker tree.
+struct HTree<'a, Cmp: 'a + DatomOrd> {
+    root: Node<'a>,
+    data: &'a [u8],
     comparator: &'a Cmp,
-    tree: &'a HTree<'a>,
-    next_pending_index: usize,
-    next_midpoint_index: usize,
+}
+
+impl<'a, Cmp: DatomOrd> HTree<'a, Cmp> {
+    pub fn new(data: &'a [u8], comparator: &'a Cmp) -> HTree<'a, Cmp> {
+        unimplemented!()
+    }
+
+    pub fn get(&self, node: PageId) -> Node<'a> {
+        unimplemented!()
+    }
+
+    /// Locate the first datom that is greater than or equal to the queried one.
+    pub fn find(&self, datom: &Datom) -> Route {
+        unimplemented!()
+    }
+}
+
+struct Iter<'a, Cmp: 'a + DatomOrd> {
+    /// The tree to iterate.
+    tree: &'a HTree<'a, Cmp>,
+
+    /// The node into which `begin` points.
+    node: Node<'a>,
+
+    /// The pointer to the next datom to yield.
+    begin: Route,
+
+    /// The pointer to the first datom not to yield.
+    end: Route,
 }
 
 impl<'a, Cmp: DatomOrd> Iter<'a, Cmp> {
-    fn new(tree: &'a Htree<'a>, comparator: &'a Cmp) -> Iter<'a, Cmp> {
+    fn new(tree: &'a HTree<'a, Cmp>, begin: Route, end: Route) -> Iter<'a, Cmp> {
         Iter {
-            comparator: comparator,
             tree: tree,
-            next_pending_index: 0,
-            next_midpoint_index: 0,
+            node: tree.get(*begin.pages.last().unwrap()),
+            begin: begin,
+            end: end,
         }
     }
 }
 
-impl std::Iterator for Iter<'a> {
-    type Item = Datom;
+impl<'a, Cmp: DatomOrd> Iterator for Iter<'a, Cmp> {
+    type Item = &'a Datom;
 
-    fn next(&mut self) -> Option<Datom> {
+    fn next(&mut self) -> Option<&'a Datom> {
+        // TODO: Increment begin.
 
+        if self.begin == self.end {
+            None
+        } else {
+            Some(&self.node.datoms[self.begin.index])
+        }
     }
 }
-*/
 
 #[cfg(test)]
 mod test {

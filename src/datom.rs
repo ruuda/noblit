@@ -189,6 +189,7 @@ impl Value {
 }
 
 /// An (entity, attribute, value, transaction, operation) tuple.
+// TODO: Make copy explicit?
 #[derive(Copy, Clone)]
 pub struct Datom {
     pub entity: Eid,
