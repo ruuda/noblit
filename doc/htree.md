@@ -34,16 +34,19 @@ This modification is what makes the tree a hitchhiker tree.
 
 Tree nodes are 4096 bytes.
 
- * Byte 0 contains the depth of the node (0 for a leaf, 1 for its parent, etc.).
- * Byte 1 contains the number of datoms in the node internally, say <var>k</var>.
-   <var>k</var> is at most 101.
- * Bytes 2 through 31 are currently not used.
-   TODO: I could store a checksum there.
-   TODO: I might add a marker byte for leaf nodes. These could store 127 datoms
-   and no child page ids, as opposed to 101 midpoints.
- * At byte 32, the datom array starts. It contains <var>k</var> datoms in
+ * Byte 4088 through 4095 contains the node header, which is built up of the
+   following 8 bytes:
+   * Byte 0 contains the depth of the node (0 for a leaf, 1 for its parent, etc.).
+   * Byte 1 contains the number of datoms in the node internally, say <var>k</var>.
+     <var>k</var> is at most 102.
+   * The remaining 6 bytes are currently not used.
+     TODO: I could store a checksum there.
+     TODO: I might add a marker byte for leaf nodes.
+     These could store 127 datoms and no child page ids,
+     as opposed to 102 midpoints.
+ * At byte 0, the datom array starts. It contains <var>k</var> datoms in
    increasing order.
- * At byte 3280, the child array starts. It contains 64-bit page ids of the
+ * At byte 3264, the child array starts. It contains 64-bit page ids of the
    child nodes. The child array has <var>k</var> + 1 elements, such that all
    datoms in node `children[i]` order before `datoms[i]`. The special value
    `0xffffffffffffffff` indicates that there is no child node in this slot.
