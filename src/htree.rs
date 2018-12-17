@@ -7,7 +7,6 @@
 
 //! Defines on-disk hitchhiker trees.
 
-use std::cmp;
 use std::io;
 use store::{PAGE_SIZE, PageId, Store};
 use datom::Datom;
@@ -19,17 +18,15 @@ pub struct Node<'a> {
 
     /// Datoms stored in this node.
     ///
-    /// * All datoms in `children[i]` are less than `midpoints[i]`.
-    /// * All datoms in `children[i + 1]` are greater than `midpoints[i]`.
-    pub midpoints: &'a [Datom],
+    /// * If `children[i]` is not `u64::MAX`, `datoms[i]` is a midpoint.
+    /// * All datoms in `children[i]` are less than `datoms[i]`.
+    /// * All datoms in `children[i + 1]` are greater than `datoms[i]`.
+    pub datoms: &'a [Datom],
 
     /// Child node page indices.
     ///
-    /// The length is `midpoints.len() + 1`.
+    /// The length is `datoms.len() + 1`.
     pub children: &'a [PageId],
-
-    /// Datoms that need to be flushed into child nodes.
-    pub pending: &'a [Datom],
 }
 
 unsafe fn transmute_slice<T, U>(ts: &[T]) -> &[U] {
@@ -52,53 +49,39 @@ impl<'a> Node<'a> {
         // TODO: Assert alignment of byte array.
 
         // TODO: Check that these are within range. Should return Result then.
-        let num_children = bytes[1] as usize;
-        let num_pending = bytes[2] as usize;
+        let depth = bytes[4088];
+        let num_datoms = bytes[4089] as usize;
 
-        // The datom array stores the midpoints and pending datoms after each
-        // other, and it starts at byte 32.
-        let num_datom_bytes = 32 * (num_children + num_pending - 1);
+        // The datom array is stored at the start of the page.
+        let num_datom_bytes = 32 * num_datoms;
         let datoms: &[Datom] = unsafe {
-            transmute_slice(&bytes[32..32 + num_datom_bytes])
+            transmute_slice(&bytes[0..num_datom_bytes])
         };
 
-        // The array with child page ids is at the end of the page.
-        let num_children_bytes = 8 * num_children;
+        // The array with child page ids starts at 3264.
+        let num_children_bytes = 8 * (num_datoms + 1);
         let children: &[PageId] = unsafe {
-            transmute_slice(&bytes[PAGE_SIZE - num_children_bytes..])
+            transmute_slice(&bytes[3264..3264 + num_children_bytes])
         };
 
         Node {
-            depth: bytes[0],
-            midpoints: &datoms[..num_children - 1],
-            pending: &datoms[num_children - 1..],
+            depth: depth,
+            datoms: datoms,
             children: children,
         }
     }
 
     /// Write the node to backing storage.
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
-        // The first 32 bytes (the size of a datom) do not contain a datom,
-        // but the node header. See also doc/htree.md for more information.
-        let mut header = [0u8; 32];
-        header[0] = self.depth;
-        header[1] = self.children.len() as u8;
-        header[2] = self.pending.len() as u8;
-        writer.write_all(&header[..])?;
-
-        let midpoint_bytes: &[u8] = unsafe { transmute_slice(self.midpoints) };
-        let pending_bytes: &[u8] = unsafe { transmute_slice(self.pending) };
+        let datom_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
         let children_bytes: &[u8] = unsafe { transmute_slice(self.children) };
 
-        // After the header is the datom array, first all midpoints, then all
-        // pending datoms.
-        writer.write_all(&midpoint_bytes)?;
-        writer.write_all(&pending_bytes)?;
-        let num_bytes_written = 32 + midpoint_bytes.len() + pending_bytes.len();
+        // First up is the datom array.
+        writer.write_all(&datom_bytes)?;
 
         // If necessary, pad with zeros between the datom array, and the child
         // page id array.
-        let num_zeros = PAGE_SIZE - num_bytes_written - children_bytes.len();
+        let num_zeros = 3264 - datom_bytes.len();
         let zeros = [0u8; 32];
         let mut num_zeros_written = 0;
         while num_zeros_written < num_zeros {
@@ -107,13 +90,22 @@ impl<'a> Node<'a> {
             num_zeros_written += writer.write(&zeros[..num_zeros_write])?;
         }
 
-        // At the end of the page is the child page id array.
+        // Next up is the child array, also optionally padded.
         writer.write_all(&children_bytes)?;
 
-        debug_assert_eq!(
-            num_bytes_written + num_zeros_written + children_bytes.len(),
-            PAGE_SIZE
-        );
+        let num_zeros = 824 - children_bytes.len();
+        let mut num_zeros_written = 0;
+        while num_zeros_written < num_zeros {
+            let num_zeros_left = num_zeros - num_zeros_written;
+            let num_zeros_write = num_zeros_left.min(zeros.len());
+            num_zeros_written += writer.write(&zeros[..num_zeros_write])?;
+        }
+
+        // Finally, the header.
+        let mut header = [0u8; 8];
+        header[0] = self.depth;
+        header[1] = self.datoms.len() as u8;
+        writer.write_all(&header[..])?;
 
         Ok(())
     }
@@ -123,78 +115,8 @@ impl<'a> Node<'a> {
 ///
 /// Returns the page id of the root node.
 pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageId> {
-    // Keep track of a stack of parent nodes. The top of the stack contains the
-    // parent node of the node that we are currently writing, below is its
-    // parent, etc.
-    let mut stack: Vec<(Vec<PageId>, Vec<Datom>)> = Vec::new();
-
-    // TODO: Max pending and children depends on the page size.
-    let max_pending = 127;
-    let max_children = 102;
-
-    let mut left = datoms;
-    while left.len() > 0 {
-        let num_pending = cmp::min(left.len(), max_pending);
-
-        let leaf_node = Node {
-            depth: 0,
-            midpoints: &[],
-            pending: &left[..num_pending],
-            children: &[],
-        };
-
-        left = &left[num_pending..];
-
-        // The depth of the current node in the tree. Leaves have depth 0,
-        // parents of leaves have depth 1, etc.
-        let mut depth = 0;
-
-        let mut child_id = store.allocate_page();
-        leaf_node.write(store.writer())?;
-
-        loop {
-            if let Some((mut parent_children, parent_midpoints)) = stack.pop() {
-                parent_children.push(child_id);
-
-                // If the parent node is full, flush it.
-                if parent_children.len() == max_children {
-                    depth += 1;
-
-                    let parent_node = Node {
-                        depth: depth,
-                        midpoints: &parent_midpoints[..],
-                        pending: &[],
-                        children: &parent_children[..],
-                    };
-
-                    child_id = store.allocate_page();
-                    parent_node.write(store.writer())?;
-                } else {
-                    stack.push((parent_children, parent_midpoints));
-                    break
-                }
-            } else {
-                // No parent yet, start a new one.
-                stack.push((vec![child_id], vec![]));
-            }
-        }
-
-        // If the parent node is not full, and if there are more datoms to come,
-        // take one datom and insert it as midpoint.
-        if let Some((parent_children, parent_midpoints)) = stack.last_mut() {
-            if left.len() > 0 {
-                parent_midpoints.push(left[0]);
-                left = &left[1..];
-            }
-        }
-    }
-
-    // TODO: Flush remaining datoms.
-
-    let (ref root_children, ref root_midpoints) = stack[0];
-
-    // TODO: Assert that it has a single child.
-    Ok(root_children[0])
+    // TODO: redo this thing.
+    unimplemented!()
 }
 
 /// A hittchhiker tree.
@@ -213,6 +135,43 @@ impl<'a> HTree<'a> {
     }
 }
 
+/*
+/// Indicates how to reach a datom in the tree.
+struct DatomPointer {
+    /// The pages to traverse.
+    ///
+    /// The first element is the root node, the last element is the node that
+    /// contains the datom.
+    route: Vec<PageId>,
+}
+
+struct Iter<'a, Cmp: DatomOrd> {
+    comparator: &'a Cmp,
+    tree: &'a HTree<'a>,
+    next_pending_index: usize,
+    next_midpoint_index: usize,
+}
+
+impl<'a, Cmp: DatomOrd> Iter<'a, Cmp> {
+    fn new(tree: &'a Htree<'a>, comparator: &'a Cmp) -> Iter<'a, Cmp> {
+        Iter {
+            comparator: comparator,
+            tree: tree,
+            next_pending_index: 0,
+            next_midpoint_index: 0,
+        }
+    }
+}
+
+impl std::Iterator for Iter<'a> {
+    type Item = Datom;
+
+    fn next(&mut self) -> Option<Datom> {
+
+    }
+}
+*/
+
 #[cfg(test)]
 mod test {
     use store::PageId;
@@ -226,13 +185,11 @@ mod test {
         // TODO: Generate some test data.
         let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
         let datoms: Vec<_> = iter::repeat(datom).take(17).collect();
-        let child_ids = [PageId(2), PageId(3), PageId(5), PageId(7), PageId(11)];
+        let child_ids: Vec<_> = (0..17).map(|i| PageId(i)).collect();
 
-        // TODO: Test various combinations of child nodes and pending datoms.
         let node = Node {
             depth: 0,
-            midpoints: &datoms[..4],
-            pending: &datoms[4..],
+            datoms: &datoms[..],
             children: &child_ids[..],
         };
 

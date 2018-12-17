@@ -18,6 +18,13 @@ use std::io;
 // TODO: Field should not be pub, but it's useful in tests.
 pub struct PageId(pub u64);
 
+impl PageId {
+    pub fn max() -> PageId {
+        use std::u64;
+        PageId(u64::MAX)
+    }
+}
+
 /// The number of bytes in a page. A page stores exactly one tree node.
 // TODO: Make this an associated constant of `Store`, to facilitate testing with
 // different page sizes.
