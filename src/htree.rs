@@ -158,8 +158,13 @@ struct Route {
 
 /// A hittchhiker tree.
 struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
-    root: Node<'a>,
+    /// The page that contains the root node.
+    root_page: PageId,
+
+    /// Ordering on datoms.
     comparator: &'a Cmp,
+
+    /// The backing store to read pages from.
     store: S,
 }
 
@@ -172,9 +177,61 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         Node::from_bytes(self.store.get(page))
     }
 
-    /// Locate the first datom that is greater than or equal to the queried one.
+    /// Locate the last datom that is smaller than or equal to the queried one.
     pub fn find(&self, datom: &Datom) -> Route {
-        unimplemented!()
+        let mut pages = vec![self.root_page];
+        let mut indices = vec![0];
+
+        loop {
+            let mut node = self.get(pages.last().unwrap());
+
+            // Do a linear scan over the datoms in the current node and stop
+            // at the first one that is greater than or equal to the requested
+            // datom. TODO: In the future we might do a binary search.
+            for (i, midpoint) in node.datoms.iter().enumerate() {
+                match self.comparator.cmp(datom, midpoint) {
+                    Ordering::Less => continue,
+                    Ordering::Equal => {
+                        // We found the datom. Assuming datoms are unique, we
+                        // can return the route to it.
+                        *indices.last_mut().unwrap() = i;
+                        return Route {
+                            pages: pages,
+                            indices: indices,
+                        };
+                    }
+                    Ordering::Greater => {
+                        // We stepped too far. The target datom is either at the
+                        // previous index, or it is in a child node, if there is
+                        // any.
+                        let child_index = node.children[i];
+                        if child_index == PageId::max() {
+                            // TODO: What if i = 0? Then the cursor points to
+                            // before the first element.
+                            *indices.last_mut().unwrap() = i - 1;
+                            return Route {
+                                pages: pages,
+                                indices: indices,
+                            };
+                        }
+
+                        // There is a child node, descend into it.
+                        node = self.get(child_index);
+                        pages.push(child_index);
+                        indices.push(0);
+                        continue;
+                    }
+                }
+            }
+
+            // We exhausted the current node. All datoms stored in it are
+            // smaller than the requested datom. If there is a final child, then
+            // we should still descend into it, but we don't find anything in
+            // there, we would need to return the last element of this node. So
+            // rather, we can not have a final child. The we have an upper
+            // bound, that simplifies things.
+            // TODO.
+        }
     }
 }
 
