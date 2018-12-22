@@ -72,7 +72,7 @@ impl<'a> Node<'a> {
         };
 
         // The array with child page ids starts at 3264.
-        let num_children_bytes = 8 * (num_datoms + 1);
+        let num_children_bytes = 8 * num_datoms;
         let children: &[PageId] = unsafe {
             transmute_slice(&bytes[3264..3264 + num_children_bytes])
         };
@@ -87,9 +87,9 @@ impl<'a> Node<'a> {
     /// Write the node to backing storage.
     pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         assert_eq!(
-            self.datoms.len() + 1,
+            self.datoms.len(),
             self.children.len(),
-            "Node must have one more child than datoms.",
+            "Node must have as many children as datoms."
         );
 
         let datom_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
@@ -183,7 +183,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         let mut indices = vec![0];
 
         loop {
-            let mut node = self.get(pages.last().unwrap());
+            let mut node = self.get(*pages.last().unwrap());
 
             // Do a linear scan over the datoms in the current node and stop
             // at the first one that is greater than or equal to the requested
@@ -204,6 +204,8 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
                         // We stepped too far. The target datom is either at the
                         // previous index, or it is in a child node, if there is
                         // any.
+                        // TODO: No, this is incorrect, the pending datoms are
+                        // not midpoints. We need to track two bounds.
                         let child_index = node.children[i];
                         if child_index == PageId::max() {
                             // TODO: What if i = 0? Then the cursor points to
@@ -225,12 +227,14 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             }
 
             // We exhausted the current node. All datoms stored in it are
-            // smaller than the requested datom. If there is a final child, then
-            // we should still descend into it, but we don't find anything in
-            // there, we would need to return the last element of this node. So
-            // rather, we can not have a final child. The we have an upper
-            // bound, that simplifies things.
-            // TODO.
+            // smaller than the requested datom. If there were parent nodes,
+            // then the datoms in it were larger than those in this node, so
+            // we found the candidate.
+            *indices.last_mut().unwrap() = node.datoms.len();
+            return Route {
+                pages: pages,
+                indices: indices,
+            };
         }
     }
 }
@@ -283,7 +287,7 @@ impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
             // There are no children left at the curent index, so we can yield
             // the midpoint datom, if there is any. If we exhausted all datoms
             // in this node, then we need to move up one node in the tree.
-            if index < self.node.datoms.len() {
+            if index < self.node.datoms.len() - 1 {
                 // There is a midpoint datom, yield it.
                 let result = &self.node.datoms[index];
                 *self.begin.indices.last_mut().unwrap() += 1;
@@ -320,7 +324,7 @@ mod test {
         // TODO: Generate some test data.
         let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
         let datoms: Vec<_> = iter::repeat(datom).take(17).collect();
-        let child_ids: Vec<_> = (0..18).map(|i| PageId(i)).collect();
+        let child_ids: Vec<_> = (0..17).map(|i| PageId(i)).collect();
 
         let node = Node {
             depth: 0,
@@ -345,7 +349,7 @@ mod test {
             .map(|i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max()))
             .collect();
         let child_ids: Vec<_> = iter::repeat(PageId::max())
-            .take(14)
+            .take(13)
             .collect();
 
         let node = Node {
@@ -359,14 +363,14 @@ mod test {
         node.write(store.writer()).unwrap();
 
         let tree = HTree {
-            root: node,
+            root_page: PageId(0),
             comparator: &(),
             store: store,
         };
 
         let iter = Iter {
             tree: &tree,
-            node: tree.root.clone(),
+            node: tree.get(tree.root_page).clone(),
             begin: Route {
                 pages: vec![page],
                 indices: vec![0],
