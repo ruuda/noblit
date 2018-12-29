@@ -3,7 +3,72 @@
 **This is vaporware. Much of the content below is hypothetical.**
 
 This is a free, libre, implementation of an immutable append-only database
-inspired by Datomic.
+inspired by Datomic. A database is a set of (entity, attribute, value) tuples
+called *datoms*. Datoms can be asserted and retracted. A retraction is recorded
+as a new fact; it is not a delete.
+
+A demonstration through a film database. Let's first insert some films:
+
+    -- TODO: Create Python bindings and give a Python example,
+    -- rather than an example in a made-up query language.
+    assert
+      -- Create three new entities, and set the director.name property for them.
+      -- The variables s, n, and t will refer to these entities henceforth.
+      s director.name "Ridley Scott"
+      n director.name "Christopher Nolan"
+      t director.name "Quentin Tarantino"
+
+      -- Create a new entity with three attributes. The type of the film.title
+      -- attribute is string, the type of film.year is integer. The type of
+      -- film.director is ref: it references an other entity.
+      b film.title "Blade Runner"
+      b film.director s
+      b film.year 1982
+
+      p film.title "Pulp fiction"
+      p film.director t
+      p film.year 1994
+
+      m film.title "Memento"
+      m film.director n
+      m film.year 2000
+
+      d film.title "Django Unchained"
+      d film.director t
+      d film.year 2012
+
+      k film.title "The Dark Knight Rises"
+      k film.director n
+      k film.year 2012
+
+Now we can get all films released in 2012:
+
+    where
+      -- Find all entities f, that have a film.year attribute with value 2012,
+      -- and that have a film.title attribute. We don't restrict the value of
+      -- the film.title attribute, but we do bind it to the variable "title".
+      f film.year 2012
+      f film.title title
+    select
+      -- Return the entity id of the film, along with the title.
+      f, title
+
+All films directed by Christopher Nolan:
+
+    where
+      nolan director.name "Christopher Nolan"
+      f film.director nolan
+      f film.title title
+      f film.year year
+    select
+      year, title
+
+List all known directors:
+
+    where
+      d director.name name
+    select
+      name
 
 ## Resources
 
