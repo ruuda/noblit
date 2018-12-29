@@ -7,7 +7,7 @@ inspired by Datomic. A database is a set of (entity, attribute, value) tuples
 called *datoms*. Datoms can be asserted and retracted. A retraction is recorded
 as a new fact; it is not a delete.
 
-A demonstration through a film database. Let's first insert some films:
+Below is a demonstration through a film database. Let's first insert some films:
 
     -- TODO: Create Python bindings and give a Python example,
     -- rather than an example in a made-up query language.
