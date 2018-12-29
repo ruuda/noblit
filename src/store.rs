@@ -25,14 +25,81 @@ impl PageId {
     }
 }
 
-/// The number of bytes in a page. A page stores exactly one tree node.
-// TODO: Make this an associated constant of `Store`, to facilitate testing with
-// different page sizes.
-pub const PAGE_SIZE: usize = 4096;
+/// Traits to allow compile-time parametrization over the page size.
+///
+/// This is mainly useful in tests, where constructing large trees is
+/// undesirable, and for fuzzing, where small examples are faster to explore.
+/// In that case we can use smaller pages, while in release mode we use a page
+/// size that is a multiple of the OS page size.
+pub trait PageSize {
+    /// The number of bytes in a page. A page stores exactly one tree node.
+    const SIZE: usize;
+
+    /// The number of datoms that fit in a page.
+    const CAPACITY: usize;
+
+    /// Construct a sentinel value.
+    fn new() -> Self;
+
+    /// The size of the datoms array in bytes.
+    #[inline(always)]
+    fn datoms_bytes_len() -> usize {
+        // A datom is 32 bytes.
+        32 * Self::CAPACITY
+    }
+
+    /// The size of the children page id array in bytes.
+    fn children_bytes_len() -> usize {
+        // A page id is 8 bytes.
+        8 * Self::CAPACITY
+    }
+
+    /// Byte offset at which the children page id array starts.
+    #[inline(always)]
+    fn children_offset() -> usize {
+        // The page layout is first the datom array (32 bytes per datom),
+        // then the child page id array (8 bytes per element), the the header.
+        Self::datoms_bytes_len()
+    }
+
+    /// Byte offset at which the page header starts.
+    #[inline(always)]
+    fn header_offset() -> usize {
+        // The page layout is first the datom array (32 bytes per datom),
+        // then the child page id array (8 bytes per element), the the header.
+        Self::datoms_bytes_len() + Self::children_bytes_len()
+    }
+}
+
+pub struct PageSize256;
+pub struct PageSize563;
+pub struct PageSize4096;
+
+impl PageSize for PageSize256 {
+    const SIZE: usize = 256;
+    const CAPACITY: usize = 6;
+    fn new() -> PageSize256 { PageSize256 }
+}
+
+// A 563-byte page can hold 14 datoms, the 2-byte header, and then it has one
+// byte to spare. The size is deliberately prime (and not a power of two) to
+// increase the chances of catching edge cases in tests.
+impl PageSize for PageSize563 {
+    const SIZE: usize = 563;
+    const CAPACITY: usize = 14;
+    fn new() -> PageSize563 { PageSize563 }
+}
+
+impl PageSize for PageSize4096 {
+    const SIZE: usize = 4096;
+    const CAPACITY: usize = 102;
+    fn new() -> PageSize4096 { PageSize4096 }
+}
 
 /// A page store.
 pub trait Store {
     type Writer: io::Write;
+    type Size: PageSize;
 
     /// Return the underlying writer.
     fn writer(&mut self) -> &mut Self::Writer;
@@ -49,19 +116,23 @@ pub trait Store {
 }
 
 /// An in-memory page store, not backed by a file.
-pub struct MemoryStore {
+pub struct MemoryStore<Size: PageSize> {
     /// The backing buffer.
     buffer: Vec<u8>,
 
     /// The next unused page id.
     fresh: u64,
+
+    /// Instance of page size traits.
+    _size_sentinel: Size,
 }
 
-impl MemoryStore {
-    pub fn new() -> MemoryStore {
+impl<Size: PageSize> MemoryStore<Size> {
+    pub fn new() -> MemoryStore<Size> {
         MemoryStore {
             buffer: Vec::new(),
             fresh: 0,
+            _size_sentinel: PageSize::new(),
         }
     }
 
@@ -70,8 +141,9 @@ impl MemoryStore {
     }
 }
 
-impl Store for MemoryStore {
+impl<Size: PageSize> Store for MemoryStore<Size> {
     type Writer = Vec<u8>;
+    type Size = Size;
 
     fn writer(&mut self) -> &mut Vec<u8> {
         &mut self.buffer
@@ -85,8 +157,8 @@ impl Store for MemoryStore {
 
     fn get(&self, page: PageId) -> &[u8] {
         assert!(page != PageId::max(), "Should never get() PageId::max().");
-        let begin = page.0 as usize * PAGE_SIZE;
-        let end = (1 + page.0 as usize) * PAGE_SIZE;
+        let begin = page.0 as usize * Size::SIZE;
+        let end = (1 + page.0 as usize) * Size::SIZE;
 
         &self.buffer[begin..end]
     }

@@ -10,7 +10,7 @@
 use datom::Datom;
 use std::cmp::Ordering;
 use std::io;
-use store::{PAGE_SIZE, PageId, Store};
+use store::{PageId, PageSize, Store};
 
 /// An ordering on datoms.
 trait DatomOrd {
@@ -57,13 +57,14 @@ unsafe fn transmute_slice<T, U>(ts: &[T]) -> &[U] {
 
 impl<'a> Node<'a> {
     /// Interpret a page-sized byte slice as node.
-    pub fn from_bytes(bytes: &'a [u8]) -> Node<'a> {
-        assert_eq!(bytes.len(), PAGE_SIZE);
+    pub fn from_bytes<Size: PageSize>(bytes: &'a [u8]) -> Node<'a> {
+        assert_eq!(bytes.len(), Size::SIZE);
         // TODO: Assert alignment of byte array.
 
         // TODO: Check that these are within range. Should return Result then.
-        let depth = bytes[4088];
-        let num_datoms = bytes[4089] as usize;
+        let header = &bytes[Size::header_offset()..];
+        let depth = header[0];
+        let num_datoms = header[1] as usize;
 
         // The datom array is stored at the start of the page.
         let num_datom_bytes = 32 * num_datoms;
@@ -73,8 +74,9 @@ impl<'a> Node<'a> {
 
         // The array with child page ids starts at 3264.
         let num_children_bytes = 8 * num_datoms;
+        let child_off = Size::children_offset();
         let children: &[PageId] = unsafe {
-            transmute_slice(&bytes[3264..3264 + num_children_bytes])
+            transmute_slice(&bytes[child_off..child_off + num_children_bytes])
         };
 
         Node {
@@ -85,22 +87,26 @@ impl<'a> Node<'a> {
     }
 
     /// Write the node to backing storage.
-    pub fn write<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<Size: PageSize, W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         assert_eq!(
             self.datoms.len(),
             self.children.len(),
             "Node must have as many children as datoms."
         );
+        assert!(
+            self.datoms.len() <= Size::CAPACITY,
+            "Node has more datoms than a page can hold.",
+        );
 
-        let datom_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
+        let datoms_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
         let children_bytes: &[u8] = unsafe { transmute_slice(self.children) };
 
         // First up is the datom array.
-        writer.write_all(&datom_bytes)?;
+        writer.write_all(&datoms_bytes)?;
 
         // If necessary, pad with zeros between the datom array, and the child
         // page id array.
-        let num_zeros = 3264 - datom_bytes.len();
+        let num_zeros = Size::datoms_bytes_len() - datoms_bytes.len();
         let zeros = [0u8; 32];
         let mut num_zeros_written = 0;
         while num_zeros_written < num_zeros {
@@ -112,7 +118,7 @@ impl<'a> Node<'a> {
         // Next up is the child array, also optionally padded.
         writer.write_all(&children_bytes)?;
 
-        let num_zeros = 824 - children_bytes.len();
+        let num_zeros = Size::children_bytes_len() - children_bytes.len();
         let mut num_zeros_written = 0;
         while num_zeros_written < num_zeros {
             let num_zeros_left = num_zeros - num_zeros_written;
@@ -120,11 +126,16 @@ impl<'a> Node<'a> {
             num_zeros_written += writer.write(&zeros[..num_zeros_write])?;
         }
 
-        // Finally, the header.
-        let mut header = [0u8; 8];
+        // Finally, the header. For now it consists of two bytes, and we pad
+        // with zeros to fill up the page.
+        let mut header = [0u8; 42];
+        let header_len = Size::SIZE - Size::header_offset();
+        debug_assert!(header_len < 42, "Header too large, could fit extra datom.");
+        debug_assert!(header_len >= 2, "Header too small, cannot fit all fields.");
+        debug_assert!(self.datoms.len() < 256, "Datoms length must fit in a byte.");
         header[0] = self.depth;
         header[1] = self.datoms.len() as u8;
-        writer.write_all(&header[..])?;
+        writer.write_all(&header[..header_len])?;
 
         Ok(())
     }
@@ -174,7 +185,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     }
 
     pub fn get(&self, page: PageId) -> Node {
-        Node::from_bytes(self.store.get(page))
+        Node::from_bytes::<S::Size>(self.store.get(page))
     }
 
     /// Locate the last datom that is smaller than or equal to the queried one.
@@ -316,7 +327,7 @@ mod test {
     use std::iter;
 
     use datom::{Aid, Datom, Eid, Tid, Value};
-    use store::{MemoryStore, PageId, Store};
+    use store::{MemoryStore, PageId, PageSize563, PageSize4096, Store};
     use super::{HTree, Iter, Node, Route};
 
     #[test]
@@ -333,12 +344,12 @@ mod test {
         };
 
         let mut buffer_a: Vec<u8> = Vec::new();
-        node.write(&mut buffer_a).unwrap();
+        node.write::<PageSize4096, _>(&mut buffer_a).unwrap();
 
-        let node_a = Node::from_bytes(&buffer_a[..]);
+        let node_a = Node::from_bytes::<PageSize4096>(&buffer_a[..]);
 
         let mut buffer_b: Vec<u8> = Vec::new();
-        node_a.write(&mut buffer_b).unwrap();
+        node_a.write::<PageSize4096, _>(&mut buffer_b).unwrap();
 
         assert_eq!(buffer_a, buffer_b);
     }
@@ -358,9 +369,10 @@ mod test {
             children: &child_ids[..],
         };
 
-        let mut store = MemoryStore::new();
+        type Size = PageSize563;
+        let mut store = MemoryStore::<Size>::new();
         let page = store.allocate_page();
-        node.write(store.writer()).unwrap();
+        node.write::<Size, _>(store.writer()).unwrap();
 
         let tree = HTree {
             root_page: PageId(0),
