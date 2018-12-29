@@ -9,8 +9,8 @@ as a new fact; it is not a delete.
 
 Below is a demonstration through a film database. Let's first insert some films:
 
-    -- TODO: Create Python bindings and give a Python example,
-    -- rather than an example in a made-up query language.
+    -- See also example.py for the same example in a Python DSL, rather than in
+    -- the made-up query language below.
     assert
       -- Create three new entities, and set the director.name property for them.
       -- The variables s, n, and t will refer to these entities henceforth.
