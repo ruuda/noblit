@@ -139,6 +139,25 @@ impl<'a> Node<'a> {
 
         Ok(())
     }
+
+    /// Return whether the datom at the given index is a midpoint datom.
+    ///
+    /// A midpoint datom is one for which a child node exists. The midpoint
+    /// datom is greater than all datoms in its child nodes. A datom which is
+    /// not a _midpoint_ datom is said to be a _pending_ datom.
+    pub fn is_midpoint_at(&self, index: usize) -> bool {
+        self.children[index] != PageId::max()
+    }
+
+    /// Return the page id of the child for the midpoint at or after `index`.
+    pub fn next_midpoint(&self, index: usize) -> Option<PageId> {
+        for &page_id in self.children[index..].iter() {
+            if page_id != PageId::max() {
+                return Some(page_id);
+            }
+        }
+        None
+    }
 }
 
 /// Write a sorted slice of datoms as a tree.
@@ -149,13 +168,30 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
     unimplemented!()
 }
 
-/// Indicates how to reach a datom in the tree.
-struct Route {
-    /// Index into the datom array in the node, of the next pending datom to yield.
+/// Points to a datom in the tree.
+///
+/// Datoms in the tree are ordered. A pointer identifies how to reach a given
+/// datom, and also how to reach the next one.
+///
+/// A pointer is a stack of indices into nodes.
+///
+/// * `nodes[0]` is the root node.
+/// * `indices[0]` is an index into the root node's datoms.
+/// * `nodes[i]` is the node pointed at by `indices[i - 1]`, or by the first
+///   midpoint datom after `indices[i - 1]` if `indices[i - 1]` points at a
+///   pending datom.
+/// * `indices[i]` is an index into `nodes[i]`.
+///
+/// Note that the nodes are not stored in the pointer. Rather, they are stored
+/// in the iterator when iterating.
+struct Pointer {
+    /// Stack of indices into the datom array, of the next datom to yield.
     ///
-    /// When the index points past the datom array, or when the datom at the
-    /// given index is a midpoint, then the pending datoms have been exhausted.
-    pending_index: usize,
+    /// The bottom of the stack corresponds to the node with the greatest depth,
+    /// the root node.
+    // TODO: Could be a fixed-size array, max depth is not very deep. The index
+    // could also be u32 or even u16, as there aren't that much datoms per node.
+    indices: Vec<usize>,
 }
 
 /// A hittchhiker tree.
@@ -180,21 +216,21 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     }
 
     /// Locate the first datom that is greater than or equal to the queried one.
-    pub fn find(&self, datom: &Datom) -> Route {
+    pub fn find(&self, datom: &Datom) -> Pointer {
         let node = self.get(self.root_page);
 
         for (i, datom_i) in node.datoms.iter().enumerate() {
             match self.comparator.cmp(datom_i, datom) {
                 Ordering::Less => continue,
-                Ordering::Equal | Ordering::Greater => return Route {
-                    pending_index: i,
+                Ordering::Equal | Ordering::Greater => return Pointer {
+                    indices: vec![i],
                 },
             }
         }
 
         // Everything is less than the given datom, return a route past the end.
-        Route {
-            pending_index: node.datoms.len(),
+        Pointer {
+            indices: vec![node.datoms.len()],
         }
     }
 }
@@ -203,23 +239,90 @@ struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     /// The tree to iterate.
     tree: &'a HTree<'a, Cmp, S>,
 
-    /// The node into which `begin` points.
-    node: Node<'a>,
+    /// The nodes into which `begin.indices` point.
+    nodes: Vec<Node<'a>>,
 
     /// The pointer to the next datom to yield.
-    begin: Route,
+    begin: Pointer,
 
     /// The pointer to the first datom not to yield.
-    end: Route,
+    end: Pointer,
 }
 
 impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
-    fn new(tree: &'a HTree<'a, Cmp, S>, begin: Route, end: Route) -> Iter<'a, Cmp, S> {
+    fn new(tree: &'a HTree<'a, Cmp, S>, begin: Pointer, end: Pointer) -> Iter<'a, Cmp, S> {
         Iter {
             tree: tree,
-            node: tree.get(tree.root_page),
+            // TODO: Find the correct level.
+            nodes: vec![tree.get(tree.root_page)],
             begin: begin,
             end: end,
+        }
+    }
+
+    /// Advance the begin pointer after yielding a datom.
+    ///
+    /// `level` is the index into the `nodes` and `indices` stacks
+    /// from which we just yielded a datom.
+    fn advance(&mut self, level: usize) {
+        let old_index = self.begin.indices[level];
+        self.begin.indices[level] = old_index + 1;
+
+        // There are two cases here: either we yielded from the top of the
+        // stack, and then we may need to find a new top. Or we yielded along
+        // the path of parents, and in that case the datom we yielded was a
+        // pending datom.
+        if level + 1 == self.nodes.len() {
+            if self.nodes[level].datoms.len() == self.begin.indices[level] {
+                // We exhausted the current node. Move up; we will next yield
+                // the midpoint datom from the parent that pointed to this node.
+                self.begin.indices.pop();
+                self.nodes.pop();
+            } else if self.nodes[level].is_midpoint_at(old_index) {
+                // There are still datoms left in the current node, and
+                // furthermore we just yielded a midpoint datom. We may now
+                // need to descend into the children.
+                for i in 0..self.nodes[level].depth as usize {
+                    match self.nodes[level + i].next_midpoint(self.begin.indices[level + i]) {
+                        Some(pid) => {
+                            let node = self.tree.get(pid);
+                            debug_assert_eq!(
+                                node.depth + 1,
+                                self.nodes[level + i].depth,
+                                "Child node depth must be one less than parent.",
+                            );
+                            self.nodes.push(node);
+                            self.begin.indices.push(0);
+                        }
+                        None => {
+                            debug_assert_eq!(
+                                self.nodes[level + i].depth, 0,
+                                "All but depth 0 nodes must contain at least one midpoint.",
+                            );
+                            debug_assert_eq!(
+                                self.nodes[0].depth as usize, self.nodes.len(),
+                                "After advancing past midpoint, must point at leaf.",
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            // The final midpoint datom terminates the datom array of the parent
+            // node. That datom is greater than the datoms in the child nodes,
+            // so we could not have yielded that datom. Therefore, even after
+            // incrementing, the index is still in bounds.
+            debug_assert!(
+                self.begin.indices[level] < self.nodes[level].datoms.len(),
+                "Parent indices must be in bounds."
+            );
+
+            // The datom we are about to yield, is a pending datom, not a
+            // midpoint datom. Its child pointer should mark that.
+            debug_assert!(
+                !self.nodes[level].is_midpoint_at(old_index),
+                "When yielding from parent, must yield pending datom, not midpoint."
+            );
         }
     }
 }
@@ -228,17 +331,39 @@ impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
     type Item = &'a Datom;
 
     fn next(&mut self) -> Option<&'a Datom> {
-        // Check if we exhausted the range.
-        if self.begin.pending_index == self.end.pending_index {
+        // If we exhausted the range, then we are done.
+        if self.begin.indices == self.end.indices {
             return None
         }
 
-        // We did not exhaust the range, locate the next datom to yield.
-        let datom = &self.node.datoms[self.begin.pending_index];
+        // Inspect the datom that the begin pointer points at, and all datoms
+        // along the way there from the root: these could be pending datoms, and
+        // we need to merge them in now. Note that because each parent stores a
+        // midpoint datom that bounds the datoms in its children from above,
+        // indexing is within bounds at all levels: we will yield the parent
+        // datoms last.
+        let mut level = 0;
+        let mut least_datom = &self.nodes[0].datoms[self.begin.indices[0]];
+        for (k, (&i, node)) in self
+            .begin.indices.iter()
+            .zip(&self.nodes)
+            .enumerate()
+            .skip(1)
+        {
+            let datom = &node.datoms[i];
+            match self.tree.comparator.cmp(least_datom, datom) {
+                Ordering::Less => continue,
+                Ordering::Equal => panic!("Encountered duplicate datom in htree."),
+                Ordering::Greater => {
+                    level = k;
+                    least_datom = datom;
+                }
+            }
+        }
 
-        self.begin.pending_index += 1;
+        self.advance(level);
 
-        Some(datom)
+        Some(least_datom)
     }
 }
 
@@ -248,7 +373,7 @@ mod test {
 
     use datom::{Aid, Datom, Eid, Tid, Value};
     use store::{MemoryStore, PageId, PageSize563, PageSize4096, Store};
-    use super::{HTree, Iter, Node, Route};
+    use super::{HTree, Iter, Node, Pointer};
 
     #[test]
     fn node_write_after_read_is_identity() {
@@ -305,12 +430,12 @@ mod test {
 
         let iter = Iter {
             tree: &tree,
-            node: tree.get(tree.root_page).clone(),
-            begin: Route {
-                pending_index: 0,
+            nodes: vec![tree.get(tree.root_page)],
+            begin: Pointer {
+                indices: vec![0],
             },
-            end: Route {
-                pending_index: datoms.len(),
+            end: Pointer {
+                indices: vec![datoms.len()],
             },
         };
 
@@ -366,12 +491,15 @@ mod test {
 
         let iter = Iter {
             tree: &tree,
-            node: tree.get(tree.root_page).clone(),
-            begin: Route {
-                pending_index: 0, // TODO: Correct start/end.
+            nodes: vec![
+                tree.get(PageId(2)),
+                tree.get(PageId(0)),
+            ],
+            begin: Pointer {
+                indices: vec![0, 0],
             },
-            end: Route {
-                pending_index: datoms0.len(),
+            end: Pointer {
+                indices: Vec::new(),
             },
         };
 
