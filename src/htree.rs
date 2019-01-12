@@ -171,10 +171,10 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
 
 /// Points to a datom in the tree.
 ///
-/// Datoms in the tree are ordered. A pointer identifies how to reach a given
-/// datom, and also how to reach the next one.
+/// Datoms in the tree are ordered. A cursor identifies how to reach a given
+/// datom, and also how to reach the next ones.
 ///
-/// A pointer is a stack of indices into nodes.
+/// A cursor is a stack of indices into nodes.
 ///
 /// * `nodes[0]` is the root node.
 /// * `indices[0]` is an index into the root node's datoms.
@@ -183,9 +183,9 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
 ///   pending datom.
 /// * `indices[i]` is an index into `nodes[i]`.
 ///
-/// Note that the nodes are not stored in the pointer. Rather, they are stored
+/// Note that the nodes are not stored in the cursor. Rather, they are stored
 /// in the iterator when iterating.
-struct Pointer {
+struct Cursor {
     /// Stack of indices into the datom array, of the next datom to yield.
     ///
     /// The bottom of the stack corresponds to the node with the greatest depth,
@@ -217,20 +217,20 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     }
 
     /// Locate the first datom that is greater than or equal to the queried one.
-    pub fn find(&self, datom: &Datom) -> Pointer {
+    pub fn find(&self, datom: &Datom) -> Cursor {
         let node = self.get(self.root_page);
 
         for (i, datom_i) in node.datoms.iter().enumerate() {
             match self.comparator.cmp(datom_i, datom) {
                 Ordering::Less => continue,
-                Ordering::Equal | Ordering::Greater => return Pointer {
+                Ordering::Equal | Ordering::Greater => return Cursor {
                     indices: vec![i],
                 },
             }
         }
 
         // Everything is less than the given datom, return a route past the end.
-        Pointer {
+        Cursor {
             indices: vec![node.datoms.len()],
         }
     }
@@ -244,14 +244,14 @@ struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     nodes: Vec<Node<'a>>,
 
     /// The pointer to the next datom to yield.
-    begin: Pointer,
+    begin: Cursor,
 
     /// The pointer to the first datom not to yield.
-    end: Pointer,
+    end: Cursor,
 }
 
 impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
-    fn new(tree: &'a HTree<'a, Cmp, S>, begin: Pointer, end: Pointer) -> Iter<'a, Cmp, S> {
+    fn new(tree: &'a HTree<'a, Cmp, S>, begin: Cursor, end: Cursor) -> Iter<'a, Cmp, S> {
         Iter {
             tree: tree,
             // TODO: Find the correct level.
@@ -374,7 +374,7 @@ mod test {
 
     use datom::{Aid, Datom, Eid, Tid, Value};
     use store::{MemoryStore, PageId, PageSize563, PageSize4096, Store};
-    use super::{HTree, Iter, Node, Pointer};
+    use super::{HTree, Iter, Node, Cursor};
 
     #[test]
     fn node_write_after_read_is_identity() {
@@ -432,10 +432,10 @@ mod test {
         let iter = Iter {
             tree: &tree,
             nodes: vec![tree.get(tree.root_page)],
-            begin: Pointer {
+            begin: Cursor {
                 indices: vec![0],
             },
-            end: Pointer {
+            end: Cursor {
                 indices: Vec::new(),
             },
         };
@@ -496,10 +496,10 @@ mod test {
                 tree.get(PageId(2)),
                 tree.get(PageId(0)),
             ],
-            begin: Pointer {
+            begin: Cursor {
                 indices: vec![0, 0],
             },
-            end: Pointer {
+            end: Cursor {
                 indices: Vec::new(),
             },
         };
@@ -561,10 +561,10 @@ mod test {
                 tree.get(PageId(2)),
                 tree.get(PageId(0)),
             ],
-            begin: Pointer {
+            begin: Cursor {
                 indices: vec![0, 0],
             },
-            end: Pointer {
+            end: Cursor {
                 indices: Vec::new(),
             },
         };
