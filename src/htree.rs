@@ -276,6 +276,9 @@ mod test {
 
     #[test]
     fn iter_iterates_single_page() {
+        // Build a tree that consists of a single node. All datoms in it are
+        // pending datoms, there are no midpoints because there are no children.
+
         let datoms: Vec<_> = (0..13)
             .map(|i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max()))
             .collect();
@@ -313,6 +316,67 @@ mod test {
 
         for (&x, &y) in iter.zip(datoms.iter()) {
             assert_eq!(x, y);
+        }
+    }
+
+    #[test]
+    fn iter_iterates_depth_2_tree_no_inner_pending() {
+        // Build a tree that consists of three nodes. The only pending datoms
+        // are in the leaves; the root contains only midpoint datoms.
+
+        let make_datom = |&i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
+        let make_child_ids = |n| iter::repeat(PageId::max()).take(n).collect();
+
+        let datoms0: Vec<_> = [0, 1, 2, 3].iter().map(make_datom).collect();
+        let datoms2: Vec<_> = [4, 9].iter().map(make_datom).collect();
+        let datoms1: Vec<_> = [5, 6, 7, 8].iter().map(make_datom).collect();
+
+        let children0: Vec<_> = make_child_ids(datoms0.len());
+        let children2 = vec![PageId(0), PageId(1)];
+        let children1: Vec<_> = make_child_ids(datoms1.len());
+
+        let node0 = Node {
+            depth: 0,
+            datoms: &datoms0[..],
+            children: &children0[..],
+        };
+        let node1 = Node {
+            depth: 0,
+            datoms: &datoms1[..],
+            children: &children1[..],
+        };
+        let node2 = Node {
+            depth: 1,
+            datoms: &datoms2[..],
+            children: &children2[..],
+        };
+
+        type Size = PageSize563;
+        let mut store = MemoryStore::<Size>::new();
+        let page = store.allocate_page();
+        node0.write::<Size, _>(store.writer()).unwrap();
+        node1.write::<Size, _>(store.writer()).unwrap();
+        node2.write::<Size, _>(store.writer()).unwrap();
+
+        let tree = HTree {
+            root_page: PageId(2),
+            comparator: &(),
+            store: store,
+        };
+
+        let iter = Iter {
+            tree: &tree,
+            node: tree.get(tree.root_page).clone(),
+            begin: Route {
+                pending_index: 0, // TODO: Correct start/end.
+            },
+            end: Route {
+                pending_index: datoms0.len(),
+            },
+        };
+
+        for (&datom, y) in iter.zip(1..10) {
+            assert_eq!(datom.entity.0, y);
         }
     }
 }
