@@ -12,7 +12,7 @@ Below is a demonstration through a film database. Let's first insert some films:
     -- See also example.py for the same example in a Python DSL, rather than in
     -- the made-up query language below.
     assert
-      -- Create three new entities, and set the director.name property for them.
+      -- Create three new entities, and set the director.name attribute for them.
       -- The variables s, n, and t will refer to these entities henceforth.
       s director.name "Ridley Scott"
       n director.name "Christopher Nolan"
