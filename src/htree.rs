@@ -39,7 +39,7 @@ pub struct Node<'a> {
 
     /// Child node page indices.
     ///
-    /// The length is `datoms.len() + 1`.
+    /// The length is `datoms.len()`.
     pub children: &'a [PageId],
 }
 
