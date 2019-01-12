@@ -19,7 +19,8 @@ trait DatomOrd {
 
 impl DatomOrd for () {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
-        Ordering::Less
+        // TODO: Implement ordering properly, with heap lookup.
+        lhs.eavt().cmp(&rhs.eavt())
     }
 }
 
@@ -435,7 +436,7 @@ mod test {
                 indices: vec![0],
             },
             end: Pointer {
-                indices: vec![datoms.len()],
+                indices: Vec::new(),
             },
         };
 
@@ -503,7 +504,7 @@ mod test {
             },
         };
 
-        for (&datom, y) in iter.zip(1..10) {
+        for (&datom, y) in iter.zip(0..10) {
             assert_eq!(datom.entity.0, y);
         }
     }
