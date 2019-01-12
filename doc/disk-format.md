@@ -42,13 +42,16 @@ containing the index into the value heap.
 
 [datomic-indexes]: https://docs.datomic.com/cloud/query/raw-index-access.html
 
-Noblit stores indexes as log-structured merge trees of B+ trees. This means that
-an index consists of multiple immutable B+ trees. A traversal of the index would
-traverse the individual B+ trees, and do a merge sort of the results on the fly.
-Noblit accumulates new datoms in memory first. When there is enough new data, it
-writes a new, immutable B+ tree to disk. To prevent the number of B+ trees from
-growing too large, trees are occasionally merged into larger trees. The old
-smaller trees can then be garbage collected.
+Noblit stores indexes as [hitchhiker trees][htree], a variation on immutable
+B-trees which reduces write amplification. Noblit accumulates new datoms in
+memory first.  When there is enough new data, it flushes those at once to the
+disk as new tree nodes, which may share child nodes with the previous tree. To
+prevent unreachable nodes from accumulating, trees need to be compacted
+occasionally though a copying garbage collection process. Unreachable nodes
+are not recycled to ensure immutability of written files: new data is only ever
+appended at the end. This simplifies caching.
+
+[htree]: htree.md
 
 ## The Heap
 
