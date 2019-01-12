@@ -10,10 +10,9 @@ the advantages of an immutable data structure, without the write amplification.
 
 Tree nodes in Noblit are immutable. Index updates produce new nodes that succeed
 older nodes. Nodes can become unreachable, but they are never removed.
-
-TODO: Do I need a garbage collector? Breaks the can-always-cache-everything
-property, although not too badly (just get a new index). Could maybe use sparse
-files to cut out parts of a file?
+Eventually, many nodes in a file may not be reachable. In that case the tree can
+be copied to a _new_ file, omitting the unreachable blocks. This is a copying
+garbage collection.
 
 ## Index Trees 
 

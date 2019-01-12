@@ -44,7 +44,7 @@ containing the index into the value heap.
 
 Noblit stores indexes as [hitchhiker trees][htree], a variation on immutable
 B-trees which reduces write amplification. Noblit accumulates new datoms in
-memory first.  When there is enough new data, it flushes those at once to the
+memory first. When there is enough new data, it flushes those at once to the
 disk as new tree nodes, which may share child nodes with the previous tree. To
 prevent unreachable nodes from accumulating, trees need to be compacted
 occasionally though a copying garbage collection process. Unreachable nodes
