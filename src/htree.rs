@@ -27,8 +27,8 @@ impl DatomOrd for () {
 /// A tree node.
 #[derive(Clone)]
 pub struct Node<'a> {
-    /// Depth: 0 for leaves, 1 + depth of children for interior nodes.
-    pub depth: u8,
+    /// Level: 0 for leaves, 1 + level of children for interior nodes.
+    pub level: u8,
 
     /// Datoms stored in this node.
     ///
@@ -64,7 +64,7 @@ impl<'a> Node<'a> {
 
         // TODO: Check that these are within range. Should return Result then.
         let header = &bytes[Size::header_offset()..];
-        let depth = header[0];
+        let level = header[0];
         let num_datoms = header[1] as usize;
 
         // The datom array is stored at the start of the page.
@@ -81,7 +81,7 @@ impl<'a> Node<'a> {
         };
 
         Node {
-            depth: depth,
+            level: level,
             datoms: datoms,
             children: children,
         }
@@ -134,7 +134,7 @@ impl<'a> Node<'a> {
         debug_assert!(header_len < 42, "Header too large, could fit extra datom.");
         debug_assert!(header_len >= 2, "Header too small, cannot fit all fields.");
         debug_assert!(self.datoms.len() < 256, "Datoms length must fit in a byte.");
-        header[0] = self.depth;
+        header[0] = self.level;
         header[1] = self.datoms.len() as u8;
         writer.write_all(&header[..header_len])?;
 
@@ -188,7 +188,7 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
 struct Cursor {
     /// Stack of indices into the datom array, of the next datom to yield.
     ///
-    /// The bottom of the stack corresponds to the node with the greatest depth,
+    /// The bottom of the stack corresponds to the node with the greatest level,
     /// the root node.
     // TODO: Could be a fixed-size array, max depth is not very deep. The index
     // could also be u32 or even u16, as there aren't that much datoms per node.
@@ -283,25 +283,25 @@ impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
                 // There are still datoms left in the current node, and
                 // furthermore we just yielded a midpoint datom. We may now
                 // need to descend into the children.
-                for i in 0..self.nodes[level].depth as usize {
+                for i in 0..self.nodes[level].level as usize {
                     match self.nodes[level + i].next_midpoint(self.begin.indices[level + i]) {
                         Some(pid) => {
                             let node = self.tree.get(pid);
                             debug_assert_eq!(
-                                node.depth + 1,
-                                self.nodes[level + i].depth,
-                                "Child node depth must be one less than parent.",
+                                node.level + 1,
+                                self.nodes[level + i].level,
+                                "Child node level must be one less than parent.",
                             );
                             self.nodes.push(node);
                             self.begin.indices.push(0);
                         }
                         None => {
                             debug_assert_eq!(
-                                self.nodes[level + i].depth, 0,
-                                "All but depth 0 nodes must contain at least one midpoint.",
+                                self.nodes[level + i].level, 0,
+                                "All but level 0 nodes must contain at least one midpoint.",
                             );
                             debug_assert_eq!(
-                                self.nodes[0].depth as usize, self.nodes.len(),
+                                self.nodes[0].level as usize, self.nodes.len(),
                                 "After advancing past midpoint, must point at leaf.",
                             );
                         }
@@ -384,7 +384,7 @@ mod test {
         let child_ids: Vec<_> = (0..17).map(|i| PageId(i)).collect();
 
         let node = Node {
-            depth: 0,
+            level: 0,
             datoms: &datoms[..],
             children: &child_ids[..],
         };
@@ -413,7 +413,7 @@ mod test {
             .collect();
 
         let node = Node {
-            depth: 0,
+            level: 0,
             datoms: &datoms[..],
             children: &child_ids[..],
         };
@@ -462,17 +462,17 @@ mod test {
         let children1: Vec<_> = make_child_ids(datoms1.len());
 
         let node0 = Node {
-            depth: 0,
+            level: 0,
             datoms: &datoms0[..],
             children: &children0[..],
         };
         let node1 = Node {
-            depth: 0,
+            level: 0,
             datoms: &datoms1[..],
             children: &children1[..],
         };
         let node2 = Node {
-            depth: 1,
+            level: 1,
             datoms: &datoms2[..],
             children: &children2[..],
         };
@@ -527,17 +527,17 @@ mod test {
         let children1: Vec<_> = make_child_ids(datoms1.len());
 
         let node0 = Node {
-            depth: 0,
+            level: 0,
             datoms: &datoms0[..],
             children: &children0[..],
         };
         let node1 = Node {
-            depth: 0,
+            level: 0,
             datoms: &datoms1[..],
             children: &children1[..],
         };
         let node2 = Node {
-            depth: 1,
+            level: 1,
             datoms: &datoms2[..],
             children: &children2[..],
         };
