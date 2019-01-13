@@ -218,6 +218,8 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
     /// Locate the first datom that is greater than or equal to the queried one.
     pub fn find(&self, datom: &Datom) -> Cursor {
+        panic!("TODO: Fix for multi-node tree.");
+
         let node = self.get(self.root_page);
 
         for (i, datom_i) in node.datoms.iter().enumerate() {
@@ -365,6 +367,46 @@ impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
         self.advance(level);
 
         Some(least_datom)
+    }
+}
+
+/// A mutable tree node backed by vectors on the heap.
+///
+/// `VecNode` is to `Node` as `Vec` is to `slice`, and `String` to `str`:
+/// it owns its contents.
+///
+/// The mutable tree node can be used to accumulate novelty in memory. Once it
+/// is large enough, a frozen copy of it can be written to disk, to be a new
+/// node in the immutable tree.
+#[derive(Clone)]
+pub struct VecNode {
+    /// See `Node::level`.
+    level: u8,
+
+    /// See `Node::datoms`.
+    datoms: Vec<Datom>,
+
+    /// See `Node::children`.
+    children: Vec<PageId>,
+}
+
+impl VecNode {
+    /// Return an empty node.
+    pub fn new(level: u8) -> VecNode {
+        VecNode {
+            level: level,
+            datoms: Vec::new(),
+            children: Vec::new(),
+        }
+    }
+
+    /// View this vec node as a regular immutable node.
+    pub fn as_node(&self) -> Node {
+        Node {
+            level: self.level,
+            datoms: &self.datoms[..],
+            children: &self.children[..],
+        }
     }
 }
 
