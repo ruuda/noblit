@@ -236,6 +236,46 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             indices: vec![node.datoms.len()],
         }
     }
+
+    /// Take the greatest datom out of a given node.
+    ///
+    /// This makes a copy of the node at the given page, with its greatest datom
+    /// removed. If that node was not a leaf node, then that would leave a hole:
+    /// the greatest datom in an internal node is always a midpoint, which has a
+    /// child node. So we recurse, and extract the maximum from the child, which
+    /// will become the maximum of its parent, filling the hole just created.
+    ///
+    /// TODO: As we write new nodes anyway, we should also flush any pending
+    /// datoms that belong in the node we are about to write, while we have the
+    /// opportunity.
+    pub fn extract_max(&mut self, page: PageId) -> (PageId, Datom) {
+        unimplemented!();
+    }
+
+    /// Split a given node into two.
+    ///
+    /// Returns `(n0, m0, n1, m1)` such that:
+    ///
+    /// * `m0` is greater than any datom in node `n0`.
+    /// * `m0` is smaller than any datom in node `n1`.
+    /// * `m1` is greater than any datom in node `n1`.
+    pub fn split(&mut self, page: PageId) -> (PageId, Datom, PageId, Datom) {
+        let node = self.get(page);
+
+        // TODO:
+        // 1. Determine the split point, the midpoint node at half the index.
+        //    Call that datom m0, at index i0.
+        // 2. Determine the greatest datom, just datoms[-1].
+        //    Call that datom m1, at index i1.
+        // 3. Extract the max from child i0 into (p0, k0).
+        // 4. Extract the max from child i1 into (p1, k1).
+        // 5. Write a new node n0, with datoms [..i0] ++ [k0].
+        //    The child of k0 would be p0.
+        // 6. Write a new node n1, with datoms [i0 + 1..i1] ++ [k1].
+        //    The child of k1 would be p1.
+        // 7. Return (n0, m0, n1, m1).
+        unimplemented!();
+    }
 }
 
 struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
