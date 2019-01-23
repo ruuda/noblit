@@ -159,6 +159,31 @@ impl<'a> Node<'a> {
         }
         None
     }
+
+    /// Return the index into the `datoms` array of the middle midpoint.
+    pub fn median_midpoint(&self) -> usize {
+        let mut num_midpoints = 0;
+        for i in 0..self.children.len() {
+            num_midpoints += if self.is_midpoint_at(i) { 1 } else { 0 };
+        }
+
+        assert!(
+            num_midpoints == 0 || num_midpoints > 1,
+            "Node must have either no children at all, or at least two otherwise.",
+        );
+
+        let mut num_visited = 0;
+        for i in 0..self.children.len() {
+            if self.is_midpoint_at(i) {
+                num_visited += 1;
+                if num_visited * 2 >= num_midpoints {
+                    return i
+                }
+            }
+        }
+
+        unreachable!("Would have returned past median midpoint.")
+    }
 }
 
 /// Write a sorted slice of datoms as a tree.
@@ -261,6 +286,8 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     /// * `m1` is greater than any datom in node `n1`.
     pub fn split(&mut self, page: PageId) -> (PageId, Datom, PageId, Datom) {
         let node = self.get(page);
+
+        let median = node.median_midpoint();
 
         // TODO:
         // 1. Determine the split point, the midpoint node at half the index.
