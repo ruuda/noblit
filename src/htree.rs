@@ -287,7 +287,20 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     pub fn split(&mut self, page: PageId) -> (PageId, Datom, PageId, Datom) {
         let node = self.get(page);
 
-        let median = node.median_midpoint();
+        assert!(node.datoms.len() > 1, "Can only split node with at least two datoms.");
+
+        // Determine the split points: the indices into the datoms array such
+        // that i0 is the last datom to end up in the new left node, and i1 will
+        // be the max of the new right node.
+        let (i0, i1) = if node.level == 0 {
+            (node.datoms.len() / 2 - 1, node.datoms.len() - 1)
+        } else {
+            (node.median_midpoint(), node.datoms.len() - 1)
+        };
+
+        // Copy the two nodes, extracting their maximum into datom{0,1}.
+        // let (p0, datom0) = self.extract_max(node.children[i0]);
+        // let (p1, datom1) = self.extract_max(node.children[i1]);
 
         // TODO:
         // 1. Determine the split point, the midpoint node at half the index.
