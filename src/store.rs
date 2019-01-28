@@ -108,7 +108,9 @@ pub trait Store {
     ///
     /// Writing the data to the underlying writer is the responsibility
     /// of the caller.
-    // TODO: Can this be safer?
+    // TODO: Can this be safer? For example, return a writer with it, that must
+    // have written exactly one page upon drop? Or take a closure that takes a
+    // writer as agument, and write at once.
     fn allocate_page(&mut self) -> PageId;
 
     /// Retrieve a page.

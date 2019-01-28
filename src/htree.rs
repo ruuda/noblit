@@ -184,6 +184,45 @@ impl<'a> Node<'a> {
 
         unreachable!("Would have returned past median midpoint.")
     }
+
+    /// Split a leaf (level 0) node evenly.
+    ///
+    /// Returns (n0, midpoint, n1) such that all datoms in n0 are less than
+    /// the midpoint, and all datoms in n1 are greater than the midpoint.
+    fn split_leaf(&self) -> (Node, Datom, Node) {
+        debug_assert_eq!(self.level, 0);
+        debug_assert!(
+            self.datoms.len() >= 2,
+            "Need at least three datoms to split: left, midpoint, and right."
+        );
+
+        let midpoint_index = self.datoms.len() / 2;
+        let midpoint = self.datoms[midpoint_index];
+        debug_assert!(self.is_midpoint_at(midpoint_index));
+
+        let n0 = Node {
+            level: 0,
+            datoms: &self.datoms[..midpoint_index],
+            children: &self.children[..midpoint_index],
+        };
+        let n1 = Node {
+            level: 0,
+            datoms: &self.datoms[midpoint_index + 1..],
+            children: &self.children[midpoint_index + 1..],
+        };
+
+        (n0, midpoint, n1)
+    }
+
+    /// Split an internal node at the middle midpoint datom.
+    ///
+    /// Returns (n0, midpoint, n1) such that all datoms in n0 are less than
+    /// the midpoint, and all datoms in n1 are greater than the midpoint.
+    fn split_internal(&self) -> (Node, Datom, Node) {
+        // TODO: Actually, all of the logic apart from finding the index,
+        // could be shared.
+        unimplemented!("TODO: Split internal node.");
+    }
 }
 
 /// Write a sorted slice of datoms as a tree.
@@ -279,42 +318,32 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
     /// Split a given node into two.
     ///
-    /// Returns `(n0, m0, n1, m1)` such that:
+    /// Returns `(n0, m0, n1)` such that:
     ///
     /// * `m0` is greater than any datom in node `n0`.
     /// * `m0` is smaller than any datom in node `n1`.
-    /// * `m1` is greater than any datom in node `n1`.
-    pub fn split(&mut self, page: PageId) -> (PageId, Datom, PageId, Datom) {
+    pub fn split(&mut self, page: PageId) -> io::Result<(PageId, Datom, PageId)> {
         let node = self.get(page);
 
-        assert!(node.datoms.len() > 1, "Can only split node with at least two datoms.");
+        assert!(node.datoms.len() >= 3, "Can only split node with at least three datoms.");
 
-        // Determine the split points: the indices into the datoms array such
-        // that i0 is the last datom to end up in the new left node, and i1 will
-        // be the max of the new right node.
-        let (i0, i1) = if node.level == 0 {
-            (node.datoms.len() / 2 - 1, node.datoms.len() - 1)
+        let (n0, midpoint, n1) = if node.level == 0 {
+            node.split_leaf()
         } else {
-            (node.median_midpoint(), node.datoms.len() - 1)
+            node.split_internal()
         };
 
-        // Copy the two nodes, extracting their maximum into datom{0,1}.
-        // let (p0, datom0) = self.extract_max(node.children[i0]);
-        // let (p1, datom1) = self.extract_max(node.children[i1]);
+        // TODO: Lifetime.
+        // let p0 = self.store.allocate_page();
+        // n0.write::<S::Size, _>(self.store.writer())?;
+        let p0 = PageId(0);
 
-        // TODO:
-        // 1. Determine the split point, the midpoint node at half the index.
-        //    Call that datom m0, at index i0.
-        // 2. Determine the greatest datom, just datoms[-1].
-        //    Call that datom m1, at index i1.
-        // 3. Extract the max from child i0 into (p0, k0).
-        // 4. Extract the max from child i1 into (p1, k1).
-        // 5. Write a new node n0, with datoms [..i0] ++ [k0].
-        //    The child of k0 would be p0.
-        // 6. Write a new node n1, with datoms [i0 + 1..i1] ++ [k1].
-        //    The child of k1 would be p1.
-        // 7. Return (n0, m0, n1, m1).
-        unimplemented!();
+        // TODO: Lifetime.
+        // let p1 = self.store.allocate_page();
+        // n1.write::<S::Size, _>(self.store.writer())?;
+        let p1 = PageId(1);
+
+        Ok((p0, midpoint, p1))
     }
 }
 
