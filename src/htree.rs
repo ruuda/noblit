@@ -88,7 +88,7 @@ impl<'a> Node<'a> {
     }
 
     /// Write the node to backing storage.
-    pub fn write<Size: PageSize, W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+    pub fn write<Size: PageSize>(&self) -> Vec<u8> {
         assert_eq!(
             self.datoms.len(),
             self.children.len(),
@@ -102,43 +102,36 @@ impl<'a> Node<'a> {
         let datoms_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
         let children_bytes: &[u8] = unsafe { transmute_slice(self.children) };
 
+        let mut buffer = Vec::with_capacity(Size::SIZE);
+
         // First up is the datom array.
-        writer.write_all(&datoms_bytes)?;
+        buffer.extend_from_slice(&datoms_bytes);
 
         // If necessary, pad with zeros between the datom array, and the child
         // page id array.
         let num_zeros = Size::datoms_bytes_len() - datoms_bytes.len();
-        let zeros = [0u8; 32];
-        let mut num_zeros_written = 0;
-        while num_zeros_written < num_zeros {
-            let num_zeros_left = num_zeros - num_zeros_written;
-            let num_zeros_write = num_zeros_left.min(zeros.len());
-            num_zeros_written += writer.write(&zeros[..num_zeros_write])?;
-        }
+        buffer.extend((0..num_zeros).map(|_| 0x00));
 
         // Next up is the child array, also optionally padded.
-        writer.write_all(&children_bytes)?;
+        buffer.extend_from_slice(&children_bytes);
 
         let num_zeros = Size::children_bytes_len() - children_bytes.len();
-        let mut num_zeros_written = 0;
-        while num_zeros_written < num_zeros {
-            let num_zeros_left = num_zeros - num_zeros_written;
-            let num_zeros_write = num_zeros_left.min(zeros.len());
-            num_zeros_written += writer.write(&zeros[..num_zeros_write])?;
-        }
+        buffer.extend((0..num_zeros).map(|_| 0x00));
 
         // Finally, the header. For now it consists of two bytes, and we pad
         // with zeros to fill up the page.
-        let mut header = [0u8; 42];
         let header_len = Size::SIZE - Size::header_offset();
         debug_assert!(header_len < 42, "Header too large, could fit extra datom.");
         debug_assert!(header_len >= 2, "Header too small, cannot fit all fields.");
         debug_assert!(self.datoms.len() < 256, "Datoms length must fit in a byte.");
-        header[0] = self.level;
-        header[1] = self.datoms.len() as u8;
-        writer.write_all(&header[..header_len])?;
+        buffer.push(self.level);              // Header byte 0.
+        buffer.push(self.datoms.len() as u8); // Header byte 1.
+        let num_zeros = header_len - 2;
+        buffer.extend((0..num_zeros).map(|_| 0x00));
 
-        Ok(())
+        debug_assert_eq!(buffer.len(), Size::SIZE, "Write must fill exactly one page.");
+
+        buffer
     }
 
     /// Return whether the datom at the given index is a midpoint datom.
@@ -334,13 +327,13 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         };
 
         // TODO: Lifetime.
-        // let p0 = self.store.allocate_page();
-        // n0.write::<S::Size, _>(self.store.writer())?;
+        // let p0 = self.store.write_page(&n0.write::<S::Size>())?;
+        // n0.write::<S::Size>(self.store.writer())?;
         let p0 = PageId(0);
 
         // TODO: Lifetime.
         // let p1 = self.store.allocate_page();
-        // n1.write::<S::Size, _>(self.store.writer())?;
+        // n1.write::<S::Size>(self.store.writer())?;
         let p1 = PageId(1);
 
         Ok((p0, midpoint, p1))
@@ -540,13 +533,11 @@ mod test {
             children: &child_ids[..],
         };
 
-        let mut buffer_a: Vec<u8> = Vec::new();
-        node.write::<PageSize4096, _>(&mut buffer_a).unwrap();
+        let buffer_a = node.write::<PageSize4096>();
 
         let node_a = Node::from_bytes::<PageSize4096>(&buffer_a[..]);
 
-        let mut buffer_b: Vec<u8> = Vec::new();
-        node_a.write::<PageSize4096, _>(&mut buffer_b).unwrap();
+        let buffer_b = node_a.write::<PageSize4096>();
 
         assert_eq!(buffer_a, buffer_b);
     }
@@ -571,7 +562,7 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let page = store.write_page(|writer| node.write::<Size, _>(writer)).unwrap();
+        let page = store.write_page(&node.write::<Size>()).unwrap();
 
         let tree = HTree {
             root_page: PageId(0),
@@ -629,9 +620,9 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let p0 = store.write_page(|w| node0.write::<Size, _>(w)).unwrap();
-        let p1 = store.write_page(|w| node1.write::<Size, _>(w)).unwrap();
-        let p2 = store.write_page(|w| node2.write::<Size, _>(w)).unwrap();
+        let p0 = store.write_page(&node0.write::<Size>()).unwrap();
+        let p1 = store.write_page(&node1.write::<Size>()).unwrap();
+        let p2 = store.write_page(&node2.write::<Size>()).unwrap();
 
         assert_eq!(p0, PageId(0));
         assert_eq!(p1, PageId(1));
@@ -697,9 +688,9 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let p0 = store.write_page(|w| node0.write::<Size, _>(w)).unwrap();
-        let p1 = store.write_page(|w| node1.write::<Size, _>(w)).unwrap();
-        let p2 = store.write_page(|w| node2.write::<Size, _>(w)).unwrap();
+        let p0 = store.write_page(&node0.write::<Size>()).unwrap();
+        let p1 = store.write_page(&node1.write::<Size>()).unwrap();
+        let p2 = store.write_page(&node2.write::<Size>()).unwrap();
 
         assert_eq!(p0, PageId(0));
         assert_eq!(p1, PageId(1));

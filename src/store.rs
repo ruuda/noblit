@@ -103,10 +103,8 @@ pub trait Store {
 
     /// Write a page and return its page id.
     ///
-    /// The `do_write` callback should write exactly `Size::SIZE` bytes to
-    /// the writer.
-    fn write_page<F>(&mut self, do_write: F) -> io::Result<PageId>
-        where F: FnOnce(&mut Self::Writer) -> io::Result<()>;
+    /// The page must be exactly `Size::SIZE` bytes long.
+    fn write_page(&mut self, page: &[u8]) -> io::Result<PageId>;
 
     /// Retrieve a page.
     fn get(&self, page: PageId) -> &[u8];
@@ -142,19 +140,13 @@ impl<Size: PageSize> Store for MemoryStore<Size> {
     type Writer = Vec<u8>;
     type Size = Size;
 
-    fn write_page<F>(&mut self, do_write: F) -> io::Result<PageId>
-        where F: FnOnce(&mut Vec<u8>) -> io::Result<()>
-    {
-        let len_before = self.buffer.len();
+    fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> {
+        assert_eq!(page.len(), Size::SIZE);
+
+        self.buffer.extend_from_slice(page);
+
         let pid = self.fresh;
         self.fresh += 1;
-
-        do_write(&mut self.buffer)?;
-        assert_eq!(
-            self.buffer.len(),
-            len_before + Size::SIZE,
-            "Must write exactly one page in write_page callback.",
-        );
 
         Ok(PageId(pid))
     }
