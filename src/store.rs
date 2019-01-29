@@ -96,7 +96,7 @@ impl PageSize for PageSize4096 {
     fn new() -> PageSize4096 { PageSize4096 }
 }
 
-/// A page store.
+/// Interface for retrieving and writing pages.
 pub trait Store {
     type Writer: io::Write;
     type Size: PageSize;
