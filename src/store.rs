@@ -101,17 +101,12 @@ pub trait Store {
     type Writer: io::Write;
     type Size: PageSize;
 
-    /// Return the underlying writer.
-    fn writer(&mut self) -> &mut Self::Writer;
-
-    /// Reserve a new page.
+    /// Write a page and return its page id.
     ///
-    /// Writing the data to the underlying writer is the responsibility
-    /// of the caller.
-    // TODO: Can this be safer? For example, return a writer with it, that must
-    // have written exactly one page upon drop? Or take a closure that takes a
-    // writer as agument, and write at once.
-    fn allocate_page(&mut self) -> PageId;
+    /// The `do_write` callback should write exactly `Size::SIZE` bytes to
+    /// the writer.
+    fn write_page<F>(&mut self, do_write: F) -> io::Result<PageId>
+        where F: FnOnce(&mut Self::Writer) -> io::Result<()>;
 
     /// Retrieve a page.
     fn get(&self, page: PageId) -> &[u8];
@@ -147,14 +142,21 @@ impl<Size: PageSize> Store for MemoryStore<Size> {
     type Writer = Vec<u8>;
     type Size = Size;
 
-    fn writer(&mut self) -> &mut Vec<u8> {
-        &mut self.buffer
-    }
-
-    fn allocate_page(&mut self) -> PageId {
+    fn write_page<F>(&mut self, do_write: F) -> io::Result<PageId>
+        where F: FnOnce(&mut Vec<u8>) -> io::Result<()>
+    {
+        let len_before = self.buffer.len();
         let pid = self.fresh;
         self.fresh += 1;
-        PageId(pid)
+
+        do_write(&mut self.buffer)?;
+        assert_eq!(
+            self.buffer.len(),
+            len_before + Size::SIZE,
+            "Must write exactly one page in write_page callback.",
+        );
+
+        Ok(PageId(pid))
     }
 
     fn get(&self, page: PageId) -> &[u8] {

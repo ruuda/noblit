@@ -571,8 +571,7 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let page = store.allocate_page();
-        node.write::<Size, _>(store.writer()).unwrap();
+        let page = store.write_page(|writer| node.write::<Size, _>(writer)).unwrap();
 
         let tree = HTree {
             root_page: PageId(0),
@@ -630,10 +629,13 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let page = store.allocate_page();
-        node0.write::<Size, _>(store.writer()).unwrap();
-        node1.write::<Size, _>(store.writer()).unwrap();
-        node2.write::<Size, _>(store.writer()).unwrap();
+        let p0 = store.write_page(|w| node0.write::<Size, _>(w)).unwrap();
+        let p1 = store.write_page(|w| node1.write::<Size, _>(w)).unwrap();
+        let p2 = store.write_page(|w| node2.write::<Size, _>(w)).unwrap();
+
+        assert_eq!(p0, PageId(0));
+        assert_eq!(p1, PageId(1));
+        assert_eq!(p2, PageId(2));
 
         let tree = HTree {
             root_page: PageId(2),
@@ -695,10 +697,13 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let page = store.allocate_page();
-        node0.write::<Size, _>(store.writer()).unwrap();
-        node1.write::<Size, _>(store.writer()).unwrap();
-        node2.write::<Size, _>(store.writer()).unwrap();
+        let p0 = store.write_page(|w| node0.write::<Size, _>(w)).unwrap();
+        let p1 = store.write_page(|w| node1.write::<Size, _>(w)).unwrap();
+        let p2 = store.write_page(|w| node2.write::<Size, _>(w)).unwrap();
+
+        assert_eq!(p0, PageId(0));
+        assert_eq!(p1, PageId(1));
+        assert_eq!(p2, PageId(2));
 
         let tree = HTree {
             root_page: PageId(2),
