@@ -154,7 +154,7 @@ impl<'a> Node<'a> {
     }
 
     /// Return the index into the `datoms` array of the middle midpoint.
-    pub fn median_midpoint(&self) -> usize {
+    fn median_midpoint(&self) -> usize {
         let mut num_midpoints = 0;
         for i in 0..self.children.len() {
             num_midpoints += if self.is_midpoint_at(i) { 1 } else { 0 };
@@ -178,43 +178,56 @@ impl<'a> Node<'a> {
         unreachable!("Would have returned past median midpoint.")
     }
 
+    /// Split this node at the given index (internal helper method).
+    ///
+    /// Returns (n0, midpoint, n1) where midpoint is the datom at the split index.
+    fn split_impl(&self, split_index: usize) -> (Node, Datom, Node) {
+        debug_assert!(
+            self.datoms.len() >= 2,
+            "Need at least three datoms to split: left, midpoint, and right."
+        );
+        let midpoint = self.datoms[split_index];
+        let n0 = Node {
+            level: 0,
+            datoms: &self.datoms[..split_index],
+            children: &self.children[..split_index],
+        };
+        let n1 = Node {
+            level: 0,
+            datoms: &self.datoms[split_index + 1..],
+            children: &self.children[split_index + 1..],
+        };
+        (n0, midpoint, n1)
+    }
+
     /// Split a leaf (level 0) node evenly.
     ///
     /// Returns (n0, midpoint, n1) such that all datoms in n0 are less than
     /// the midpoint, and all datoms in n1 are greater than the midpoint.
     fn split_leaf(&self) -> (Node, Datom, Node) {
-        debug_assert_eq!(self.level, 0);
-        debug_assert!(
-            self.datoms.len() >= 2,
-            "Need at least three datoms to split: left, midpoint, and right."
-        );
+        debug_assert_eq!(self.level, 0, "Leaves should have level 0.");
 
         let midpoint_index = self.datoms.len() / 2;
-        let midpoint = self.datoms[midpoint_index];
-        debug_assert!(self.is_midpoint_at(midpoint_index));
+        debug_assert!(!self.is_midpoint_at(midpoint_index));
 
-        let n0 = Node {
-            level: 0,
-            datoms: &self.datoms[..midpoint_index],
-            children: &self.children[..midpoint_index],
-        };
-        let n1 = Node {
-            level: 0,
-            datoms: &self.datoms[midpoint_index + 1..],
-            children: &self.children[midpoint_index + 1..],
-        };
-
-        (n0, midpoint, n1)
+        self.split_impl(midpoint_index)
     }
 
     /// Split an internal node at the middle midpoint datom.
     ///
-    /// Returns (n0, midpoint, n1) such that all datoms in n0 are less than
-    /// the midpoint, and all datoms in n1 are greater than the midpoint.
-    fn split_internal(&self) -> (Node, Datom, Node) {
-        // TODO: Actually, all of the logic apart from finding the index,
-        // could be shared.
-        unimplemented!("TODO: Split internal node.");
+    /// Returns (n0, midpoint, pm, n1) such that all datoms in n0 are less than
+    /// the midpoint, and all datoms in n1 are greater than the midpoint. The
+    /// page id of the child that the midpoint pointed to is pm.
+    fn split_internal(&self) -> (Node, Datom, PageId, Node) {
+        debug_assert!(self.level > 0, "Internal nodes should have level > 0.");
+
+        let midpoint_index = self.median_midpoint();
+        debug_assert!(self.is_midpoint_at(midpoint_index));
+        let child_page = self.children[midpoint_index];
+
+        let (n0, midpoint, n1) = self.split_impl(midpoint_index);
+
+        (n0, midpoint, child_page, n1)
     }
 }
 
@@ -326,7 +339,8 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             let (n0, midpoint, n1) = if node.level == 0 {
                 node.split_leaf()
             } else {
-                node.split_internal()
+                let (n0, midpoint, _pm, n1) = node.split_internal();
+                (n0, midpoint, n1)
             };
 
             (n0.write::<S::Size>(), midpoint, n1.write::<S::Size>())
