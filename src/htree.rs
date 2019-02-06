@@ -222,8 +222,8 @@ impl<'a> Node<'a> {
         debug_assert!(self.level > 0, "Internal nodes should have level > 0.");
 
         let midpoint_index = self.median_midpoint();
-        debug_assert!(self.is_midpoint_at(midpoint_index));
         let child_page = self.children[midpoint_index];
+        debug_assert!(self.is_midpoint_at(midpoint_index));
 
         let (n0, midpoint, n1) = self.split_impl(midpoint_index);
 
@@ -339,7 +339,14 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             let (n0, midpoint, n1) = if node.level == 0 {
                 node.split_leaf()
             } else {
-                let (n0, midpoint, _pm, n1) = node.split_internal();
+                let (mut n0, midpoint, _pm, n1) = node.split_internal();
+
+                // TODO: Rewrite node n0, to have an extra datom to fit pm in
+                // there. Or, perhaps easier, admid defeat on storing upper
+                // bounds, and extend nodes to contain an extra child past the
+                // last midpoint datom. Then we can extract the midpoint without
+                // having to find a substitute, but iteration would need some
+                // modifications.
                 (n0, midpoint, n1)
             };
 
