@@ -393,61 +393,28 @@ impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
         let old_index = self.begin.indices[level];
         self.begin.indices[level] = old_index + 1;
 
-        // There are two cases here: either we yielded from the top of the
-        // stack, and then we may need to find a new top. Or we yielded along
-        // the path of parents, and in that case the datom we yielded was a
-        // pending datom.
-        if level + 1 == self.nodes.len() {
-            if self.nodes[level].datoms.len() == self.begin.indices[level] {
-                // We exhausted the current node. Move up; we will next yield
-                // the midpoint datom from the parent that pointed to this node.
-                self.begin.indices.pop();
-                self.nodes.pop();
-            } else if self.nodes[level].is_midpoint_at(old_index) {
-                // There are still datoms left in the current node, and
-                // furthermore we just yielded a midpoint datom. We may now
-                // need to descend into the children.
-                for i in 0..self.nodes[level].level as usize {
-                    match self.nodes[level + i].next_midpoint(self.begin.indices[level + i]) {
-                        Some(pid) => {
-                            let node = self.tree.get(pid);
-                            debug_assert_eq!(
-                                node.level + 1,
-                                self.nodes[level + i].level,
-                                "Child node level must be one less than parent.",
-                            );
-                            self.nodes.push(node);
-                            self.begin.indices.push(0);
-                        }
-                        None => {
-                            debug_assert_eq!(
-                                self.nodes[level + i].level, 0,
-                                "All but level 0 nodes must contain at least one midpoint.",
-                            );
-                            debug_assert_eq!(
-                                self.nodes[0].level as usize, self.nodes.len(),
-                                "After advancing past midpoint, must point at leaf.",
-                            );
-                        }
-                    }
-                }
-            }
-        } else {
-            // The final midpoint datom terminates the datom array of the parent
-            // node. That datom is greater than the datoms in the child nodes,
-            // so we could not have yielded that datom. Therefore, even after
-            // incrementing, the index is still in bounds.
-            debug_assert!(
-                self.begin.indices[level] < self.nodes[level].datoms.len(),
-                "Parent indices must be in bounds."
-            );
+        assert!(
+            old_index < self.nodes[level].datoms.len(),
+            "Cannot have yielded from past the datoms array."
+        );
+        assert!(
+            self.begin.indices[level] < self.nodes[level].children.len(),
+            "Cannot increment out of bounds of children array."
+        );
 
-            // The datom we are about to yield, is a pending datom, not a
-            // midpoint datom. Its child pointer should mark that.
-            debug_assert!(
-                !self.nodes[level].is_midpoint_at(old_index),
-                "When yielding from parent, must yield pending datom, not midpoint."
-            );
+        // If we stepped over a midpoint datom, then we exhausted all of the
+        // child nodes below it, so we need to replenish the levels below.
+        if self.nodes[level].is_midpoint_at(old_index) {
+            for level_below in (0..level).rev() {
+                let child_pid = match self.nodes[level_below + 1].next_midpoint(0) {
+                    Some(pid) => pid,
+                    None => panic!("Node at level {} should have at least one child.", level_below + 1),
+                };
+                let node = self.tree.get(child_pid);
+                assert_eq!(node.level as usize, level_below);
+                self.nodes[level_below] = node;
+                self.begin.indices[level_below] = 0;
+            }
         }
     }
 }
@@ -475,6 +442,10 @@ impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
             .enumerate()
             .skip(1)
         {
+            // If we exhausted the datoms in this node, skip over it. There
+            // might still be the last child node to iterate.
+            if i >= node.datoms.len() { continue }
+
             let datom = &node.datoms[i];
             match self.tree.comparator.cmp(least_datom, datom) {
                 Ordering::Less => continue,
