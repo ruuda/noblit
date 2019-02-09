@@ -422,15 +422,16 @@ impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
         // If we stepped over a midpoint datom, then we exhausted all of the
         // child nodes below it, so we need to replenish the levels below.
         if self.nodes[level].is_midpoint_at(old_index) {
-            for level_below in (0..level).rev() {
-                let child_pid = match self.nodes[level_below + 1].next_midpoint(0) {
+            for k in (0..level).rev() {
+                let index = self.begin.indices[k + 1];
+                let child_pid = match self.nodes[k + 1].next_midpoint(index) {
                     Some(pid) => pid,
-                    None => panic!("Node at level {} should have at least one child.", level_below + 1),
+                    None => panic!("Node at level {} should have one more child.", k + 1),
                 };
                 let node = self.tree.get(child_pid);
-                assert_eq!(node.level as usize, level_below);
-                self.nodes[level_below] = node;
-                self.begin.indices[level_below] = 0;
+                assert_eq!(node.level as usize, k);
+                self.nodes[k] = node;
+                self.begin.indices[k] = 0;
             }
         }
     }
@@ -608,11 +609,11 @@ mod test {
         let make_child_ids = |n| iter::repeat(PageId::max()).take(n).collect();
 
         let datoms0: Vec<_> = [0, 1, 2, 3].iter().map(make_datom).collect();
-        let datoms2: Vec<_> = [4, 9].iter().map(make_datom).collect();
-        let datoms1: Vec<_> = [5, 6, 7, 8].iter().map(make_datom).collect();
+        let datoms2: Vec<_> = [4].iter().map(make_datom).collect();
+        let datoms1: Vec<_> = [5, 6, 7, 8, 9].iter().map(make_datom).collect();
 
         let children0: Vec<_> = make_child_ids(datoms0.len() + 1);
-        let children2 = vec![PageId(0), PageId(1), PageId::max()];
+        let children2 = vec![PageId(0), PageId(1)];
         let children1: Vec<_> = make_child_ids(datoms1.len() + 1);
 
         let node0 = Node {
@@ -657,7 +658,7 @@ mod test {
                 indices: vec![0, 0],
             },
             end: Cursor {
-                indices: vec![node0.datoms.len(), node2.datoms.len()],
+                indices: vec![node1.datoms.len(), node2.datoms.len()],
             },
         };
 
@@ -676,11 +677,11 @@ mod test {
         let make_child_ids = |n| iter::repeat(PageId::max()).take(n).collect();
 
         let datoms0: Vec<_> = [0, 2, 3].iter().map(make_datom).collect();
-        let datoms2: Vec<_> = [1, 4, 6, 7, 9].iter().map(make_datom).collect();
-        let datoms1: Vec<_> = [5, 8].iter().map(make_datom).collect();
+        let datoms2: Vec<_> = [1, 4, 6, 7].iter().map(make_datom).collect();
+        let datoms1: Vec<_> = [5, 8, 9].iter().map(make_datom).collect();
 
         let children0: Vec<_> = make_child_ids(datoms0.len() + 1);
-        let children2 = vec![PageId::max(), PageId(0), PageId::max(), PageId::max(), PageId(1), PageId::max()];
+        let children2 = vec![PageId::max(), PageId(0), PageId::max(), PageId::max(), PageId(1)];
         let children1: Vec<_> = make_child_ids(datoms1.len() + 1);
 
         let node0 = Node {
@@ -722,10 +723,10 @@ mod test {
                 tree.get(PageId(2)),
             ],
             begin: Cursor {
-                indices: vec![node0.datoms.len(), node2.datoms.len()],
+                indices: vec![0, 0],
             },
             end: Cursor {
-                indices: Vec::new(),
+                indices: vec![node1.datoms.len(), node2.datoms.len()],
             },
         };
 
