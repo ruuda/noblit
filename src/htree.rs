@@ -160,6 +160,16 @@ impl<'a> Node<'a> {
         None
     }
 
+    /// Return the page id of the child for the midpoint at or before `index`.
+    pub fn previous_midpoint(&self, index: usize) -> Option<PageId> {
+        for &page_id in self.children[..index + 1].iter().rev() {
+            if page_id != PageId::max() {
+                return Some(page_id);
+            }
+        }
+        None
+    }
+
     /// Return the index into the `datoms` array of the middle midpoint.
     fn median_midpoint(&self) -> usize {
         let mut num_midpoints = 0;
