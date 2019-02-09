@@ -50,8 +50,8 @@ pub trait PageSize {
 
     /// The size of the children page id array in bytes.
     fn children_bytes_len() -> usize {
-        // A page id is 8 bytes.
-        8 * Self::CAPACITY
+        // A page id is 8 bytes, and there is one more page id than datoms.
+        8 * (Self::CAPACITY + 1)
     }
 
     /// Byte offset at which the children page id array starts.
@@ -81,12 +81,12 @@ impl PageSize for PageSize256 {
     fn new() -> PageSize256 { PageSize256 }
 }
 
-// A 563-byte page can hold 14 datoms, the 2-byte header, and then it has one
-// byte to spare. The size is deliberately prime (and not a power of two) to
+// A 563-byte page can hold 13 datoms, the 2-byte header, and then it has 33
+// bytes to spare. The size is deliberately prime (and not a power of two) to
 // increase the chances of catching edge cases in tests.
 impl PageSize for PageSize563 {
     const SIZE: usize = 563;
-    const CAPACITY: usize = 14;
+    const CAPACITY: usize = 13;
     fn new() -> PageSize563 { PageSize563 }
 }
 

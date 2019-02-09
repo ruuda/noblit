@@ -73,12 +73,19 @@ impl<'a> Node<'a> {
             transmute_slice(&bytes[0..num_datom_bytes])
         };
 
-        // The array with child page ids starts at 3264.
-        let num_children_bytes = 8 * num_datoms;
+        // The array with child page ids starts at an offset dependent on the
+        // size of the node.
+        let num_children_bytes = 8 * (num_datoms + 1);
         let child_off = Size::children_offset();
         let children: &[PageId] = unsafe {
             transmute_slice(&bytes[child_off..child_off + num_children_bytes])
         };
+
+        assert_eq!(
+            datoms.len() + 1,
+            children.len(),
+            "Node must have one more child than datoms.",
+        );
 
         Node {
             level: level,
@@ -90,9 +97,9 @@ impl<'a> Node<'a> {
     /// Write the node to backing storage.
     pub fn write<Size: PageSize>(&self) -> Vec<u8> {
         assert_eq!(
-            self.datoms.len(),
+            self.datoms.len() + 1,
             self.children.len(),
-            "Node must have as many children as datoms."
+            "Node must have one more child than datoms.",
         );
         assert!(
             self.datoms.len() <= Size::CAPACITY,
@@ -434,32 +441,37 @@ impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
         // midpoint datom that bounds the datoms in its children from above,
         // indexing is within bounds at all levels: we will yield the parent
         // datoms last.
-        let mut level = 0;
-        let mut least_datom = &self.nodes[0].datoms[self.begin.indices[0]];
+        let mut candidate = None;
         for (k, (&i, node)) in self
             .begin.indices.iter()
             .zip(&self.nodes)
             .enumerate()
-            .skip(1)
         {
             // If we exhausted the datoms in this node, skip over it. There
             // might still be the last child node to iterate.
             if i >= node.datoms.len() { continue }
 
             let datom = &node.datoms[i];
-            match self.tree.comparator.cmp(least_datom, datom) {
-                Ordering::Less => continue,
-                Ordering::Equal => panic!("Encountered duplicate datom in htree."),
-                Ordering::Greater => {
-                    level = k;
-                    least_datom = datom;
+
+            match candidate {
+                None => candidate = Some((k, datom)),
+                Some((level, least_datom)) => {
+                    match self.tree.comparator.cmp(least_datom, datom) {
+                        Ordering::Less => continue,
+                        Ordering::Equal => panic!("Encountered duplicate datom in htree."),
+                        Ordering::Greater => candidate = Some((k, datom)),
+                    }
                 }
             }
         }
 
-        self.advance(level);
-
-        Some(least_datom)
+        match candidate {
+            None => panic!("Iter::next should find a candidate when not exhausted."),
+            Some((level, least_datom)) => {
+                self.advance(level);
+                Some(least_datom)
+            }
+        }
     }
 }
 
@@ -516,7 +528,7 @@ mod test {
         // TODO: Generate some test data.
         let datom = Datom::assert(Eid::min(), Aid::max(), Value::min(), Tid::max());
         let datoms: Vec<_> = iter::repeat(datom).take(17).collect();
-        let child_ids: Vec<_> = (0..17).map(|i| PageId(i)).collect();
+        let child_ids: Vec<_> = (0..18).map(|i| PageId(i)).collect();
 
         let node = Node {
             level: 0,
@@ -542,7 +554,7 @@ mod test {
             .map(|i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max()))
             .collect();
         let child_ids: Vec<_> = iter::repeat(PageId::max())
-            .take(datoms.len())
+            .take(datoms.len() + 1)
             .collect();
 
         let node = Node {
@@ -568,7 +580,7 @@ mod test {
                 indices: vec![0],
             },
             end: Cursor {
-                indices: Vec::new(),
+                indices: vec![node.datoms.len()],
             },
         };
 
@@ -589,9 +601,9 @@ mod test {
         let datoms2: Vec<_> = [4, 9].iter().map(make_datom).collect();
         let datoms1: Vec<_> = [5, 6, 7, 8].iter().map(make_datom).collect();
 
-        let children0: Vec<_> = make_child_ids(datoms0.len());
-        let children2 = vec![PageId(0), PageId(1)];
-        let children1: Vec<_> = make_child_ids(datoms1.len());
+        let children0: Vec<_> = make_child_ids(datoms0.len() + 1);
+        let children2 = vec![PageId(0), PageId(1), PageId::max()];
+        let children1: Vec<_> = make_child_ids(datoms1.len() + 1);
 
         let node0 = Node {
             level: 0,
@@ -628,14 +640,14 @@ mod test {
         let iter = Iter {
             tree: &tree,
             nodes: vec![
-                tree.get(PageId(2)),
                 tree.get(PageId(0)),
+                tree.get(PageId(2)),
             ],
             begin: Cursor {
                 indices: vec![0, 0],
             },
             end: Cursor {
-                indices: Vec::new(),
+                indices: vec![node0.datoms.len(), node2.datoms.len()],
             },
         };
 
@@ -657,9 +669,9 @@ mod test {
         let datoms2: Vec<_> = [1, 4, 6, 7, 9].iter().map(make_datom).collect();
         let datoms1: Vec<_> = [5, 8].iter().map(make_datom).collect();
 
-        let children0: Vec<_> = make_child_ids(datoms0.len());
-        let children2 = vec![PageId::max(), PageId(0), PageId::max(), PageId::max(), PageId(1)];
-        let children1: Vec<_> = make_child_ids(datoms1.len());
+        let children0: Vec<_> = make_child_ids(datoms0.len() + 1);
+        let children2 = vec![PageId::max(), PageId(0), PageId::max(), PageId::max(), PageId(1), PageId::max()];
+        let children1: Vec<_> = make_child_ids(datoms1.len() + 1);
 
         let node0 = Node {
             level: 0,
@@ -696,11 +708,11 @@ mod test {
         let iter = Iter {
             tree: &tree,
             nodes: vec![
-                tree.get(PageId(2)),
                 tree.get(PageId(0)),
+                tree.get(PageId(2)),
             ],
             begin: Cursor {
-                indices: vec![0, 0],
+                indices: vec![node0.datoms.len(), node2.datoms.len()],
             },
             end: Cursor {
                 indices: Vec::new(),
