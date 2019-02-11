@@ -57,6 +57,15 @@ unsafe fn transmute_slice<T, U>(ts: &[T]) -> &[U] {
 }
 
 impl<'a> Node<'a> {
+    /// Create a copy of this node that owns its contents.
+    pub fn to_vec_node(&self) -> VecNode {
+        VecNode {
+            level: self.level,
+            datoms: self.datoms.to_vec(),
+            children: self.children.to_vec(),
+        }
+    }
+
     /// Interpret a page-sized byte slice as node.
     pub fn from_bytes<Size: PageSize>(bytes: &'a [u8]) -> Node<'a> {
         assert_eq!(bytes.len(), Size::SIZE);
@@ -253,6 +262,33 @@ impl<'a> Node<'a> {
         debug_assert!(self.is_midpoint_at(midpoint_index));
 
         self.split_impl(midpoint_index)
+    }
+
+    /// Insert datoms into a node, if there is space.
+    ///
+    /// Construct a new node, which incudes all of the datoms in the current
+    /// node, and additionally all of `datoms` as pending datoms.
+    ///
+    /// Panics if the datoms would not fit in a node. It is the responsibility
+    /// of the caller to verify that there is enough space.
+    pub fn insert(&self, datoms: &[Datom]) -> VecNode {
+        let new_len = node.datoms.len() + datoms.len();
+
+        let datoms = Vec::with_capacity(new_len);
+        let children = Vec::with_capacity(new_len + 1);
+
+        let mut i = 0;
+        let mut j = 0;
+
+        loop {
+            // TODO: Do a merge sort of the datoms.
+        }
+
+        VecNode {
+            level: self.level,
+            datoms: datoms,
+            children: children,
+        }
     }
 }
 
