@@ -39,7 +39,7 @@ pub struct Node<'a> {
 
     /// Child node page indices.
     ///
-    /// The length is `datoms.len()`.
+    /// The length is `datoms.len() + 1`.
     pub children: &'a [PageId],
 }
 
@@ -261,22 +261,21 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
 /// Datoms in the tree are ordered. A cursor identifies how to reach a given
 /// datom, and also how to reach the next ones.
 ///
-/// A cursor is a stack of indices into nodes.
+/// A cursor is a stack of indices into nodes. There is one index for each level
+/// of the tree.
 ///
-/// * `nodes[0]` is the root node.
-/// * `indices[0]` is an index into the root node's datoms.
-/// * `nodes[i]` is the node pointed at by `indices[i - 1]`, or by the first
-///   midpoint datom after `indices[i - 1]` if `indices[i - 1]` points at a
-///   pending datom.
-/// * `indices[i]` is an index into `nodes[i]`.
+/// * `nodes[i]` contains the node pointed to, with `nodes[i].level == i`.
+/// * `indices[i]` is an index into the datoms array of `nodes[i]`.
+/// * `nodes[i]` is the node pointed at by `nodes[i + 1].children[j]`, where
+///   `j >= indices[i + 1]` is the smallest `j` at which the children array
+///   contains a page id (as opposed to being paired with a pending datom).
 ///
 /// Note that the nodes are not stored in the cursor. Rather, they are stored
 /// in the iterator when iterating.
 struct Cursor {
     /// Stack of indices into the datom array, of the next datom to yield.
     ///
-    /// The bottom of the stack corresponds to the node with the greatest level,
-    /// the root node.
+    /// The element at index `i` indexes into a node of level `i`.
     // TODO: Could be a fixed-size array, max depth is not very deep. The index
     // could also be u32 or even u16, as there aren't that much datoms per node.
     indices: Vec<usize>,

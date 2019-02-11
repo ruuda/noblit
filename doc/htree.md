@@ -46,8 +46,9 @@ Tree nodes are 4096 bytes.
  * At byte 0, the datom array starts. It contains <var>k</var> datoms in
    increasing order.
  * At byte 3264, the child array starts. It contains 64-bit page ids of the
-   child nodes. The child array has <var>k</var> elements, such that all
-   datoms in node `children[i]` order before `datoms[i]`. The special value
+   child nodes. The child array has <var>k</var> + 1 elements, such that all
+   datoms in node `children[i]` order before `datoms[i]`. All datoms in node
+   `children[i + 1]` order after `datoms[i]`. The special value
    `0xffffffffffffffff` indicates that there is no child node in this slot.
    If this is the case for slot <var>i</var>, then datom <var>i</var> is a
    *pending* datom rather than a midpoint, and that datom should be flushed
