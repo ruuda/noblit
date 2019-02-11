@@ -203,17 +203,28 @@ impl<'a> Node<'a> {
             self.datoms.len() >= 2,
             "Need at least three datoms to split: left, midpoint, and right."
         );
+
         let midpoint = self.datoms[split_index];
         let n0 = Node {
             level: 0,
             datoms: &self.datoms[..split_index],
-            children: &self.children[..split_index],
+            children: &self.children[..split_index + 1],
         };
         let n1 = Node {
             level: 0,
             datoms: &self.datoms[split_index + 1..],
             children: &self.children[split_index + 1..],
         };
+
+        debug_assert_eq!(
+            n0.datoms.len() + 1, n0.children.len(),
+            "Split needs to preserve invariant of 1 + #datoms children (left)."
+        );
+        debug_assert_eq!(
+            n1.datoms.len() + 1, n1.children.len(),
+            "Split needs to preserve invariant of 1 + #datoms children (right).",
+        );
+
         (n0, midpoint, n1)
     }
 
@@ -232,19 +243,16 @@ impl<'a> Node<'a> {
 
     /// Split an internal node at the middle midpoint datom.
     ///
-    /// Returns (n0, midpoint, pm, n1) such that all datoms in n0 are less than
+    /// Returns (n0, midpoint, n1) such that all datoms in n0 are less than
     /// the midpoint, and all datoms in n1 are greater than the midpoint. The
     /// page id of the child that the midpoint pointed to is pm.
-    fn split_internal(&self) -> (Node, Datom, PageId, Node) {
+    fn split_internal(&self) -> (Node, Datom, Node) {
         debug_assert!(self.level > 0, "Internal nodes should have level > 0.");
 
         let midpoint_index = self.median_midpoint();
-        let child_page = self.children[midpoint_index];
         debug_assert!(self.is_midpoint_at(midpoint_index));
 
-        let (n0, midpoint, n1) = self.split_impl(midpoint_index);
-
-        (n0, midpoint, child_page, n1)
+        self.split_impl(midpoint_index)
     }
 }
 
@@ -350,20 +358,11 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         let (n0_bytes, midpoint, n1_bytes) = {
             let node = self.get(page);
 
-            assert!(node.datoms.len() >= 3, "Can only split node with at least three datoms.");
+            assert!(node.datoms.len() >= 2, "Can only split node with at least two datoms.");
 
-            let (n0, midpoint, n1) = if node.level == 0 {
-                node.split_leaf()
-            } else {
-                let (mut n0, midpoint, _pm, n1) = node.split_internal();
-
-                // TODO: Rewrite node n0, to have an extra datom to fit pm in
-                // there. Or, perhaps easier, admid defeat on storing upper
-                // bounds, and extend nodes to contain an extra child past the
-                // last midpoint datom. Then we can extract the midpoint without
-                // having to find a substitute, but iteration would need some
-                // modifications.
-                (n0, midpoint, n1)
+            let (n0, midpoint, n1) = match node.level {
+                0 => node.split_leaf(),
+                _ => node.split_internal(),
             };
 
             (n0.write::<S::Size>(), midpoint, n1.write::<S::Size>())
