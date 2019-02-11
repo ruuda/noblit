@@ -331,21 +331,6 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         }
     }
 
-    /// Take the greatest datom out of a given node.
-    ///
-    /// This makes a copy of the node at the given page, with its greatest datom
-    /// removed. If that node was not a leaf node, then that would leave a hole:
-    /// the greatest datom in an internal node is always a midpoint, which has a
-    /// child node. So we recurse, and extract the maximum from the child, which
-    /// will become the maximum of its parent, filling the hole just created.
-    ///
-    /// TODO: As we write new nodes anyway, we should also flush any pending
-    /// datoms that belong in the node we are about to write, while we have the
-    /// opportunity.
-    pub fn extract_max(&mut self, page: PageId) -> (PageId, Datom) {
-        unimplemented!();
-    }
-
     /// Split a given node into two.
     ///
     /// Returns `(n0, m0, n1)` such that:
