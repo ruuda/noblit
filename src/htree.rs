@@ -179,23 +179,31 @@ impl<'a> Node<'a> {
         None
     }
 
-    /// Return the index into the `datoms` array of the middle midpoint.
-    fn median_midpoint(&self) -> usize {
-        let mut num_midpoints = 0;
+    /// Return the number of children that this node has.
+    pub fn num_children(&self) -> usize {
+        let mut n = 0;
+
         for i in 0..self.children.len() {
-            num_midpoints += if self.is_midpoint_at(i) { 1 } else { 0 };
+            n += if self.is_midpoint_at(i) { 1 } else { 0 };
         }
 
-        assert!(
-            num_midpoints == 0 || num_midpoints > 1,
+        debug_assert!(
+            n == 0 || n > 1,
             "Node must have either no children at all, or at least two otherwise.",
         );
 
+        n
+    }
+
+    /// Return the index into the `datoms` array of the middle midpoint.
+    fn median_midpoint(&self) -> usize {
+        let num_children = self.num_children();
         let mut num_visited = 0;
+
         for i in 0..self.children.len() {
             if self.is_midpoint_at(i) {
                 num_visited += 1;
-                if num_visited * 2 >= num_midpoints {
+                if num_visited * 2 >= num_children {
                     return i
                 }
             }
@@ -424,6 +432,10 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             _ => node.split_internal(),
         };
 
+        // TODO: What if the input node was too big such that even half of it
+        // does not fit in a page? Then we need to split again, or flush. Could
+        // decide to write only the first page, and return a VecNode. Or mutate
+        // the VecNode.
         let n0_bytes = n0.write::<S::Size>();
         let n1_bytes = n1.write::<S::Size>();
 
@@ -439,8 +451,25 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             let node = self.get(page);
             let new_node = node.insert(self.comparator, datoms);
 
+            // If the new node does not fit in a page, then we either need to
+            // flush some pending datoms, and if that is not possible, then we
+            // need to split the node.
             if new_node.datoms.len() > S::Size::CAPACITY {
-                unimplemented!("TODO: Flush or split.");
+                // A node can fit CAPACITY datoms, and have CAPACITY + 1 children.
+                if new_node.num_children() <= S::Size::CAPACITY + 1 {
+                    // The node would fit if we flushed pending datoms.
+                    // TODO: We could split even if a flush would work, to keep
+                    // more spare space
+                    unimplemented!("TODO: Flush");
+                } else {
+                    // Flushing will not be sufficient to make the node fit in a
+                    // page. We need to split it. But then what, we may need to
+                    // to create a new root above. Also, we need to make sure
+                    // that the datom is small enough before splitting, or split
+                    // it in many pieces at once.
+                    let (n0, midpoint, n1) = self.split(&new_node)?;
+                    unimplemented!("TODO: Handle split.");
+                }
             }
 
             new_node.as_node().write::<S::Size>()
