@@ -416,21 +416,16 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     ///
     /// * `m0` is greater than any datom in node `n0`.
     /// * `m0` is smaller than any datom in node `n1`.
-    pub fn split(&mut self, page: PageId) -> io::Result<(PageId, Datom, PageId)> {
-        // Split the node and serialize the new nodes. This is done in a scope,
-        // so we can later mutate the store again.
-        let (n0_bytes, midpoint, n1_bytes) = {
-            let node = self.get(page);
+    pub fn split(&mut self, node: &Node) -> io::Result<(PageId, Datom, PageId)> {
+        assert!(node.datoms.len() >= 2, "Can only split node with at least two datoms.");
 
-            assert!(node.datoms.len() >= 2, "Can only split node with at least two datoms.");
-
-            let (n0, midpoint, n1) = match node.level {
-                0 => node.split_leaf(),
-                _ => node.split_internal(),
-            };
-
-            (n0.write::<S::Size>(), midpoint, n1.write::<S::Size>())
+        let (n0, midpoint, n1) = match node.level {
+            0 => node.split_leaf(),
+            _ => node.split_internal(),
         };
+
+        let n0_bytes = n0.write::<S::Size>();
+        let n1_bytes = n1.write::<S::Size>();
 
         let p0 = self.store.write_page(&n0_bytes)?;
         let p1 = self.store.write_page(&n1_bytes)?;
