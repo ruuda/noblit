@@ -437,6 +437,29 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
         Ok((p0, midpoint, p1))
     }
+
+    /// Insert datoms into a given node.
+    fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<PageId> {
+        let node_bytes = {
+            let node = self.get(page);
+            let new_node = node.insert(self.comparator, datoms);
+
+            if new_node.datoms.len() > S::Size::CAPACITY {
+                unimplemented!("TODO: Flush or split.");
+            }
+
+            new_node.as_node().write::<S::Size>()
+        };
+        self.store.write_page(&node_bytes)
+    }
+
+    /// Insert datoms into the tree.
+    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> {
+        let old_root = self.root_page;
+        let new_root = self.insert_into(old_root, datoms)?;
+        self.root_page = new_root;
+        Ok(())
+    }
 }
 
 struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
