@@ -271,23 +271,66 @@ impl<'a> Node<'a> {
     ///
     /// Panics if the datoms would not fit in a node. It is the responsibility
     /// of the caller to verify that there is enough space.
-    pub fn insert(&self, datoms: &[Datom]) -> VecNode {
-        let new_len = node.datoms.len() + datoms.len();
+    fn insert<Cmp: DatomOrd>(&self, comparator: &Cmp, datoms: &[Datom]) -> VecNode {
+        let other_datoms = datoms;
+        let new_len = self.datoms.len() + other_datoms.len();
 
-        let datoms = Vec::with_capacity(new_len);
-        let children = Vec::with_capacity(new_len + 1);
+        let mut new_datoms = Vec::with_capacity(new_len);
+        let mut new_children = Vec::with_capacity(new_len + 1);
 
+        // Do a merge sort of the two datom slices.
         let mut i = 0;
         let mut j = 0;
 
         loop {
-            // TODO: Do a merge sort of the datoms.
+            // Stop if both slices are exhaused, copy the remainder if only one
+            // slice is exhausted.
+            let (i_end, j_end) = (i == self.datoms.len(), j == other_datoms.len());
+            match () {
+                _ if i_end && j_end => {
+                    assert_eq!(new_datoms.len(), i + j);
+                    break
+                }
+                _ if i_end => {
+                    new_datoms.push(other_datoms[j]);
+                    new_children.push(PageId::max());
+                    j += 1;
+                    continue
+                }
+                _ if j_end => {
+                    new_datoms.push(self.datoms[i]);
+                    new_children.push(self.children[i]);
+                    i += 1;
+                    continue
+                }
+                _ => {}
+            }
+
+            // Neither slice is exhausted, compare the two candidates.
+            let datom_i = self.datoms[i];
+            let datom_j = other_datoms[j];
+            match comparator.cmp(&datom_i, &datom_j) {
+                Ordering::Equal => panic!("Encountered duplicate datom in htree."),
+                Ordering::Less => {
+                    new_datoms.push(datom_i);
+                    new_children.push(self.children[i]);
+                    i += 1;
+                },
+                Ordering::Greater => {
+                    new_datoms.push(datom_j);
+                    new_children.push(PageId::max());
+                    j += 1;
+                }
+            }
         }
+
+        // Copy over the final child pointer.
+        new_children.push(self.children[j]);
 
         VecNode {
             level: self.level,
-            datoms: datoms,
-            children: children,
+            datoms: new_datoms,
+            children: new_children,
         }
     }
 }
