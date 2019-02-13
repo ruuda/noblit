@@ -156,4 +156,12 @@ with Datomic internals apart from the publicly available documentation.
 
 ## License
 
-Apache 2.0.
+Noblit is licensed under the [Apache 2.0][apache2] license. It may be used in
+free software as well as closed-source applications, both for commercial and
+non-commercial use under the conditions given in the license. If you want to
+use Noblit in your GPLv2-licensed software, you can add an [exception][except]
+to your copyright notice. Please do not open an issue if you disagree with the
+choice of license.
+
+[apache2]:       https://www.apache.org/licenses/LICENSE-2.0
+[except]:        https://www.gnu.org/licenses/gpl-faq.html#GPLIncompatibleLibs
