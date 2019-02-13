@@ -496,6 +496,10 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         let mut to_merge = self.insert_into(child, &node.datoms[span.start..span.end])?;
 
         debug_assert_eq!(
+            to_merge.level, node.level,
+            "Result of insert_into must have same level as node to flush.",
+        );
+        debug_assert_eq!(
             to_merge.datoms.len() + 1, to_merge.children.len(),
             "Result of insert_into must have one more child than midpoint datoms.",
         );
