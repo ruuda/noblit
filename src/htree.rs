@@ -7,9 +7,11 @@
 
 //! Defines on-disk hitchhiker trees.
 
-use datom::Datom;
 use std::cmp::Ordering;
 use std::io;
+use std::ops::Range;
+
+use datom::Datom;
 use store::{PageId, PageSize, Store};
 
 /// An ordering on datoms.
@@ -195,6 +197,11 @@ impl<'a> Node<'a> {
         n
     }
 
+    /// Return whether this node has any pending datoms.
+    pub fn has_pending_datoms(&self) -> bool {
+        self.children.iter().any(|&pid| pid == PageId::max())
+    }
+
     /// Return the index into the `datoms` array of the middle midpoint.
     fn median_midpoint(&self) -> usize {
         let num_children = self.num_children();
@@ -210,6 +217,28 @@ impl<'a> Node<'a> {
         }
 
         unreachable!("Would have returned past median midpoint.")
+    }
+
+    /// Return the longest span of pending datoms.
+    ///
+    /// The returned range can be safely used to index into `datoms`. The child
+    /// node into which the datoms need to be flushed is `children[range.end]`.
+    pub fn longest_pending_span(&self) -> Range<usize> {
+        let mut start = 0;
+        let mut range = 0..0;
+
+        // Find the longest span of pending datoms.
+        for (i, &pid) in self.children.iter().enumerate() {
+            if self.is_midpoint_at(i) {
+                let len = i - start;
+                if len > range.len() {
+                    range = start..i;
+                }
+                start = i + 1;
+            }
+        }
+
+        range
     }
 
     /// Split this node at the given index (internal helper method).
@@ -276,9 +305,6 @@ impl<'a> Node<'a> {
     ///
     /// Construct a new node, which incudes all of the datoms in the current
     /// node, and additionally all of `datoms` as pending datoms.
-    ///
-    /// Panics if the datoms would not fit in a node. It is the responsibility
-    /// of the caller to verify that there is enough space.
     fn insert<Cmp: DatomOrd>(&self, comparator: &Cmp, datoms: &[Datom]) -> VecNode {
         let other_datoms = datoms;
         let new_len = self.datoms.len() + other_datoms.len();
@@ -445,36 +471,60 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         Ok((p0, midpoint, p1))
     }
 
+    /// Flush pending datoms of the node into one child node.
+    ///
+    /// Flushes the longest span of pending datoms. There must be at least one
+    /// pending datom in order to flush. This method panics if there are no
+    /// pending datoms.
+    ///
+    /// This method updates the node to be flushed in place, such that when the
+    /// method returns, the child id has been updated for the child into which
+    /// datoms were flushed, and the flushed datoms have been removed from the
+    /// input node.
+    ///
+    /// To flush all pending datoms, call this method repeatedly.
+    fn flush(&mut self, node: &mut VecNode) -> io::Result<()> {
+        assert!(node.level > 0, "Cannot flush leaf nodes: no children to flush into.");
+
+        let span = node.as_node().longest_pending_span();
+        assert!(span.len() > 0, "Trying to flush node with no pending datoms.");
+
+        // Make a new version of the child node,
+        // with the pending datoms flushed into it.
+        let child = node.children[span.end];
+        let new_child = self.insert_into(child, &node.datoms[span.clone()])?;
+
+        // Update the current node to remove the flushed datoms.
+        node.children[span.end] = new_child;
+        node.datoms.drain(span.clone());
+        node.children.drain(span.clone());
+
+        Ok(())
+    }
+
     /// Insert datoms into a given node.
     fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<PageId> {
-        let node_bytes = {
-            let node = self.get(page);
-            let new_node = node.insert(self.comparator, datoms);
+        // Make a heap-allocated copy of the node to insert into, and merge-sort
+        // insert the datoms into it.
+        let mut new_node = self.get(page).insert(self.comparator, datoms);
 
-            // If the new node does not fit in a page, then we either need to
-            // flush some pending datoms, and if that is not possible, then we
-            // need to split the node.
-            if new_node.datoms.len() > S::Size::CAPACITY {
-                // A node can fit CAPACITY datoms, and have CAPACITY + 1 children.
-                if new_node.num_children() <= S::Size::CAPACITY + 1 {
-                    // The node would fit if we flushed pending datoms.
-                    // TODO: We could split even if a flush would work, to keep
-                    // more spare space
-                    unimplemented!("TODO: Flush");
-                } else {
-                    // Flushing will not be sufficient to make the node fit in a
-                    // page. We need to split it. But then what, we may need to
-                    // to create a new root above. Also, we need to make sure
-                    // that the datom is small enough before splitting, or split
-                    // it in many pieces at once.
-                    let (n0, midpoint, n1) = self.split(&new_node)?;
-                    unimplemented!("TODO: Handle split.");
-                }
+        // If the new node does not fit in a page, then we either need to
+        // flush some pending datoms, and if that is not possible, then we
+        // need to split the node.
+        while new_node.datoms.len() > S::Size::CAPACITY {
+            if new_node.level > 0 && new_node.as_node().has_pending_datoms() {
+                self.flush(&mut new_node)?;
+                continue;
             }
 
-            new_node.as_node().write::<S::Size>()
-        };
-        self.store.write_page(&node_bytes)
+            // If we get here, we flushed as much as possible, and the node
+            // still does not fit in a page. Then we need to split the node.
+
+            let (n0, midpoint, n1) = self.split(&new_node.as_node())?;
+            unimplemented!("TODO: Handle split.");
+        }
+
+        self.store.write_page(&new_node.as_node().write::<S::Size>())
     }
 
     /// Insert datoms into the tree.
