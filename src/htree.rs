@@ -489,21 +489,37 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         let span = node.as_node().longest_pending_span();
         assert!(span.len() > 0, "Trying to flush node with no pending datoms.");
 
-        // Make a new version of the child node,
-        // with the pending datoms flushed into it.
+        // Make a new version of the child node, with the pending datoms flushed
+        // into it. We get at least one new child page id, and possibly
+        // additional midpoint datoms and child pages to add in this node.
         let child = node.children[span.end];
-        let new_child = self.insert_into(child, &node.datoms[span.clone()])?;
+        let mut to_merge = self.insert_into(child, &node.datoms[span.start..span.end])?;
 
-        // Update the current node to remove the flushed datoms.
-        node.children[span.end] = new_child;
-        node.datoms.drain(span.clone());
-        node.children.drain(span.clone());
+        debug_assert_eq!(
+            to_merge.datoms.len() + 1, to_merge.children.len(),
+            "Result of insert_into must have one more child than midpoint datoms.",
+        );
+
+        // Update the current node to remove the flushed datoms, and also the
+        // old child pointer. Then insert the new midpoints (if there are any),
+        // and the new child pointer.
+        node.datoms.splice(span.start..span.end, to_merge.datoms.drain(..));
+        node.children.splice(span.start..span.end + 1, to_merge.children.drain(..));
 
         Ok(())
     }
 
     /// Insert datoms into a given node.
-    fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<PageId> {
+    ///
+    /// Inserting into a node may cause the subtree to overflow, requiring node
+    /// splits. The midpoints for these splits need to be pushed up one level,
+    /// so they are returned from the insert.
+    ///
+    /// The last child of the returned child contains the page id of the new
+    /// node, where the datoms have been inserted. If the insert required
+    /// splits, then the midpoint datoms and associated page ids precede the
+    /// final child, respecting the ordering.
+    fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<VecNode> {
         // Make a heap-allocated copy of the node to insert into, and merge-sort
         // insert the datoms into it.
         let mut new_node = self.get(page).insert(self.comparator, datoms);
@@ -524,14 +540,29 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             unimplemented!("TODO: Handle split.");
         }
 
-        self.store.write_page(&new_node.as_node().write::<S::Size>())
+        let new_page_id = self.store.write_page(&new_node.as_node().write::<S::Size>())?;
+
+        // Return the new page id as a node itself, because splits might have
+        // created additional midpoints that need to be returned along with the
+        // new page id.
+        let result = VecNode {
+            level: new_node.level + 1,
+            datoms: vec![],
+            children: vec![new_page_id],
+        };
+
+        Ok(result)
     }
 
     /// Insert datoms into the tree.
     pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> {
         let old_root = self.root_page;
-        let new_root = self.insert_into(old_root, datoms)?;
-        self.root_page = new_root;
+        let to_merge = self.insert_into(old_root, datoms)?;
+        match to_merge.children.len() {
+            0 => panic!("Result of insert_into must contain at least one child page."),
+            1 => self.root_page = to_merge.children[0],
+            _ => unimplemented!("TODO: Need to create a new root node."),
+        };
         Ok(())
     }
 }
