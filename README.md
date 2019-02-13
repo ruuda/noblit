@@ -2,7 +2,9 @@
 
 **This is vaporware. Much of the content below is hypothetical.**
 
-This is a free, libre, implementation of an immutable append-only database
+[![Build Status][ci-img]][ci]
+
+Noblit is a free, libre, implementation of an immutable append-only database
 inspired by Datomic. A database is a set of (entity, attribute, value) tuples
 called *datoms*. Datoms can be asserted and retracted. A retraction is recorded
 as a new fact; it is not a delete.
@@ -163,5 +165,7 @@ use Noblit in your GPLv2-licensed software, you can add an [exception][except]
 to your copyright notice. Please do not open an issue if you disagree with the
 choice of license.
 
-[apache2]:       https://www.apache.org/licenses/LICENSE-2.0
-[except]:        https://www.gnu.org/licenses/gpl-faq.html#GPLIncompatibleLibs
+[ci-img]:  https://travis-ci.org/ruuda/noblit.svg?branch=master
+[ci]:      https://travis-ci.org/ruuda/noblit
+[apache2]: https://www.apache.org/licenses/LICENSE-2.0
+[except]:  https://www.gnu.org/licenses/gpl-faq.html#GPLIncompatibleLibs
