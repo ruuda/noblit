@@ -444,31 +444,23 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         }
     }
 
-    /// Split a given node into two.
+    /// Split a given node into `num_pages` pieces, and write them.
     ///
-    /// Returns `(n0, m0, n1)` such that:
+    /// Returns a `VecNode` with the split midpoints, and the children pointing
+    /// to the nodes that were split off. The returned node satisfies:
     ///
-    /// * `m0` is greater than any datom in node `n0`.
-    /// * `m0` is smaller than any datom in node `n1`.
-    pub fn split(&mut self, node: &Node) -> io::Result<(PageId, Datom, PageId)> {
+    /// * `datoms[i]` is greater than any datom in node `children[i]`.
+    /// * `datoms[i]` is less than any datom in node `children[i + 1]`.
+    pub fn split(&mut self, node: &Node, num_pages: usize) -> io::Result<VecNode> {
         assert!(node.datoms.len() >= 2, "Can only split node with at least two datoms.");
+        assert!(
+            // Every page can fit CAPACITY datoms, and num_pages - 1 midpoint
+            // datoms are retured as part of the result.
+            node.datoms.len() <= num_pages * (S::Size::CAPACITY + 1) - 1,
+            "In split, the specified number of pages must be able to fit all datoms.",
+        );
 
-        let (n0, midpoint, n1) = match node.level {
-            0 => node.split_leaf(),
-            _ => node.split_internal(),
-        };
-
-        // TODO: What if the input node was too big such that even half of it
-        // does not fit in a page? Then we need to split again, or flush. Could
-        // decide to write only the first page, and return a VecNode. Or mutate
-        // the VecNode.
-        let n0_bytes = n0.write::<S::Size>();
-        let n1_bytes = n1.write::<S::Size>();
-
-        let p0 = self.store.write_page(&n0_bytes)?;
-        let p1 = self.store.write_page(&n1_bytes)?;
-
-        Ok((p0, midpoint, p1))
+        unimplemented!("TODO: Reimplement split.")
     }
 
     /// Flush pending datoms of the node into one child node.
@@ -503,6 +495,10 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             to_merge.datoms.len() + 1, to_merge.children.len(),
             "Result of insert_into must have one more child than midpoint datoms.",
         );
+        debug_assert!(
+            to_merge.datoms.len() <= span.len(),
+            "Flushing must not make a node bigger.",
+        );
 
         // Update the current node to remove the flushed datoms, and also the
         // old child pointer. Then insert the new midpoints (if there are any),
@@ -528,27 +524,37 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         // insert the datoms into it.
         let mut new_node = self.get(page).insert(self.comparator, datoms);
 
-        // If the new node does not fit in a page, then we either need to
-        // flush some pending datoms, and if that is not possible, then we
-        // need to split the node.
-        while new_node.datoms.len() > S::Size::CAPACITY {
-            if new_node.level > 0 && new_node.as_node().has_pending_datoms() {
-                self.flush(&mut new_node)?;
-                continue;
-            }
-
-            // If we get here, we flushed as much as possible, and the node
-            // still does not fit in a page. Then we need to split the node.
-
-            let (n0, midpoint, n1) = self.split(&new_node.as_node())?;
-            unimplemented!("TODO: Handle split.");
+        // If the new node does not fit in a page, try flushing pending datoms
+        // until it fits.
+        while node.level > 0
+            && new_node.datoms.len() > S::Size::CAPACITY
+            && new_node.as_node().has_pending_datoms()
+        {
+            self.flush(&mut new_node)?;
         }
 
+        // If flushing did not help (enough), then we need to split the node.
+        if new_node.datoms.len() > S::Size::CAPACITY {
+            assert!(
+                !new_node.as_node().has_pending_datoms() || node.level == 0,
+                "Only at level 0, an oversized node can have pending datoms.",
+            );
+
+            // Compute the number of pages we need, rounding up. For every split
+            // we make, there is one less datom to account for (because the
+            // datom becomes a midpoint), but we don't take that into account,
+            // spliting a node into nodes that are all full is a bad idea
+            // anyway, because then they cannot hold pending datoms.
+            let num_datoms = new_node.datoms.len();
+            let num_pages = (num_datoms + S::Size::CAPACITY - 1) / S::Size::CAPACITY;
+            return self.split(&new_node.as_node(), num_pages)
+        }
+
+        // If the node is small enough to fit in one page, then we just write
+        // the new node, and return its id as the sole child of a `VecNode`.
+        // (A `VecNode` with more children is only returned if we do splits.)
         let new_page_id = self.store.write_page(&new_node.as_node().write::<S::Size>())?;
 
-        // Return the new page id as a node itself, because splits might have
-        // created additional midpoints that need to be returned along with the
-        // new page id.
         let result = VecNode {
             level: new_node.level + 1,
             datoms: vec![],
