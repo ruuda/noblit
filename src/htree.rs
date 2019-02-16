@@ -526,7 +526,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
         // If the new node does not fit in a page, try flushing pending datoms
         // until it fits.
-        while node.level > 0
+        while new_node.level > 0
             && new_node.datoms.len() > S::Size::CAPACITY
             && new_node.as_node().has_pending_datoms()
         {
@@ -536,7 +536,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         // If flushing did not help (enough), then we need to split the node.
         if new_node.datoms.len() > S::Size::CAPACITY {
             assert!(
-                !new_node.as_node().has_pending_datoms() || node.level == 0,
+                !new_node.as_node().has_pending_datoms() || new_node.level == 0,
                 "Only at level 0, an oversized node can have pending datoms.",
             );
 
