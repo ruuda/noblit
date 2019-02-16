@@ -970,4 +970,35 @@ mod test {
             assert_eq!(datom.entity.0, y);
         }
     }
+
+    #[test]
+    fn tree_insert_accepts_new_datoms() {
+        let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
+
+        let mut store = MemoryStore::<Size>::new();
+        let node = Node {
+            level: 0,
+            datoms: &[],
+            children: &[],
+        };
+
+        type Size = PageSize563;
+        let root = store.write_page(&node.write::<Size>()).unwrap();
+
+        let mut tree = HTree {
+            root_page: root,
+            comparator: &(),
+            store: store,
+        };
+
+        for i in 0..100 {
+            let datoms = &[
+                make_datom(i * 1000 + 0),
+                make_datom(i * 1000 + 1),
+                make_datom(i * 1000 + 2),
+                make_datom(i * 1000 + 3),
+            ];
+            tree.insert(&datoms[..]);
+        }
+    }
 }
