@@ -460,7 +460,38 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             "In split, the specified number of pages must be able to fit all datoms.",
         );
 
-        unimplemented!("TODO: Reimplement split.")
+        let mut datoms = Vec::with_capacity(num_pages - 1);
+        let mut children = Vec::with_capacity(num_pages);
+        let children_per_page = node.children.len() / num_pages;
+
+        for p in 0..num_pages {
+            // Compute the lower (inclusive) and upper (exclusive) bound of the
+            // slice.
+            let begin = children_per_page * p;
+            let end = (begin + children_per_page).min(node.children.len());
+
+            // Extract one slice and write it. There is one less datom than
+            // children: that datom will become the midpoint in the parent.
+            let part = Node {
+                level: node.level,
+                datoms: &node.datoms[begin..end - 1],
+                children: &node.children[begin..end],
+            };
+            let part_page_id = self.store.write_page(&part.write::<S::Size>())?;
+
+            // Track the page id as a new child of the upper node, and use the
+            // final datom in the slice as the midpoint datom.
+            datoms.push(node.datoms[end - 1]);
+            children.push(part_page_id);
+        }
+
+        let result = VecNode {
+            level: node.level + 1,
+            datoms: datoms,
+            children: children,
+        };
+
+        Ok(result)
     }
 
     /// Flush pending datoms of the node into one child node.
