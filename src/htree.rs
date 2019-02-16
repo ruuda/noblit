@@ -599,11 +599,16 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> {
         let old_root = self.root_page;
         let to_merge = self.insert_into(old_root, datoms)?;
+
+        // If we get only one new page id, then that is the new root. If there
+        // is more, then the tree grows in height, and we write the entire new
+        // node as the new root.
         match to_merge.children.len() {
             0 => panic!("Result of insert_into must contain at least one child page."),
             1 => self.root_page = to_merge.children[0],
-            _ => unimplemented!("TODO: Need to create a new root node."),
+            _ => self.root_page = self.store.write_page(&to_merge.as_node().write::<S::Size>())?,
         };
+
         Ok(())
     }
 }
