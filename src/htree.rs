@@ -15,7 +15,7 @@ use datom::Datom;
 use store::{PageId, PageSize, Store};
 
 /// An ordering on datoms.
-trait DatomOrd {
+pub trait DatomOrd {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
 }
 
@@ -59,6 +59,18 @@ unsafe fn transmute_slice<T, U>(ts: &[T]) -> &[U] {
 }
 
 impl<'a> Node<'a> {
+    /// Return an empty node of the given level.
+    pub fn empty_of_level(level: u8) -> Node<'a> {
+        use std::u64;
+        Node {
+            level: level,
+            datoms: &[],
+            // NOTE: We can't use PageId::max() here because const fn is not yet
+            // stable.
+            children: &[PageId(u64::MAX)],
+        }
+    }
+
     /// Create a copy of this node that owns its contents.
     pub fn to_vec_node(&self) -> VecNode {
         VecNode {
@@ -393,7 +405,7 @@ pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageI
 ///
 /// Note that the nodes are not stored in the cursor. Rather, they are stored
 /// in the iterator when iterating.
-struct Cursor {
+pub struct Cursor {
     /// Stack of indices into the datom array, of the next datom to yield.
     ///
     /// The element at index `i` indexes into a node of level `i`.
@@ -403,7 +415,7 @@ struct Cursor {
 }
 
 /// A hittchhiker tree.
-struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
+pub struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     /// The page that contains the root node.
     root_page: PageId,
 
@@ -415,8 +427,12 @@ struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
 }
 
 impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
-    pub fn new(store: S, comparator: &'a Cmp) -> HTree<'a, Cmp, S> {
-        unimplemented!()
+    pub fn new(root_page: PageId, comparator: &'a Cmp, store: S) -> HTree<'a, Cmp, S> {
+        HTree {
+            root_page: root_page,
+            comparator: comparator,
+            store: store,
+        }
     }
 
     pub fn get(&self, page: PageId) -> Node {
@@ -979,23 +995,12 @@ mod test {
     fn tree_insert_accepts_new_datoms() {
         let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
 
-        let mut store = MemoryStore::<Size>::new();
-        // TODO: Add Node::empty constructor.
-        let node = Node {
-            level: 0,
-            datoms: &[],
-            children: &[PageId::max()],
-        };
-
         type Size = PageSize563;
+        let mut store = MemoryStore::<Size>::new();
+        let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-
-        // TODO: Add Tree::empty constructor.
-        let mut tree = HTree {
-            root_page: root,
-            comparator: &(),
-            store: store,
-        };
+        let comparator = ();
+        let mut tree = HTree::new(root, &comparator, store);
 
         for i in 0..100 {
             let datoms = &[
