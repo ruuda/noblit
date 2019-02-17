@@ -1,0 +1,35 @@
+[[package]]
+name = "arbitrary"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "cc"
+version = "1.0.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "libfuzzer-sys"
+version = "0.1.0"
+source = "git+https://github.com/rust-fuzz/libfuzzer-sys.git#4a413199b5cb1bbed6a1d157b2342b925f8464ac"
+dependencies = [
+ "arbitrary 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cc 1.0.29 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "noblit"
+version = "0.0.0"
+
+[[package]]
+name = "noblit-fuzz"
+version = "0.0.0"
+dependencies = [
+ "libfuzzer-sys 0.1.0 (git+https://github.com/rust-fuzz/libfuzzer-sys.git)",
+ "noblit 0.0.0",
+]
+
+[metadata]
+"checksum arbitrary 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "6c7d1523aa3a127adf8b27af2404c03c12825b4c4d0698f01648d63fa9df62ee"
+"checksum cc 1.0.29 (registry+https://github.com/rust-lang/crates.io-index)" = "4390a3b5f4f6bce9c1d0c00128379df433e53777fdd30e92f16a529332baec4e"
+"checksum libfuzzer-sys 0.1.0 (git+https://github.com/rust-fuzz/libfuzzer-sys.git)" = "<none>"

@@ -1,0 +1,20 @@
+[package]
+name = "noblit-fuzz"
+version = "0.0.0"
+authors = ["Ruud van Asseldonk"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+noblit = { path = ".." }
+libfuzzer-sys = { git = "https://github.com/rust-fuzz/libfuzzer-sys.git" }
+
+# Prevent this from interfering with workspaces.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "htree_insert"
+path = "fuzz_targets/htree_insert.rs"

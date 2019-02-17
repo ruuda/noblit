@@ -1,0 +1,4 @@
+# Build files and fuzz findings.
+/target
+/corpus
+/artifacts
