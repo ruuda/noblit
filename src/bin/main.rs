@@ -5,22 +5,13 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-// TODO: Remove once the API is fleshed out more. Or when this crate is turned
-// into a library.
-#![allow(dead_code)]
-#![allow(unused_variables)]
+extern crate noblit;
 
-mod database;
-mod datom;
-mod htree;
-mod index;
-mod query;
-mod query_plan;
-mod store;
-mod types;
-
-use database::Database;
-use query_plan::{Evaluator, QueryPlan};
+use noblit::database::Database;
+use noblit::datom;
+use noblit::query;
+use noblit::query_plan::{Evaluator, QueryPlan};
+use noblit::types;
 
 fn main() {
     let mut db = Database::new();
