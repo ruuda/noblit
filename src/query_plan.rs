@@ -292,14 +292,16 @@ impl QueryPlan {
     /// This is intended for debugging, once there is a query planner, there
     /// would be no more need to write a plan manually. The query corresponds to
     ///
-    ///     where
-    ///       a db.attribute.name name
-    ///       a db.attribute.type t
-    ///       a db.attribute.unique unique
-    ///       a db.attribute.many many
-    ///       t db.type.name type
-    ///     select
-    ///       a, name, t, type, unique, many
+    /// ```noblit
+    /// where
+    ///   a db.attribute.name name
+    ///   a db.attribute.type t
+    ///   a db.attribute.unique unique
+    ///   a db.attribute.many many
+    ///   t db.type.name type
+    /// select
+    ///   a, name, t, type, unique, many
+    /// ```
     pub fn example_all_attributes(builtins: &Builtins) -> QueryPlan {
         let db_attr_name = builtins.attribute_db_attribute_name;
         let db_attr_type = builtins.attribute_db_attribute_type;
@@ -374,10 +376,12 @@ impl QueryPlan {
     /// This is intended for debugging, once there is a query planner, there
     /// would be no more need to write a plan manually. The query corresponds to
     ///
-    ///     where
-    ///       t db.type.name name
-    ///     select
-    ///       t, name
+    /// ```noblit
+    /// where
+    ///   t db.type.name name
+    /// select
+    ///   t, name
+    /// ```
     pub fn example_all_types(builtins: &Builtins) -> QueryPlan {
         let db_type_name = builtins.attribute_db_type_name;
         QueryPlan {
