@@ -359,7 +359,7 @@ impl<'a> Node<'a> {
         }
 
         // Copy over the final child pointer.
-        new_children.push(self.children[j]);
+        new_children.push(self.children[i]);
 
         VecNode {
             level: self.level,
@@ -480,8 +480,12 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             let part_page_id = self.store.write_page(&part.write::<S::Size>())?;
 
             // Track the page id as a new child of the upper node, and use the
-            // final datom in the slice as the midpoint datom.
-            datoms.push(node.datoms[end - 1]);
+            // final datom in the slice as the midpoint datom. Only the last
+            // slice does not contain a final datom, but that is fine, because
+            // the vec node we return should not either.
+            if p + 1 < num_pages {
+                datoms.push(node.datoms[end - 1]);
+            }
             children.push(part_page_id);
         }
 
@@ -976,15 +980,17 @@ mod test {
         let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
 
         let mut store = MemoryStore::<Size>::new();
+        // TODO: Add Node::empty constructor.
         let node = Node {
             level: 0,
             datoms: &[],
-            children: &[],
+            children: &[PageId::max()],
         };
 
         type Size = PageSize563;
         let root = store.write_page(&node.write::<Size>()).unwrap();
 
+        // TODO: Add Tree::empty constructor.
         let mut tree = HTree {
             root_page: root,
             comparator: &(),
