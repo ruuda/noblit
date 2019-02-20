@@ -11,7 +11,7 @@ use noblit::htree::{HTree, Node};
 use noblit::store::{MemoryStore, PageSize, Store};
 
 /// Evaluate a closure on byte slices of various lengths.
-fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) {
+fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) -> bool {
     let mut left = data;
 
     while left.len() > 2 {
@@ -21,7 +21,7 @@ fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) {
             left.len() - 2,
         );
 
-        f(&left[2..2 + len]);
+        if !f(&left[2..2 + len]) { break }
         left = &left[2 + len..];
     }
 }
@@ -38,13 +38,22 @@ fn run<Size: PageSize>(full_data: &[u8]) {
     // Insert one datom at a time, with increasing transaction id in order not
     // to create duplicates.
     for_slices(full_data, |xs| {
+        // The precondition for tree insertion is that datoms be sorted. Simply
+        // skip the slice if the precondition is violated. The fuzzer will be
+        // uninterested in this case then, and move on.
+        for (&p, &q) in xs.iter().zip(xs.iter().skip(1)) {
+            if p >= q { return false; }
+        }
+
         tid += 2; // Transaction id must be even.
-        // TODO: Skip if there are duplicates, or if non-increasing.
+
         let datoms: Vec<Datom> = xs.iter().map(|&x|
             Datom::assert(Eid(x as u64), Aid::max(), Value::min(), Tid(tid))
         ).collect();
 
         tree.insert(&datoms[..]).unwrap();
+
+        true
     });
 }
 
