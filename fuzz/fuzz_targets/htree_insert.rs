@@ -4,8 +4,6 @@
 extern crate libfuzzer_sys;
 extern crate noblit;
 
-use std::cmp;
-
 use noblit::datom::{Datom, Aid, Eid, Value, Tid};
 use noblit::htree::{HTree, Node};
 use noblit::store::{MemoryStore, PageSize, Store};
@@ -16,10 +14,11 @@ fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) -> bool {
 
     while left.len() > 2 {
         // Read a 16-bit length prefix.
-        let len = cmp::min(
-            (left[0] as usize) << 8 | (left[1] as usize),
-            left.len() - 2,
-        );
+        let len = (left[0] as usize) << 8 | (left[1] as usize);
+
+        // Stop on invalid lengths, rather than capping the slice. This improves
+        // the chances of byte strings combining in interesting ways.
+        if len > left.len() - 2 { break }
 
         if !f(&left[2..2 + len]) { break }
         left = &left[2 + len..];
