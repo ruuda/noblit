@@ -949,7 +949,7 @@ mod test {
                 make_datom(i * 1000 + 2),
                 make_datom(i * 1000 + 3),
             ];
-            tree.insert(&datoms[..]);
+            tree.insert(&datoms[..]).unwrap();
         }
     }
 }
