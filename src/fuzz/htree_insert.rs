@@ -48,8 +48,8 @@ fn run<Size: PageSize>(full_data: &[u8]) {
 
     let mut tid = 0;
 
-    // Insert one datom at a time, with increasing transaction id in order not
-    // to create duplicates.
+    // Insert a batch of datoms at a time, with increasing transaction id in
+    // order not to create duplicates.
     for_slices(full_data, |xs| {
         // Transaction id must be even.
         tid += 2;
