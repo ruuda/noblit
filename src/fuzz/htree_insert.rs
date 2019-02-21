@@ -11,6 +11,17 @@ use datom::{Datom, Aid, Eid, Value, Tid};
 use htree::{DatomOrd, HTree, Node};
 use store::{MemoryStore, PageSize, Store};
 
+/// Print, except when fuzzing.
+///
+/// This is useful for printf-style debugging of fuzz artifacts. During fuzzing,
+/// this macro is a no-op, to keep the output clean and the fuzzer fast. But in
+/// the `inspect_fuzz_artifact` binary, these prints leave a trace of how the
+/// test sample was interpreted.
+macro_rules! dprintln {
+    () => (#[cfg(not(fuzzing))] println!());
+    ($($arg:tt)*) => (#[cfg(not(fuzzing))] println!($($arg)*));
+}
+
 /// Evaluate a closure on byte slices of various lengths.
 fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) -> bool {
     let mut left = data;
@@ -57,6 +68,11 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         datoms.sort_by(|x, y| (&comparator as &DatomOrd).cmp(x, y));
         datoms.dedup_by(|x, y| (&comparator as &DatomOrd).cmp(x, y) == Ordering::Equal);
 
+        dprintln!("Inserting {} datoms:", datoms.len());
+        for &datom in &datoms {
+            dprintln!("  {:?}", datom);
+        }
+
         tree.insert(&datoms[..]).unwrap();
 
         true
@@ -71,9 +87,18 @@ pub fn main(data: &[u8]) {
     // Fuzz at different page sizes, in order to test all page sizes thoroughly.
     // The first byte determines the page size.
     match data[0] {
-        0 => run::<PageSize256>(&data[1..]),
-        1 => run::<PageSize563>(&data[1..]),
-        2 => run::<PageSize4096>(&data[1..]),
+        0 => {
+            dprintln!("Page size: 256.");
+            run::<PageSize256>(&data[1..]);
+        }
+        1 => {
+            dprintln!("Page size: 563.");
+            run::<PageSize563>(&data[1..]);
+        }
+        2 => {
+            dprintln!("Page size: 4096.");
+            run::<PageSize4096>(&data[1..]);
+        }
         _ => return,
     }
 }
