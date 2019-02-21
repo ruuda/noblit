@@ -126,7 +126,7 @@ impl<'a> Node<'a> {
         );
         assert!(
             self.datoms.len() <= Size::CAPACITY,
-            "Node has more datoms than a page can hold.",
+            "Node has {} datoms, more than a page can hold.", self.datoms.len(),
         );
 
         let datoms_bytes: &[u8] = unsafe { transmute_slice(self.datoms) };
@@ -727,7 +727,7 @@ mod test {
     use std::iter;
 
     use datom::{Aid, Datom, Eid, Tid, Value};
-    use store::{MemoryStore, PageId, PageSize563, PageSize4096, Store};
+    use store::{MemoryStore, PageId, PageSize, PageSize256, PageSize563, PageSize4096, Store};
     use super::{HTree, Iter, Node, Cursor};
 
     #[test]
@@ -951,5 +951,30 @@ mod test {
             ];
             tree.insert(&datoms[..]).unwrap();
         }
+    }
+
+    #[test]
+    fn tree_insert_accepts_base_square_datoms() {
+        // This test is a regression test that catches an edge case in insert,
+        // where there are so many datoms to insert, that splitting to create a
+        // new upper layer is not sufficient; we need to create more than one
+        // upper layer.
+        let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
+
+        type Size = PageSize256;
+        let capacity = <Size as PageSize>::CAPACITY as u64;
+        let mut store = MemoryStore::<Size>::new();
+        let node = Node::empty_of_level(0);
+        let root = store.write_page(&node.write::<Size>()).unwrap();
+        let comparator = ();
+        let mut tree = HTree::new(root, &comparator, store);
+
+        // One node in the tree can hold `capacity` datoms. A two-layer tree can
+        // hold `capacity^2` datoms, plus `capacity` for the midpoints. If we
+        // add one more, that does not fit in a 2-layer tree, we need one more.
+        let n = 1 + capacity * (capacity + 1);
+        let datoms: Vec<Datom> = (0..n as u64).map(make_datom).collect();
+
+        tree.insert(&datoms[..]).unwrap();
     }
 }
