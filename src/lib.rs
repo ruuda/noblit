@@ -19,8 +19,7 @@ pub mod query_plan;
 pub mod store;
 pub mod types;
 
-// Include the fuzz support code when fuzzing,
-// but also when compiling the tests, to ensure
-// that it keeps compiling.
-#[cfg(fuzzing)] pub mod fuzz;
-#[cfg(test)] pub mod fuzz;
+// TODO: I can guard this with #[cfg(fuzzing)] and #[cfg(test)] to keep it
+// compiling. But then how to build the inspect_fuzz_artifact binary? Guarding
+// by a feature is probably the answer.
+pub mod fuzz;
