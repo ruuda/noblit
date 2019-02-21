@@ -400,20 +400,31 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         }
     }
 
-    /// Split a given node into `num_pages` pieces, and write them.
+    /// Split a given node into pieces, and write them.
     ///
     /// Returns a `VecNode` with the split midpoints, and the children pointing
     /// to the nodes that were split off. The returned node satisfies:
     ///
     /// * `datoms[i]` is greater than any datom in node `children[i]`.
     /// * `datoms[i]` is less than any datom in node `children[i + 1]`.
-    pub fn split(&mut self, node: &Node, num_pages: usize) -> io::Result<VecNode> {
+    ///
+    /// While the pieces that the node is split into all fit in a page, the
+    /// returned `VecNode` of midpoints may need to be split further to fit.
+    pub fn split(&mut self, node: &Node) -> io::Result<VecNode> {
         assert!(node.datoms.len() >= 2, "Can only split node with at least two datoms.");
-        assert!(
+
+        // Compute the number of pages we need, rounding up. For every split we
+        // make, there is one less datom to account for (because the datom
+        // becomes a midpoint), but we don't take that into account, spliting a
+        // node into nodes that are all full is a bad idea anyway, because then
+        // they cannot hold pending datoms.
+        let num_pages = (node.datoms.len() + S::Size::CAPACITY - 1) / S::Size::CAPACITY;
+
+        debug_assert!(
             // Every page can fit CAPACITY datoms, and num_pages - 1 midpoint
             // datoms are retured as part of the result.
             node.datoms.len() <= num_pages * (S::Size::CAPACITY + 1) - 1,
-            "In split, the specified number of pages must be able to fit all datoms.",
+            "In split, the computed number of pages must be able to fit all datoms.",
         );
 
         let mut datoms = Vec::with_capacity(num_pages - 1);
@@ -510,6 +521,9 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     /// node, where the datoms have been inserted. If the insert required
     /// splits, then the midpoint datoms and associated page ids precede the
     /// final child, respecting the ordering.
+    ///
+    /// Note that the returned `VecNode` might contain more datoms than would
+    /// fit in a page, it may need to be split further to become writeable.
     fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<VecNode> {
         // Make a heap-allocated copy of the node to insert into, and merge-sort
         // insert the datoms into it.
@@ -530,15 +544,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
                 !new_node.as_node().has_pending_datoms() || new_node.level == 0,
                 "Only at level 0, an oversized node can have pending datoms.",
             );
-
-            // Compute the number of pages we need, rounding up. For every split
-            // we make, there is one less datom to account for (because the
-            // datom becomes a midpoint), but we don't take that into account,
-            // spliting a node into nodes that are all full is a bad idea
-            // anyway, because then they cannot hold pending datoms.
-            let num_datoms = new_node.datoms.len();
-            let num_pages = (num_datoms + S::Size::CAPACITY - 1) / S::Size::CAPACITY;
-            return self.split(&new_node.as_node(), num_pages)
+            return self.split(&new_node.as_node());
         }
 
         // If the node is small enough to fit in one page, then we just write
@@ -558,16 +564,24 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     /// Insert datoms into the tree.
     pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> {
         let old_root = self.root_page;
-        let to_merge = self.insert_into(old_root, datoms)?;
+        let mut node = self.insert_into(old_root, datoms)?;
+
+        // The node contains all datoms that need to be inserted into a new
+        // higher level in the tree. There might be so many of those, that one
+        // page is not enough. Then we need to split, and create yet a higher
+        // level, until there are few enough midpoints to fit in one page.
+        while node.datoms.len() > S::Size::CAPACITY {
+            node = self.split(&node.as_node())?;
+        }
 
         // If we get only one new page id, then that is the new root. If there
         // is more, then the tree grows in height, and we write the entire new
         // node as the new root.
-        match to_merge.children.len() {
+        match node.children.len() {
             0 => panic!("Result of insert_into must contain at least one child page."),
-            1 => self.root_page = to_merge.children[0],
-            _ => self.root_page = self.store.write_page(&to_merge.as_node().write::<S::Size>())?,
-        };
+            1 => self.root_page = node.children[0],
+            _ => self.root_page = self.store.write_page(&node.as_node().write::<S::Size>())?,
+        }
 
         Ok(())
     }
