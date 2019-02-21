@@ -4,8 +4,10 @@
 extern crate libfuzzer_sys;
 extern crate noblit;
 
+use std::cmp::Ordering;
+
 use noblit::datom::{Datom, Aid, Eid, Value, Tid};
-use noblit::htree::{HTree, Node};
+use noblit::htree::{DatomOrd, HTree, Node};
 use noblit::store::{MemoryStore, PageSize, Store};
 
 /// Evaluate a closure on byte slices of various lengths.
@@ -37,18 +39,22 @@ fn run<Size: PageSize>(full_data: &[u8]) {
     // Insert one datom at a time, with increasing transaction id in order not
     // to create duplicates.
     for_slices(full_data, |xs| {
-        // The precondition for tree insertion is that datoms be sorted. Simply
-        // skip the slice if the precondition is violated. The fuzzer will be
-        // uninterested in this case then, and move on.
-        for (&p, &q) in xs.iter().zip(xs.iter().skip(1)) {
-            if p >= q { return false; }
-        }
+        // Transaction id must be even.
+        tid += 2;
 
-        tid += 2; // Transaction id must be even.
-
-        let datoms: Vec<Datom> = xs.iter().map(|&x|
+        let mut datoms: Vec<Datom> = xs.iter().map(|&x|
             Datom::assert(Eid(x as u64), Aid::max(), Value::min(), Tid(tid))
         ).collect();
+
+        // The precondition for tree insertion is that datoms be sorted, and
+        // that datoms are unique. Sort to enforce this, and exit if there are
+        // duplicates. Previously we simply exited if the list was not sorted,
+        // but it is difficult for the fuzzer to discover sorted lists by
+        // chance. Sorting here is slower and adds more distracting branches as
+        // interesting cases, but it also helps to discover interesting inputs
+        // faster. Do exit if the input
+        datoms.sort_by(|x, y| (&comparator as &DatomOrd).cmp(x, y));
+        datoms.dedup_by(|x, y| (&comparator as &DatomOrd).cmp(x, y) == Ordering::Equal);
 
         tree.insert(&datoms[..]).unwrap();
 
