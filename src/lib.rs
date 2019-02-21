@@ -18,3 +18,9 @@ pub mod query;
 pub mod query_plan;
 pub mod store;
 pub mod types;
+
+// Include the fuzz support code when fuzzing,
+// but also when compiling the tests, to ensure
+// that it keeps compiling.
+#[cfg(fuzzing)] pub mod fuzz;
+#[cfg(test)] pub mod fuzz;
