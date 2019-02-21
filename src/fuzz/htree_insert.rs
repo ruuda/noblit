@@ -59,12 +59,12 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         ).collect();
 
         // The precondition for tree insertion is that datoms be sorted, and
-        // that datoms are unique. Sort to enforce this, and exit if there are
+        // that datoms are unique. Sort to enforce this, then remove consecutive
         // duplicates. Previously we simply exited if the list was not sorted,
         // but it is difficult for the fuzzer to discover sorted lists by
         // chance. Sorting here is slower and adds more distracting branches as
         // interesting cases, but it also helps to discover interesting inputs
-        // faster. Do exit if the input
+        // faster.
         datoms.sort_by(|x, y| (&comparator as &DatomOrd).cmp(x, y));
         datoms.dedup_by(|x, y| (&comparator as &DatomOrd).cmp(x, y) == Ordering::Equal);
 
