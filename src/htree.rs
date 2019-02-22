@@ -560,6 +560,79 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
         Ok(())
     }
+
+    /// Assert that the node at the given page, and its children, are well-formed.
+    ///
+    /// This is used in tests and during fuzzing. Checks furthermore that all
+    /// datoms in the node are greater than the infimum, if one is provided, and
+    /// smaller than the supremum, if one is provided.
+    fn check_invariants_at(
+        &self,
+        page: PageId,
+        infimum: Option<&Datom>,
+        supremum: Option<&Datom>,
+    ) -> io::Result<()> {
+
+        let node = self.get(page);
+
+        // We track two infimums: one for the datoms array, and one for the
+        // children. For the datoms array, we need every datom to be larger than
+        // the previous one. For the children, we need every child to be larger
+        // than the previous midpoint datom.
+        let mut all_infimum = infimum;
+        let mut mid_infimum = infimum;
+
+        for (i, datom) in node.datoms.iter().enumerate() {
+            if let Some(inf) = all_infimum {
+                assert_eq!(
+                    self.comparator.cmp(inf, datom), Ordering::Less,
+                    "Violation at page {:?}: infimum >= datom {}.", page, i,
+                );
+            }
+            if node.is_midpoint_at(i) {
+                assert!(
+                    node.level > 0,
+                    "Violation at page {:?}: node {} at level 0 has child.", page, i,
+                );
+                self.check_invariants_at(
+                    node.children[i],
+                    mid_infimum,
+                    Some(datom)
+                )?;
+                mid_infimum = Some(datom);
+            }
+            all_infimum = Some(datom);
+        }
+
+        if let (Some(inf), Some(sup)) = (all_infimum, supremum) {
+            assert_eq!(
+                self.comparator.cmp(inf, sup), Ordering::Less,
+                "Violation at page {:?}, final infimum >= supremum.", page,
+            );
+        }
+
+        if node.is_midpoint_at(node.datoms.len()) {
+            self.check_invariants_at(
+                node.children[node.datoms.len()],
+                mid_infimum,
+                supremum,
+            )?;
+        } else {
+            assert_eq!(
+                node.level, 0,
+                "Violation at page {:?}: only level 0 nodes can lack a final child.", page,
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Assert that the tree is well-formed, that all invariants hold.
+    ///
+    /// This is used in tests and during fuzzing.
+    pub fn check_invariants(&self) -> io::Result<()> {
+        self.check_invariants_at(self.root_page, None, None)
+    }
 }
 
 struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
@@ -939,6 +1012,7 @@ mod test {
                 make_datom(i * 1000 + 3),
             ];
             tree.insert(&datoms[..]).unwrap();
+            tree.check_invariants().unwrap();
         }
     }
 
@@ -965,5 +1039,6 @@ mod test {
         let datoms: Vec<Datom> = (0..n as u64).map(make_datom).collect();
 
         tree.insert(&datoms[..]).unwrap();
+        tree.check_invariants().unwrap();
     }
 }
