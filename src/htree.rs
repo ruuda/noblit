@@ -1004,7 +1004,7 @@ mod test {
         let comparator = ();
         let mut tree = HTree::new(root, &comparator, store);
 
-        for i in 0..100 {
+        for i in 0..500 {
             let datoms = &[
                 make_datom(i * 1000 + 0),
                 make_datom(i * 1000 + 1),
