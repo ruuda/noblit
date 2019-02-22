@@ -214,23 +214,6 @@ impl<'a> Node<'a> {
         self.children.iter().any(|&pid| pid == PageId::max())
     }
 
-    /// Return the index into the `datoms` array of the middle midpoint.
-    fn median_midpoint(&self) -> usize {
-        let num_children = self.num_children();
-        let mut num_visited = 0;
-
-        for i in 0..self.children.len() {
-            if self.is_midpoint_at(i) {
-                num_visited += 1;
-                if num_visited * 2 >= num_children {
-                    return i
-                }
-            }
-        }
-
-        unreachable!("Would have returned past median midpoint.")
-    }
-
     /// Return the longest span of pending datoms.
     ///
     /// The returned range can be safely used to index into `datoms`. The child
@@ -240,7 +223,7 @@ impl<'a> Node<'a> {
         let mut range = 0..0;
 
         // Find the longest span of pending datoms.
-        for (i, &pid) in self.children.iter().enumerate() {
+        for i in 0..self.children.len() {
             if self.is_midpoint_at(i) {
                 let len = i - start;
                 if len > range.len() {
@@ -319,14 +302,6 @@ impl<'a> Node<'a> {
             children: new_children,
         }
     }
-}
-
-/// Write a sorted slice of datoms as a tree.
-///
-/// Returns the page id of the root node.
-pub fn write_tree<S: Store>(store: &mut S, datoms: &[Datom]) -> io::Result<PageId> {
-    // TODO: redo this thing.
-    unimplemented!()
 }
 
 /// Points to a datom in the tree.
