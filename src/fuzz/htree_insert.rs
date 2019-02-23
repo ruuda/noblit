@@ -74,6 +74,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         }
 
         tree.insert(&datoms[..]).unwrap();
+        tree.check_invariants().unwrap();
 
         true
     });
