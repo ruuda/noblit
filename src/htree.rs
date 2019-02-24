@@ -355,11 +355,18 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     }
 
     /// Locate the first datom that is greater than or equal to the queried one.
-    pub fn find(&self, datom: &Datom) -> Cursor {
+    ///
+    /// Returns a cursor that points to the datom, which can be used as the
+    /// lower bound for an iterator. Also returns a vector of nodes that the
+    /// indices point into.
+    pub fn find(&self, datom: &Datom) -> (Cursor, Vec<Node>) {
         let mut node = self.get(self.root_page);
         let mut indices = Vec::with_capacity(node.level as usize + 1);
+        let mut nodes = Vec::with_capacity(node.level as usize + 1);
 
         loop {
+            nodes.push(node.clone());
+
             // Find the index of the first datom >= the search datom. The
             // default value is one past the last datom: if every datom in the
             // node is smaller than the search datom, the cursor should point
@@ -386,9 +393,11 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             }
         }
 
-        Cursor {
+        let result = Cursor {
             indices: indices,
-        }
+        };
+
+        (result, nodes)
     }
 
     /// Split a given node into pieces, and write them.
@@ -666,13 +675,14 @@ struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
 }
 
 impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
-    fn new(tree: &'a HTree<'a, Cmp, S>, begin: Cursor, end: Cursor) -> Iter<'a, Cmp, S> {
+    fn new(tree: &'a HTree<'a, Cmp, S>, begin: &Datom, end: &Datom) -> Iter<'a, Cmp, S> {
+        let (cursor_begin, nodes) = tree.find(begin);
+        let (cursor_end, _) = tree.find(end);
         Iter {
             tree: tree,
-            // TODO: Find the correct level.
-            nodes: vec![tree.get(tree.root_page)],
-            begin: begin,
-            end: end,
+            nodes: nodes,
+            begin: cursor_begin,
+            end: cursor_end,
         }
     }
 
