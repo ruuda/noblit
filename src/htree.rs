@@ -393,6 +393,11 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
             }
         }
 
+        // We added the nodes top to bottom, but the cursor expects them in the
+        // opposite order, lowest level first, so reverse them.
+        indices.reverse();
+        nodes.reverse();
+
         let result = Cursor {
             indices: indices,
         };
@@ -932,19 +937,8 @@ mod test {
             store: store,
         };
 
-        let iter = Iter {
-            tree: &tree,
-            nodes: vec![
-                tree.get(PageId(0)),
-                tree.get(PageId(2)),
-            ],
-            begin: Cursor {
-                indices: vec![0, 0],
-            },
-            end: Cursor {
-                indices: vec![node1.datoms.len(), node2.datoms.len()],
-            },
-        };
+        let iter = Iter::new(&tree, &make_datom(&0), &make_datom(&10));
+        println!("begin: {:?}, end: {:?}", iter.begin.indices, iter.end.indices);
 
         for (&datom, y) in iter.zip(0..10) {
             assert_eq!(datom.entity.0, y);
@@ -1000,19 +994,7 @@ mod test {
             store: store,
         };
 
-        let iter = Iter {
-            tree: &tree,
-            nodes: vec![
-                tree.get(PageId(0)),
-                tree.get(PageId(2)),
-            ],
-            begin: Cursor {
-                indices: vec![0, 0],
-            },
-            end: Cursor {
-                indices: vec![node1.datoms.len(), node2.datoms.len()],
-            },
-        };
+        let iter = Iter::new(&tree, &make_datom(&0), &make_datom(&10));
 
         for (&datom, y) in iter.zip(0..10) {
             assert_eq!(datom.entity.0, y);
