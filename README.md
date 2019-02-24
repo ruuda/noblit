@@ -80,6 +80,7 @@ List all known directors:
  * [InfluxDB Storage Engine Internals][influxdb]
  * [What You Always Wanted to Know About Datalog][datalog]
  * [Unofficial Guide to Datomic Internals][unofficial]
+ * [SQLite: A Database for the Edge of the Network][edge]
 
 [deconstr]:   https://www.infoq.com/presentations/Deconstructing-Database
 [datamodel]:  https://docs.datomic.com/cloud/whatis/data-model.html
@@ -87,6 +88,7 @@ List all known directors:
 [influxdb]:   https://www.youtube.com/watch?v=rtEalnKT25I
 [datalog]:    https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf
 [unofficial]: http://tonsky.me/blog/unofficial-guide-to-datomic-internals/
+[edge]:       https://www.youtube.com/watch?v=gpxnbly9bz4
 
 ## Design
 
