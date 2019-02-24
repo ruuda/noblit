@@ -356,22 +356,38 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
     /// Locate the first datom that is greater than or equal to the queried one.
     pub fn find(&self, datom: &Datom) -> Cursor {
-        panic!("TODO: Fix for multi-node tree.");
+        let mut node = self.get(self.root_page);
+        let mut indices = Vec::with_capacity(node.level as usize + 1);
 
-        let node = self.get(self.root_page);
+        loop {
+            // Find the index of the first datom >= the search datom. The
+            // default value is one past the last datom: if every datom in the
+            // node is smaller than the search datom, the cursor should point
+            // past the end.
+            let mut index = node.datoms.len();
 
-        for (i, datom_i) in node.datoms.iter().enumerate() {
-            match self.comparator.cmp(datom_i, datom) {
-                Ordering::Less => continue,
-                Ordering::Equal | Ordering::Greater => return Cursor {
-                    indices: vec![i],
-                },
+            for (i, datom_i) in node.datoms.iter().enumerate() {
+                match self.comparator.cmp(datom_i, datom) {
+                    Ordering::Less => continue,
+                    Ordering::Equal | Ordering::Greater => {
+                        index = i;
+                        break;
+                    }
+                }
+            }
+
+            indices.push(index);
+
+            if node.level == 0 {
+                break
+            } else {
+                let pid = node.next_midpoint(index);
+                node = self.get(pid.expect("Node at level > 0 must have a final child."));
             }
         }
 
-        // Everything is less than the given datom, return a route past the end.
         Cursor {
-            indices: vec![node.datoms.len()],
+            indices: indices,
         }
     }
 
