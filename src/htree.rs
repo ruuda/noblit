@@ -740,7 +740,7 @@ impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
 
             match candidate {
                 None => candidate = Some((k, datom)),
-                Some((level, least_datom)) => {
+                Some((_level, least_datom)) => {
                     match self.tree.comparator.cmp(least_datom, datom) {
                         Ordering::Less => continue,
                         Ordering::Equal => panic!("Encountered duplicate datom in htree."),
