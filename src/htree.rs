@@ -405,6 +405,17 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
         (result, nodes)
     }
 
+    pub fn iter(&self, begin: &Datom, end: &Datom) -> Iter<Cmp, S> {
+        let (cursor_begin, nodes) = self.find(begin);
+        let (cursor_end, _) = self.find(end);
+        Iter {
+            tree: self,
+            nodes: nodes,
+            begin: cursor_begin,
+            end: cursor_end,
+        }
+    }
+
     /// Split a given node into pieces, and write them.
     ///
     /// Returns a `VecNode` with the split midpoints, and the children pointing
@@ -665,7 +676,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     }
 }
 
-struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
+pub struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     /// The tree to iterate.
     tree: &'a HTree<'a, Cmp, S>,
 
@@ -680,17 +691,6 @@ struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
 }
 
 impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
-    fn new(tree: &'a HTree<'a, Cmp, S>, begin: &Datom, end: &Datom) -> Iter<'a, Cmp, S> {
-        let (cursor_begin, nodes) = tree.find(begin);
-        let (cursor_end, _) = tree.find(end);
-        Iter {
-            tree: tree,
-            nodes: nodes,
-            begin: cursor_begin,
-            end: cursor_end,
-        }
-    }
-
     /// Advance the begin pointer after yielding a datom.
     ///
     /// `level` is the index into the `nodes` and `indices` stacks
@@ -937,7 +937,7 @@ mod test {
             store: store,
         };
 
-        let iter = Iter::new(&tree, &make_datom(&0), &make_datom(&10));
+        let iter = tree.iter(&make_datom(&0), &make_datom(&10));
         println!("begin: {:?}, end: {:?}", iter.begin.indices, iter.end.indices);
 
         for (&datom, y) in iter.zip(0..10) {
@@ -994,7 +994,7 @@ mod test {
             store: store,
         };
 
-        let iter = Iter::new(&tree, &make_datom(&0), &make_datom(&10));
+        let iter = tree.iter(&make_datom(&0), &make_datom(&10));
 
         for (&datom, y) in iter.zip(0..10) {
             assert_eq!(datom.entity.0, y);
