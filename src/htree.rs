@@ -318,7 +318,7 @@ pub struct Cursor {
     indices: Vec<usize>,
 }
 
-/// A hittchhiker tree.
+/// A hitchhiker tree.
 pub struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     /// The page that contains the root node.
     root_page: PageId,
