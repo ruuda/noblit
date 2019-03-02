@@ -868,7 +868,7 @@ mod test {
         let page = store.write_page(&node.write::<Size>()).unwrap();
 
         let tree = HTree {
-            root_page: PageId(0),
+            root_page: page,
             comparator: &(),
             store: store,
         };

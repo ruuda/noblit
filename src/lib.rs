@@ -7,8 +7,6 @@
 
 // TODO: Remove once the API is fleshed out more. Or when this crate is turned
 // into a library.
-#![allow(dead_code)]
-#![allow(unused_variables)]
 
 pub mod database;
 pub mod datom;

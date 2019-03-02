@@ -7,6 +7,9 @@
 
 //! Defines query plans and their evaluation.
 
+// TODO: Remove this once I have decent query plans.
+#![allow(dead_code)]
+
 use database::{Builtins, Database};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use index::{Avet, Eavt};
