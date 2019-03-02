@@ -8,7 +8,8 @@
 use std::cmp::Ordering;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
-use htree::{DatomOrd, HTree, Node};
+use index::{DatomOrd};
+use htree::{HTree, Node};
 use store::{MemoryStore, PageSize, Store};
 
 /// Print, except when fuzzing.

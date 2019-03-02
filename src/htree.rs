@@ -12,19 +12,8 @@ use std::io;
 use std::ops::Range;
 
 use datom::Datom;
+use index::DatomOrd;
 use store::{PageId, PageSize, Store};
-
-/// An ordering on datoms.
-pub trait DatomOrd {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
-}
-
-impl DatomOrd for () {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
-        // TODO: Implement ordering properly, with heap lookup.
-        lhs.eavt().cmp(&rhs.eavt())
-    }
-}
 
 /// A tree node.
 #[derive(Clone)]

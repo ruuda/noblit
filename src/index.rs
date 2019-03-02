@@ -11,6 +11,11 @@ use std::cmp::{PartialOrd, Ord, Ordering};
 
 use datom::Datom;
 
+/// An ordering on datoms.
+pub trait DatomOrd {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
+}
+
 /// An (attribute, entity, value, transaction) ordered datom.
 pub struct Aevt(pub Datom);
 
@@ -97,5 +102,12 @@ impl PartialEq for Eavt {
 impl PartialEq for Vaet {
     fn eq(&self, other: &Vaet) -> bool {
         self.0.vaet().eq(&other.0.vaet())
+    }
+}
+
+impl DatomOrd for () {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+        // TODO: Implement ordering properly, with heap lookup.
+        lhs.eavt().cmp(&rhs.eavt())
     }
 }
