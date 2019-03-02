@@ -16,6 +16,58 @@ pub trait DatomOrd {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
 }
 
+/// An (attribute, entity, value, transaction) ordering.
+pub struct AevtOrd;
+
+/// An (attribute, value, entity, transaction) ordering.
+pub struct AvetOrd;
+
+/// An (entity, attribute, value, transaction) ordering.
+pub struct EavtOrd;
+
+/// Helper macro to compare on a specific property.
+///
+/// Returns immediately if the elements are not equal.
+macro_rules! compare_by {
+    ($lhs:expr, $rhs:expr) => {
+        match $lhs.cmp(&$rhs) {
+            Ordering::Less => return Ordering::Less,
+            Ordering::Greater => return Ordering::Greater,
+            Ordering::Equal => {}
+        }
+    };
+}
+
+impl DatomOrd for AevtOrd {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+        compare_by!(lhs.attribute, rhs.attribute);
+        compare_by!(lhs.entity, rhs.entity);
+        compare_by!(lhs.value, rhs.value);
+        compare_by!(lhs.transaction_operation, rhs.transaction_operation);
+        Ordering::Equal
+    }
+}
+
+impl DatomOrd for AvetOrd {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+        compare_by!(lhs.attribute, rhs.attribute);
+        compare_by!(lhs.value, rhs.value);
+        compare_by!(lhs.entity, rhs.entity);
+        compare_by!(lhs.transaction_operation, rhs.transaction_operation);
+        Ordering::Equal
+    }
+}
+
+impl DatomOrd for EavtOrd {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+        compare_by!(lhs.entity, rhs.entity);
+        compare_by!(lhs.attribute, rhs.attribute);
+        compare_by!(lhs.value, rhs.value);
+        compare_by!(lhs.transaction_operation, rhs.transaction_operation);
+        Ordering::Equal
+    }
+}
+
 /// An (attribute, entity, value, transaction) ordered datom.
 pub struct Aevt(pub Datom);
 
