@@ -44,8 +44,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
     let mut store = MemoryStore::<Size>::new();
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
-    let comparator = EavtOrd;
-    let mut tree = HTree::new(root, &comparator, store);
+    let mut tree = HTree::new(root, EavtOrd, store);
 
     let mut tid = 0;
 
@@ -66,8 +65,8 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         // chance. Sorting here is slower and adds more distracting branches as
         // interesting cases, but it also helps to discover interesting inputs
         // faster.
-        datoms.sort_by(|x, y| (&comparator as &DatomOrd).cmp(x, y));
-        datoms.dedup_by(|x, y| (&comparator as &DatomOrd).cmp(x, y) == Ordering::Equal);
+        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y));
+        datoms.dedup_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y) == Ordering::Equal);
 
         dprintln!("Inserting {} datoms:", datoms.len());
         for &datom in &datoms {

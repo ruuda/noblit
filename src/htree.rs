@@ -319,19 +319,19 @@ pub struct Cursor {
 }
 
 /// A hitchhiker tree.
-pub struct HTree<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
+pub struct HTree<Cmp: DatomOrd, S: Store> {
     /// The page that contains the root node.
-    root_page: PageId,
+    pub root_page: PageId,
 
     /// Ordering on datoms.
-    comparator: &'a Cmp,
+    pub comparator: Cmp,
 
     /// The backing store to read pages from.
-    store: S,
+    pub store: S,
 }
 
-impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
-    pub fn new(root_page: PageId, comparator: &'a Cmp, store: S) -> HTree<'a, Cmp, S> {
+impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
+    pub fn new(root_page: PageId, comparator: Cmp, store: S) -> HTree<Cmp, S> {
         HTree {
             root_page: root_page,
             comparator: comparator,
@@ -532,7 +532,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
     fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<VecNode> {
         // Make a heap-allocated copy of the node to insert into, and merge-sort
         // insert the datoms into it.
-        let mut new_node = self.get(page).insert(self.comparator, datoms);
+        let mut new_node = self.get(page).insert(&self.comparator, datoms);
 
         // If the new node does not fit in a page, try flushing pending datoms
         // until it fits.
@@ -667,7 +667,7 @@ impl<'a, Cmp: DatomOrd, S: Store> HTree<'a, Cmp, S> {
 
 pub struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     /// The tree to iterate.
-    tree: &'a HTree<'a, Cmp, S>,
+    tree: &'a HTree<Cmp, S>,
 
     /// The nodes into which `begin.indices` point.
     nodes: Vec<Node<'a>>,
@@ -859,7 +859,7 @@ mod test {
 
         let tree = HTree {
             root_page: page,
-            comparator: &EavtOrd,
+            comparator: EavtOrd,
             store: store,
         };
 
@@ -923,7 +923,7 @@ mod test {
 
         let tree = HTree {
             root_page: PageId(2),
-            comparator: &EavtOrd,
+            comparator: EavtOrd,
             store: store,
         };
 
@@ -980,7 +980,7 @@ mod test {
 
         let tree = HTree {
             root_page: PageId(2),
-            comparator: &EavtOrd,
+            comparator: EavtOrd,
             store: store,
         };
 
@@ -999,8 +999,7 @@ mod test {
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let comparator = EavtOrd;
-        let mut tree = HTree::new(root, &comparator, store);
+        let mut tree = HTree::new(root, EavtOrd, store);
 
         for i in 0..500 {
             let datoms = &[
@@ -1027,8 +1026,7 @@ mod test {
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let comparator = EavtOrd;
-        let mut tree = HTree::new(root, &comparator, store);
+        let mut tree = HTree::new(root, EavtOrd, store);
 
         // One node in the tree can hold `capacity` datoms. A two-layer tree can
         // hold `capacity^2` datoms, plus `capacity` for the midpoints. If we
