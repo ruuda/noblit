@@ -8,7 +8,7 @@
 use std::cmp::Ordering;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
-use index::{DatomOrd};
+use index::{DatomOrd, EavtOrd};
 use htree::{HTree, Node};
 use store::{MemoryStore, PageSize, Store};
 
@@ -44,7 +44,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
     let mut store = MemoryStore::<Size>::new();
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
-    let comparator = ();
+    let comparator = EavtOrd;
     let mut tree = HTree::new(root, &comparator, store);
 
     let mut tid = 0;

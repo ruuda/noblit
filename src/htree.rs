@@ -811,6 +811,7 @@ mod test {
     use datom::{Aid, Datom, Eid, Tid, Value};
     use store::{MemoryStore, PageId, PageSize, PageSize256, PageSize563, PageSize4096, Store};
     use super::{HTree, Iter, Node, Cursor};
+    use index::EavtOrd;
 
     #[test]
     fn node_write_after_read_is_identity() {
@@ -858,7 +859,7 @@ mod test {
 
         let tree = HTree {
             root_page: page,
-            comparator: &(),
+            comparator: &EavtOrd,
             store: store,
         };
 
@@ -922,7 +923,7 @@ mod test {
 
         let tree = HTree {
             root_page: PageId(2),
-            comparator: &(),
+            comparator: &EavtOrd,
             store: store,
         };
 
@@ -979,7 +980,7 @@ mod test {
 
         let tree = HTree {
             root_page: PageId(2),
-            comparator: &(),
+            comparator: &EavtOrd,
             store: store,
         };
 
@@ -998,7 +999,7 @@ mod test {
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let comparator = ();
+        let comparator = EavtOrd;
         let mut tree = HTree::new(root, &comparator, store);
 
         for i in 0..500 {
@@ -1026,7 +1027,7 @@ mod test {
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let comparator = ();
+        let comparator = EavtOrd;
         let mut tree = HTree::new(root, &comparator, store);
 
         // One node in the tree can hold `capacity` datoms. A two-layer tree can

@@ -156,10 +156,3 @@ impl PartialEq for Vaet {
         self.0.vaet().eq(&other.0.vaet())
     }
 }
-
-impl DatomOrd for () {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
-        // TODO: Implement ordering properly, with heap lookup.
-        lhs.eavt().cmp(&rhs.eavt())
-    }
-}
