@@ -96,19 +96,16 @@ impl PageSize for PageSize4096 {
     fn new() -> PageSize4096 { PageSize4096 }
 }
 
-/// Shared base trait for a readable or writable store.
+/// A page store that can be read from.
 pub trait Store {
     type Size: PageSize;
-}
 
-/// Interface for reading from a store.
-pub trait Read: Store {
     /// Retrieve a page.
     fn get(&self, page: PageId) -> &[u8];
 }
 
-/// Interface for appending to a store.
-pub trait Write: Store {
+/// A page store that can be appended to, in addition to reading from it.
+pub trait StoreMut: Store {
     /// Write a page and return its page id.
     ///
     /// The page must be exactly `Size::SIZE` bytes long.
@@ -127,10 +124,6 @@ pub struct MemoryStore<Size: PageSize> {
     _size_sentinel: Size,
 }
 
-impl<Size: PageSize> Store for MemoryStore<Size> {
-    type Size = Size;
-}
-
 impl<Size: PageSize> MemoryStore<Size> {
     pub fn new() -> MemoryStore<Size> {
         MemoryStore {
@@ -145,7 +138,19 @@ impl<Size: PageSize> MemoryStore<Size> {
     }
 }
 
-impl<Size: PageSize> Write for MemoryStore<Size> {
+impl<Size: PageSize> Store for MemoryStore<Size> {
+    type Size = Size;
+
+    fn get(&self, page: PageId) -> &[u8] {
+        assert!(page != PageId::max(), "Should never get() PageId::max().");
+        let begin = page.0 as usize * Size::SIZE;
+        let end = (1 + page.0 as usize) * Size::SIZE;
+
+        &self.buffer[begin..end]
+    }
+}
+
+impl<Size: PageSize> StoreMut for MemoryStore<Size> {
     fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> {
         assert_eq!(page.len(), Size::SIZE);
 
@@ -155,15 +160,5 @@ impl<Size: PageSize> Write for MemoryStore<Size> {
         self.fresh += 1;
 
         Ok(PageId(pid))
-    }
-}
-
-impl<Size: PageSize> Read for MemoryStore<Size> {
-    fn get(&self, page: PageId) -> &[u8] {
-        assert!(page != PageId::max(), "Should never get() PageId::max().");
-        let begin = page.0 as usize * Size::SIZE;
-        let end = (1 + page.0 as usize) * Size::SIZE;
-
-        &self.buffer[begin..end]
     }
 }
