@@ -25,7 +25,7 @@ impl PageId {
     }
 }
 
-/// Traits to allow compile-time parametrization over the page size.
+/// Trait to allow compile-time parametrization over the page size.
 ///
 /// This is mainly useful in tests, where constructing large trees is
 /// undesirable, and for fuzzing, where small examples are faster to explore.
@@ -71,8 +71,13 @@ pub trait PageSize {
     }
 }
 
+/// 256 bytes per page.
 pub struct PageSize256;
+
+/// 563 bytes per page.
 pub struct PageSize563;
+
+/// 4096 bytes per page.
 pub struct PageSize4096;
 
 impl PageSize for PageSize256 {

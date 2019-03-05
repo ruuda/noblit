@@ -319,6 +319,14 @@ pub struct Cursor {
 }
 
 /// A hitchhiker tree.
+///
+/// A hitchhiker tree is similar to a persistent (as in _immutable_, not as in
+/// _durable_) B-tree, with some modifications that reduce write amplification
+/// on inserts. See doc/htree.md for more details.
+///
+/// The `HTree` struct is a thin wrapper around the `Store`, which provides
+/// storage for its tree nodes. A tree node is stored in exactly one page in the
+/// store.
 pub struct HTree<Cmp, Store> {
     /// The page that contains the root node.
     pub root_page: PageId,
@@ -666,6 +674,9 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     }
 }
 
+/// An iterator over a range of a tree.
+///
+/// The iterator yields datoms in ascending order.
 pub struct Iter<'a, Cmp: 'a, Store: 'a> {
     /// The tree to iterate.
     tree: &'a HTree<Cmp, Store>,

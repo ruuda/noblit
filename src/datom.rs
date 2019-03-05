@@ -65,6 +65,7 @@ impl Tid {
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct TidOp(u64);
 
+/// An assertion or a retraction.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Operation {
     Retract,
@@ -94,7 +95,7 @@ impl TidOp {
     }
 }
 
-/// A value.
+/// A value: byte string or integer.
 ///
 /// A value is either a byte string, or an unsigned 62-bit integer. It is up to
 /// the attribute schema to give meaning to a value. For example, a byte string

@@ -5,4 +5,12 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
+//! Internal fuzz tests exposed as functions.
+//!
+//! The contents of this module is intended for internal use only. It is exposed
+//! to allow the fuzzing binaries, and the `inspect_fuzz_artifact` program to
+//! share the same implementation, where the fuzzing binaries have debug prints
+//! disabled, but the the inspection program is istrumented with extra print
+//! statements to trace program flow and pretty-print a fuzz input.
+
 pub mod htree_insert;

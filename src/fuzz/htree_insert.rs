@@ -5,6 +5,8 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
+//! Fuzz test that asserts tree invariants after insertions.
+
 use std::cmp::Ordering;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
