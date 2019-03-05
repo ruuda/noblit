@@ -96,18 +96,23 @@ impl PageSize for PageSize4096 {
     fn new() -> PageSize4096 { PageSize4096 }
 }
 
-/// Interface for retrieving and writing pages.
+/// Shared base trait for a readable or writable store.
 pub trait Store {
-    type Writer: io::Write;
     type Size: PageSize;
+}
 
+/// Interface for reading from a store.
+pub trait Read: Store {
+    /// Retrieve a page.
+    fn get(&self, page: PageId) -> &[u8];
+}
+
+/// Interface for appending to a store.
+pub trait Write: Store {
     /// Write a page and return its page id.
     ///
     /// The page must be exactly `Size::SIZE` bytes long.
     fn write_page(&mut self, page: &[u8]) -> io::Result<PageId>;
-
-    /// Retrieve a page.
-    fn get(&self, page: PageId) -> &[u8];
 }
 
 /// An in-memory page store, not backed by a file.
@@ -120,6 +125,10 @@ pub struct MemoryStore<Size: PageSize> {
 
     /// Instance of page size traits.
     _size_sentinel: Size,
+}
+
+impl<Size: PageSize> Store for MemoryStore<Size> {
+    type Size = Size;
 }
 
 impl<Size: PageSize> MemoryStore<Size> {
@@ -136,10 +145,7 @@ impl<Size: PageSize> MemoryStore<Size> {
     }
 }
 
-impl<Size: PageSize> Store for MemoryStore<Size> {
-    type Writer = Vec<u8>;
-    type Size = Size;
-
+impl<Size: PageSize> Write for MemoryStore<Size> {
     fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> {
         assert_eq!(page.len(), Size::SIZE);
 
@@ -150,7 +156,9 @@ impl<Size: PageSize> Store for MemoryStore<Size> {
 
         Ok(PageId(pid))
     }
+}
 
+impl<Size: PageSize> Read for MemoryStore<Size> {
     fn get(&self, page: PageId) -> &[u8] {
         assert!(page != PageId::max(), "Should never get() PageId::max().");
         let begin = page.0 as usize * Size::SIZE;

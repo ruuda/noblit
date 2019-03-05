@@ -13,7 +13,8 @@ use std::ops::Range;
 
 use datom::Datom;
 use index::DatomOrd;
-use store::{PageId, PageSize, Store};
+use store;
+use store::{PageId, PageSize};
 
 /// A tree node.
 #[derive(Clone)]
@@ -319,19 +320,19 @@ pub struct Cursor {
 }
 
 /// A hitchhiker tree.
-pub struct HTree<Cmp: DatomOrd, S: Store> {
+pub struct HTree<Cmp: DatomOrd, Store> {
     /// The page that contains the root node.
     pub root_page: PageId,
 
     /// Ordering on datoms.
     pub comparator: Cmp,
 
-    /// The backing store to read pages from.
-    pub store: S,
+    /// The backing store to read pages from and append to.
+    pub store: Store,
 }
 
-impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
-    pub fn new(root_page: PageId, comparator: Cmp, store: S) -> HTree<Cmp, S> {
+impl<Cmp: DatomOrd, Store> HTree<Cmp, Store> {
+    pub fn new(root_page: PageId, comparator: Cmp, store: Store) -> HTree<Cmp, Store> {
         HTree {
             root_page: root_page,
             comparator: comparator,
@@ -339,8 +340,10 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         }
     }
 
-    pub fn get(&self, page: PageId) -> Node {
-        Node::from_bytes::<S::Size>(self.store.get(page))
+    pub fn get(&self, page: PageId) -> Node
+    where Store: store::Read
+    {
+        Node::from_bytes::<Store::Size>(self.store.get(page))
     }
 
     /// Locate the first datom that is greater than or equal to the queried one.
@@ -348,7 +351,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
     /// Returns a cursor that points to the datom, which can be used as the
     /// lower bound for an iterator. Also returns a vector of nodes that the
     /// indices point into.
-    pub fn find(&self, datom: &Datom) -> (Cursor, Vec<Node>) {
+    fn find(&self, datom: &Datom) -> (Cursor, Vec<Node>)
+    where Store: store::Read
+    {
         let mut node = self.get(self.root_page);
         let mut indices = Vec::with_capacity(node.level as usize + 1);
         let mut nodes = Vec::with_capacity(node.level as usize + 1);
@@ -394,7 +399,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         (result, nodes)
     }
 
-    pub fn iter(&self, begin: &Datom, end: &Datom) -> Iter<Cmp, S> {
+    pub fn iter(&self, begin: &Datom, end: &Datom) -> Iter<Cmp, Store>
+    where Store: store::Read
+    {
         let (cursor_begin, nodes) = self.find(begin);
         let (cursor_end, _) = self.find(end);
         Iter {
@@ -415,7 +422,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
     ///
     /// While the pieces that the node is split into all fit in a page, the
     /// returned `VecNode` of midpoints may need to be split further to fit.
-    pub fn split(&mut self, node: &Node) -> io::Result<VecNode> {
+    fn split(&mut self, node: &Node) -> io::Result<VecNode>
+    where Store: store::Read + store::Write
+    {
         assert!(node.datoms.len() >= 2, "Can only split node with at least two datoms.");
 
         // Compute the number of pages we need, rounding up. For every split we
@@ -423,12 +432,12 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         // becomes a midpoint), but we don't take that into account, spliting a
         // node into nodes that are all full is a bad idea anyway, because then
         // they cannot hold pending datoms.
-        let num_pages = (node.datoms.len() + S::Size::CAPACITY - 1) / S::Size::CAPACITY;
+        let num_pages = (node.datoms.len() + Store::Size::CAPACITY - 1) / Store::Size::CAPACITY;
 
         debug_assert!(
             // Every page can fit CAPACITY datoms, and num_pages - 1 midpoint
             // datoms are retured as part of the result.
-            node.datoms.len() <= num_pages * (S::Size::CAPACITY + 1) - 1,
+            node.datoms.len() <= num_pages * (Store::Size::CAPACITY + 1) - 1,
             "In split, the computed number of pages must be able to fit all datoms.",
         );
 
@@ -449,7 +458,7 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
                 datoms: &node.datoms[begin..end - 1],
                 children: &node.children[begin..end],
             };
-            let part_page_id = self.store.write_page(&part.write::<S::Size>())?;
+            let part_page_id = self.store.write_page(&part.write::<Store::Size>())?;
 
             // Track the page id as a new child of the upper node, and use the
             // final datom in the slice as the midpoint datom. Only the last
@@ -482,7 +491,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
     /// input node.
     ///
     /// To flush all pending datoms, call this method repeatedly.
-    fn flush(&mut self, node: &mut VecNode) -> io::Result<()> {
+    fn flush(&mut self, node: &mut VecNode) -> io::Result<()>
+    where Store: store::Read + store::Write
+    {
         assert!(node.level > 0, "Cannot flush leaf nodes: no children to flush into.");
 
         let span = node.as_node().longest_pending_span();
@@ -529,7 +540,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
     ///
     /// Note that the returned `VecNode` might contain more datoms than would
     /// fit in a page, it may need to be split further to become writeable.
-    fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<VecNode> {
+    fn insert_into(&mut self, page: PageId, datoms: &[Datom]) -> io::Result<VecNode>
+    where Store: store::Read + store::Write
+    {
         // Make a heap-allocated copy of the node to insert into, and merge-sort
         // insert the datoms into it.
         let mut new_node = self.get(page).insert(&self.comparator, datoms);
@@ -537,14 +550,14 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         // If the new node does not fit in a page, try flushing pending datoms
         // until it fits.
         while new_node.level > 0
-            && new_node.datoms.len() > S::Size::CAPACITY
+            && new_node.datoms.len() > Store::Size::CAPACITY
             && new_node.as_node().has_pending_datoms()
         {
             self.flush(&mut new_node)?;
         }
 
         // If flushing did not help (enough), then we need to split the node.
-        if new_node.datoms.len() > S::Size::CAPACITY {
+        if new_node.datoms.len() > Store::Size::CAPACITY {
             assert!(
                 !new_node.as_node().has_pending_datoms() || new_node.level == 0,
                 "Only at level 0, an oversized node can have pending datoms.",
@@ -555,7 +568,7 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         // If the node is small enough to fit in one page, then we just write
         // the new node, and return its id as the sole child of a `VecNode`.
         // (A `VecNode` with more children is only returned if we do splits.)
-        let new_page_id = self.store.write_page(&new_node.as_node().write::<S::Size>())?;
+        let new_page_id = self.store.write_page(&new_node.as_node().write::<Store::Size>())?;
 
         let result = VecNode {
             level: new_node.level + 1,
@@ -567,7 +580,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
     }
 
     /// Insert datoms into the tree.
-    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> {
+    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()>
+    where Store: store::Read + store::Write
+    {
         let old_root = self.root_page;
         let mut node = self.insert_into(old_root, datoms)?;
 
@@ -575,7 +590,7 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         // higher level in the tree. There might be so many of those, that one
         // page is not enough. Then we need to split, and create yet a higher
         // level, until there are few enough midpoints to fit in one page.
-        while node.datoms.len() > S::Size::CAPACITY {
+        while node.datoms.len() > Store::Size::CAPACITY {
             node = self.split(&node.as_node())?;
         }
 
@@ -585,7 +600,7 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         match node.children.len() {
             0 => panic!("Result of insert_into must contain at least one child page."),
             1 => self.root_page = node.children[0],
-            _ => self.root_page = self.store.write_page(&node.as_node().write::<S::Size>())?,
+            _ => self.root_page = self.store.write_page(&node.as_node().write::<Store::Size>())?,
         }
 
         Ok(())
@@ -601,8 +616,9 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
         page: PageId,
         infimum: Option<&Datom>,
         supremum: Option<&Datom>,
-    ) -> io::Result<()> {
-
+    ) -> io::Result<()>
+    where Store: store::Read
+    {
         let node = self.get(page);
 
         // We track two infimums: one for the datoms array, and one for the
@@ -660,14 +676,16 @@ impl<Cmp: DatomOrd, S: Store> HTree<Cmp, S> {
     /// Assert that the tree is well-formed, that all invariants hold.
     ///
     /// This is used in tests and during fuzzing.
-    pub fn check_invariants(&self) -> io::Result<()> {
+    pub fn check_invariants(&self) -> io::Result<()>
+    where Store: store::Read
+    {
         self.check_invariants_at(self.root_page, None, None)
     }
 }
 
-pub struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
+pub struct Iter<'a, Cmp: 'a + DatomOrd, Store: 'a + store::Read> {
     /// The tree to iterate.
-    tree: &'a HTree<Cmp, S>,
+    tree: &'a HTree<Cmp, Store>,
 
     /// The nodes into which `begin.indices` point.
     nodes: Vec<Node<'a>>,
@@ -679,7 +697,7 @@ pub struct Iter<'a, Cmp: 'a + DatomOrd, S: 'a + Store> {
     end: Cursor,
 }
 
-impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
+impl<'a, Cmp: DatomOrd, Store: store::Read> Iter<'a, Cmp, Store> {
     /// Advance the begin pointer after yielding a datom.
     ///
     /// `level` is the index into the `nodes` and `indices` stacks
@@ -715,7 +733,7 @@ impl<'a, Cmp: DatomOrd, S: Store> Iter<'a, Cmp, S> {
     }
 }
 
-impl<'a, Cmp: DatomOrd, S: Store> Iterator for Iter<'a, Cmp, S> {
+impl<'a, Cmp: DatomOrd, Store: store::Read> Iterator for Iter<'a, Cmp, Store> {
     type Item = &'a Datom;
 
     fn next(&mut self) -> Option<&'a Datom> {
@@ -809,7 +827,7 @@ mod test {
     use std::iter;
 
     use datom::{Aid, Datom, Eid, Tid, Value};
-    use store::{MemoryStore, PageId, PageSize, PageSize256, PageSize563, PageSize4096, Store};
+    use store::{MemoryStore, PageId, PageSize, PageSize256, PageSize563, PageSize4096, Write};
     use super::{HTree, Iter, Node, Cursor};
     use index::EavtOrd;
 
