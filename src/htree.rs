@@ -9,6 +9,7 @@
 
 use std::cmp::Ordering;
 use std::io;
+use std::iter;
 use std::ops::Range;
 
 use datom::Datom;
@@ -339,12 +340,31 @@ pub struct HTree<Cmp, Store> {
 }
 
 impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
+    /// Create a new view into an existing index in the store.
     pub fn new(root_page: PageId, comparator: Cmp, store: Store) -> HTree<Cmp, Store> {
         HTree {
             root_page: root_page,
             comparator: comparator,
             store: store,
         }
+    }
+
+    /// Write a new index to the store that contains the given datoms.
+    pub fn initialize(comparator: Cmp, store: Store, datoms: &[Datom]) -> io::Result<HTree<Cmp, Store>>
+    where Store: store::StoreMut
+    {
+        let node = VecNode::from_slice(datoms);
+        // TODO: Sort the datoms with the comparator.
+
+        let mut tree = HTree {
+            root_page: PageId::max(), // Will be overwritten immediately.
+            comparator: comparator,
+            store: store,
+        };
+
+        tree.replace_root(node)?;
+
+        Ok(tree)
     }
 
     pub fn get(&self, page: PageId) -> Node {
@@ -576,11 +596,15 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         Ok(result)
     }
 
-    /// Insert datoms into the tree.
-    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> where Store: store::StoreMut {
-        let old_root = self.root_page;
-        let mut node = self.insert_into(old_root, datoms)?;
-
+    /// Write back the root of the tree and set the root page.
+    ///
+    /// This is used to implement insertion as well as initialization of a
+    /// non-empty tree. The node should contain all datoms that need to be
+    /// inserted into a higher level than the current root. In the case of
+    /// initialization, there is no current root, and the node will become
+    /// the root (it might be split, if required). If the node has no datoms,
+    /// then it should point to a single child node which is the new root.
+    fn replace_root(&mut self, mut node: VecNode) -> io::Result<()> where Store: store::StoreMut {
         // The node contains all datoms that need to be inserted into a new
         // higher level in the tree. There might be so many of those, that one
         // page is not enough. Then we need to split, and create yet a higher
@@ -599,6 +623,13 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         }
 
         Ok(())
+    }
+
+    /// Insert datoms into the tree.
+    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> where Store: store::StoreMut {
+        let old_root = self.root_page;
+        let node = self.insert_into(old_root, datoms)?;
+        self.replace_root(node)
     }
 
     /// Assert that the node at the given page, and its children, are well-formed.
@@ -814,6 +845,15 @@ impl VecNode {
             children: &self.children[..],
         }
     }
+
+    /// Copy datoms into a vec node of level 0.
+    pub fn from_slice(datoms: &[Datom]) -> VecNode {
+        VecNode {
+            level: 0,
+            datoms: datoms.to_vec(),
+            children: iter::repeat(PageId::max()).take(datoms.len() + 1).collect(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -845,6 +885,33 @@ mod test {
         let buffer_b = node_a.write::<PageSize4096>();
 
         assert_eq!(buffer_a, buffer_b);
+    }
+
+    #[test]
+    fn initialize_is_equal_to_manual_initialization() {
+        // Build a tree that consists of a single node. All datoms in it are
+        // pending datoms, there are no midpoints because there are no children.
+        let datoms: Vec<_> = (0..13)
+            .map(|i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max()))
+            .collect();
+        let child_ids: Vec<_> = iter::repeat(PageId::max())
+            .take(datoms.len() + 1)
+            .collect();
+
+        let node = Node {
+            level: 0,
+            datoms: &datoms[..],
+            children: &child_ids[..],
+        };
+
+        type Size = PageSize563;
+        let mut store1 = MemoryStore::<Size>::new();
+        store1.write_page(&node.write::<Size>()).unwrap();
+
+        let mut store2 = MemoryStore::<Size>::new();
+        HTree::initialize(EavtOrd, &mut store2, &node.datoms).unwrap();
+
+        assert_eq!(store1.as_bytes(), store2.as_bytes());
     }
 
     #[test]
