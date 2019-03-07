@@ -350,11 +350,18 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     }
 
     /// Write a new index to the store that contains the given datoms.
+    ///
+    /// The datoms need not be sorted, so the same slice can be used to
+    /// construct multiple trees with different orderings.
     pub fn initialize(comparator: Cmp, store: Store, datoms: &[Datom]) -> io::Result<HTree<Cmp, Store>>
     where Store: store::StoreMut
     {
-        let node = VecNode::from_slice(datoms);
-        // TODO: Sort the datoms with the comparator.
+        let mut node = VecNode::from_slice(datoms);
+
+        // Inserting datoms into the tree requires that they are sorted. Now
+        // that we made a copy of the datoms slice anyway, we can sort it in
+        // place before we insert it.
+        node.datoms.sort_by(|x, y| comparator.cmp(x, y));
 
         let mut tree = HTree {
             root_page: PageId::max(), // Will be overwritten immediately.
