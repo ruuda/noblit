@@ -326,7 +326,7 @@ impl<Store: store::Store> Database<Store> {
         // TODO: Could use Eavt or Aevt for this, which indicates it is probably
         // inefficient to do one by one. I could look up multiple attributes, or
         // multiple entities, at once.
-        self.eavt().iter(&min, &max).map(|&datom| datom.value).next()
+        self.eavt().into_iter(&min, &max).map(|&datom| datom.value).next()
     }
 
     pub fn lookup_entity(&self, attribute: Aid, value: Value) -> Option<Eid> {
@@ -335,7 +335,7 @@ impl<Store: store::Store> Database<Store> {
         // the first one.
         let min = Datom::new(Eid::min(), attribute, value, Tid::min(), Operation::Retract);
         let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Retract);
-        self.avet().iter(&min, &max).map(|&datom| datom.entity).next()
+        self.avet().into_iter(&min, &max).map(|&datom| datom.entity).next()
     }
 
     pub fn lookup_attribute_id(&self, name: &str) -> Option<Aid> {
@@ -383,7 +383,7 @@ impl<Store: store::Store> Database<Store> {
 
             // TODO: Cancel tuples against retractions, if there is a
             // retraction.
-            for &datom in self.eavt().iter(&min, &max) {
+            for &datom in self.eavt().into_iter(&min, &max) {
                 attributes.insert(datom.attribute);
             }
         }
@@ -398,7 +398,7 @@ impl<Store: store::Store> Database<Store> {
         // TODO: Add support for open-ended ranges.
         let min = Datom::new(Eid::min(), Aid::min(), Value::min(), Tid(0), Operation::Assert);
         let max = Datom::new(Eid::max(), Aid::max(), Value::max(), Tid(0), Operation::Retract);
-        for &tuple in self.eavt().iter(&min, &max) {
+        for &tuple in self.eavt().into_iter(&min, &max) {
             let attribute_name = self.lookup_attribute_name(tuple.attribute);
             let attribute_type = self.lookup_attribute_type(tuple.attribute);
 

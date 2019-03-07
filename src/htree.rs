@@ -378,68 +378,6 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         Node::from_bytes::<Store::Size>(self.store.get(page))
     }
 
-    /// Locate the first datom that is greater than or equal to the queried one.
-    ///
-    /// Returns a cursor that points to the datom, which can be used as the
-    /// lower bound for an iterator. Also returns a vector of nodes that the
-    /// indices point into.
-    fn find(&self, datom: &Datom) -> (Cursor, Vec<Node>) {
-        let mut node = self.get(self.root_page);
-        let mut indices = Vec::with_capacity(node.level as usize + 1);
-        let mut nodes = Vec::with_capacity(node.level as usize + 1);
-
-        loop {
-            nodes.push(node.clone());
-
-            // Find the index of the first datom >= the search datom. The
-            // default value is one past the last datom: if every datom in the
-            // node is smaller than the search datom, the cursor should point
-            // past the end.
-            let mut index = node.datoms.len();
-
-            for (i, datom_i) in node.datoms.iter().enumerate() {
-                match self.comparator.cmp(datom_i, datom) {
-                    Ordering::Less => continue,
-                    Ordering::Equal | Ordering::Greater => {
-                        index = i;
-                        break;
-                    }
-                }
-            }
-
-            indices.push(index);
-
-            if node.level == 0 {
-                break
-            } else {
-                let pid = node.next_midpoint(index);
-                node = self.get(pid.expect("Node at level > 0 must have a final child."));
-            }
-        }
-
-        // We added the nodes top to bottom, but the cursor expects them in the
-        // opposite order, lowest level first, so reverse them.
-        indices.reverse();
-        nodes.reverse();
-
-        let result = Cursor {
-            indices: indices,
-        };
-
-        (result, nodes)
-    }
-
-    pub fn iter(&self, begin: &Datom, end: &Datom) -> Iter<Cmp, Store> {
-        let (cursor_begin, nodes) = self.find(begin);
-        let (cursor_end, _) = self.find(end);
-        Iter {
-            tree: self,
-            nodes: nodes,
-            begin: cursor_begin,
-            end: cursor_end,
-        }
-    }
-
     /// Split a given node into pieces, and write them.
     ///
     /// Returns a `VecNode` with the split midpoints, and the children pointing
@@ -712,12 +650,86 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     }
 }
 
+impl<'a, Cmp: DatomOrd, Store: store::Store> HTree<Cmp, &'a Store> {
+    /// Like get, but with an extended liftetime.
+    fn get_extended(&self, page: PageId) -> Node<'a> {
+        Node::from_bytes::<Store::Size>(self.store.get(page))
+    }
+
+    /// Locate the first datom that is greater than or equal to the queried one.
+    ///
+    /// Returns a cursor that points to the datom, which can be used as the
+    /// lower bound for an iterator. Also returns a vector of nodes that the
+    /// indices point into.
+    fn find(&self, datom: &Datom) -> (Cursor, Vec<Node<'a>>) {
+        let mut node = self.get_extended(self.root_page);
+        let mut indices = Vec::with_capacity(node.level as usize + 1);
+        let mut nodes = Vec::with_capacity(node.level as usize + 1);
+
+        loop {
+            nodes.push(node.clone());
+
+            // Find the index of the first datom >= the search datom. The
+            // default value is one past the last datom: if every datom in the
+            // node is smaller than the search datom, the cursor should point
+            // past the end.
+            let mut index = node.datoms.len();
+
+            for (i, datom_i) in node.datoms.iter().enumerate() {
+                match self.comparator.cmp(datom_i, datom) {
+                    Ordering::Less => continue,
+                    Ordering::Equal | Ordering::Greater => {
+                        index = i;
+                        break;
+                    }
+                }
+            }
+
+            indices.push(index);
+
+            if node.level == 0 {
+                break
+            } else {
+                let pid = node.next_midpoint(index);
+                node = self.get_extended(pid.expect("Node at level > 0 must have a final child."));
+            }
+        }
+
+        // We added the nodes top to bottom, but the cursor expects them in the
+        // opposite order, lowest level first, so reverse them.
+        indices.reverse();
+        nodes.reverse();
+
+        let result = Cursor {
+            indices: indices,
+        };
+
+        (result, nodes)
+    }
+
+    /// Return an iterator over the range `[begin..end)`.
+    pub fn into_iter(self, begin: &Datom, end: &Datom) -> Iter<'a, Cmp, Store> {
+        let (cursor_begin, nodes) = self.find(begin);
+        let (cursor_end, _) = self.find(end);
+        Iter {
+            store: self.store,
+            comparator: self.comparator,
+            nodes: nodes,
+            begin: cursor_begin,
+            end: cursor_end,
+        }
+    }
+}
+
 /// An iterator over a range of a tree.
 ///
 /// The iterator yields datoms in ascending order.
 pub struct Iter<'a, Cmp: 'a, Store: 'a> {
-    /// The tree to iterate.
-    tree: &'a HTree<Cmp, Store>,
+    /// The store that contains the tree to iterate.
+    store: &'a Store,
+
+    /// Datom ordering used by the underlying tree.
+    comparator: Cmp,
 
     /// The nodes into which `begin.indices` point.
     nodes: Vec<Node<'a>>,
@@ -730,6 +742,10 @@ pub struct Iter<'a, Cmp: 'a, Store: 'a> {
 }
 
 impl<'a, Cmp: DatomOrd, Store: store::Store> Iter<'a, Cmp, Store> {
+    fn get(&self, page: PageId) -> Node<'a> {
+        Node::from_bytes::<Store::Size>(self.store.get(page))
+    }
+
     /// Advance the begin pointer after yielding a datom.
     ///
     /// `level` is the index into the `nodes` and `indices` stacks
@@ -756,7 +772,7 @@ impl<'a, Cmp: DatomOrd, Store: store::Store> Iter<'a, Cmp, Store> {
                     Some(pid) => pid,
                     None => panic!("Node at level {} should have one more child.", k + 1),
                 };
-                let node = self.tree.get(child_pid);
+                let node = self.get(child_pid);
                 assert_eq!(node.level as usize, k);
                 self.nodes[k] = node;
                 self.begin.indices[k] = 0;
@@ -795,7 +811,7 @@ impl<'a, Cmp: DatomOrd, Store: store::Store> Iterator for Iter<'a, Cmp, Store> {
             match candidate {
                 None => candidate = Some((k, datom)),
                 Some((_level, least_datom)) => {
-                    match self.tree.comparator.cmp(least_datom, datom) {
+                    match self.comparator.cmp(least_datom, datom) {
                         Ordering::Less => continue,
                         Ordering::Equal => panic!("Encountered duplicate datom in htree."),
                         Ordering::Greater => candidate = Some((k, datom)),
@@ -941,22 +957,17 @@ mod test {
 
         type Size = PageSize563;
         let mut store = MemoryStore::<Size>::new();
-        let page = store.write_page(&node.write::<Size>()).unwrap();
-
-        let tree = HTree {
-            root_page: page,
-            comparator: EavtOrd,
-            store: store,
-        };
+        store.write_page(&node.write::<Size>()).unwrap();
 
         let iter = Iter {
-            tree: &tree,
-            nodes: vec![tree.get(tree.root_page)],
+            store: &store,
+            comparator: EavtOrd,
+            nodes: vec![node],
             begin: Cursor {
                 indices: vec![0],
             },
             end: Cursor {
-                indices: vec![node.datoms.len()],
+                indices: vec![datoms.len()],
             },
         };
 
@@ -1010,10 +1021,10 @@ mod test {
         let tree = HTree {
             root_page: PageId(2),
             comparator: EavtOrd,
-            store: store,
+            store: &store,
         };
 
-        let iter = tree.iter(&make_datom(&0), &make_datom(&10));
+        let iter = tree.into_iter(&make_datom(&0), &make_datom(&10));
         println!("begin: {:?}, end: {:?}", iter.begin.indices, iter.end.indices);
 
         for (&datom, y) in iter.zip(0..10) {
@@ -1067,10 +1078,10 @@ mod test {
         let tree = HTree {
             root_page: PageId(2),
             comparator: EavtOrd,
-            store: store,
+            store: &store,
         };
 
-        let iter = tree.iter(&make_datom(&0), &make_datom(&10));
+        let iter = tree.into_iter(&make_datom(&0), &make_datom(&10));
 
         for (&datom, y) in iter.zip(0..10) {
             assert_eq!(datom.entity.0, y);

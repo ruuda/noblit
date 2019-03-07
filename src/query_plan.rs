@@ -12,7 +12,6 @@
 
 use database::{Builtins, Database};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
-use index::{Avet, Eavt};
 use query::{Query, self};
 use store;
 use types::Type;
@@ -425,6 +424,9 @@ type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 
 /// Iterator that yields results from a given query plan.
 pub struct Evaluator<'a, Store: 'a> {
+    /// The database to query.
+    database: &'a Database<Store>,
+
     /// The query plan.
     plan: &'a QueryPlan,
 
@@ -433,9 +435,6 @@ pub struct Evaluator<'a, Store: 'a> {
 
     /// The current value for every variable.
     values: Vec<Value>,
-
-    /// The database to query.
-    database: &'a Database<Store>,
 }
 
 impl<'a, Store: store::Store> Evaluator<'a, Store> {
@@ -475,9 +474,9 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let max = Datom::new(Eid::max(), attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
                     .database
-                    .avet
-                    .range(Avet(min)..Avet(max))
-                    .map(|&Avet(ref datom)| Value::from_eid(datom.entity));
+                    .avet()
+                    .into_iter(&min, &max)
+                    .map(|&datom| Value::from_eid(datom.entity));
                 Box::new(iter)
             }
             Retrieval::ScanAvetConst { attribute, value } => {
@@ -485,9 +484,9 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Assert);
                 let iter = self
                     .database
-                    .avet
-                    .range(Avet(min)..Avet(max))
-                    .map(|&Avet(ref datom)| Value::from_eid(datom.entity));
+                    .avet()
+                    .into_iter(&min, &max)
+                    .map(|&datom| Value::from_eid(datom.entity));
                 Box::new(iter)
             }
             // TODO: Use var_ prefix on variables.
@@ -497,9 +496,9 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let max = Datom::new(Eid::max(), attribute, v, Tid::max(), Operation::Assert);
                 let iter = self
                     .database
-                    .avet
-                    .range(Avet(min)..Avet(max))
-                    .map(|&Avet(ref datom)| Value::from_eid(datom.entity));
+                    .avet()
+                    .into_iter(&min, &max)
+                    .map(|&datom| Value::from_eid(datom.entity));
                 Box::new(iter)
             }
             Retrieval::LookupEavt { entity, attribute } => {
@@ -508,9 +507,9 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
                     .database
-                    .eavt
-                    .range(Eavt(min)..Eavt(max))
-                    .map(|&Eavt(ref datom)| datom.value);
+                    .eavt()
+                    .into_iter(&min, &max)
+                    .map(|&datom| datom.value);
                 Box::new(iter)
             }
         }
