@@ -11,7 +11,8 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
-use index::{Aevt, Avet, Eavt, Vaet};
+use htree::HTree;
+use index::{Aevt, Avet, Eavt, Vaet, EavtOrd};
 use store::{PageId, self};
 use types::Type;
 
@@ -235,6 +236,18 @@ impl<Store: store::Store> Database<Store> {
         }
 
         db
+    }
+
+    /// Return the (entity, attribute, value, transaction) index.
+    pub fn eavt(&self) -> HTree<EavtOrd, &Store> {
+        HTree::new(self.eavt_root, EavtOrd, &self.store)
+    }
+
+    /// Return the (entity, attribute, value, transaction) index, writable.
+    pub fn eavt_mut(&mut self) -> HTree<EavtOrd, &mut Store> where Store: store::StoreMut {
+        // TODO: Need to remember the new root, if it changes.
+        // Give the tree a reference to the page id?
+        HTree::new(self.eavt_root, EavtOrd, &mut self.store)
     }
 
     pub fn insert(&mut self, datom: &Datom) {

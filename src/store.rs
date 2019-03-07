@@ -117,6 +117,26 @@ pub trait StoreMut: Store {
     fn write_page(&mut self, page: &[u8]) -> io::Result<PageId>;
 }
 
+impl<'a, T: Store> Store for &'a T {
+    type Size = T::Size;
+    fn get(&self, page: PageId) -> &[u8] {
+        (**self).get(page)
+    }
+}
+
+impl<'a, T: Store> Store for &'a mut T {
+    type Size = T::Size;
+    fn get(&self, page: PageId) -> &[u8] {
+        (**self).get(page)
+    }
+}
+
+impl<'a, T: StoreMut> StoreMut for &'a mut T {
+    fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> {
+        (**self).write_page(page)
+    }
+}
+
 /// An in-memory page store, not backed by a file.
 pub struct MemoryStore<Size: PageSize> {
     /// The backing buffer.
