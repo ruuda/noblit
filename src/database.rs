@@ -9,6 +9,7 @@
 
 use std::collections::BTreeSet;
 use std::collections::HashSet;
+use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
@@ -209,8 +210,11 @@ pub struct Database<Store> {
 }
 
 impl<Store: store::Store> Database<Store> {
-    pub fn new(store: Store) -> Database<Store> {
+    pub fn new(mut store: Store) -> io::Result<Database<Store>> where Store: store::StoreMut {
         let (builtins, genisis_datoms) = Builtins::new();
+
+        let eavt_root = HTree::initialize(EavtOrd, &mut store, &genisis_datoms)?.root_page;
+
         let mut db = Database {
             eavt: BTreeSet::new(),
             aevt: BTreeSet::new(),
@@ -228,14 +232,14 @@ impl<Store: store::Store> Database<Store> {
             // transaction.
             next_id: 101,
             next_transaction_id: 100,
-            eavt_root: PageId(0),
+            eavt_root: eavt_root,
         };
 
         for datom in &genisis_datoms[..] {
             db.insert(datom);
         }
 
-        db
+        Ok(db)
     }
 
     /// Return the (entity, attribute, value, transaction) index.

@@ -16,7 +16,7 @@ use noblit::store::{MemoryStore, PageSize4096};
 
 fn main() {
     let store: MemoryStore<PageSize4096> = MemoryStore::new();
-    let mut db = Database::new(store);
+    let mut db = Database::new(store).unwrap();
 
     {
         // Insert a bit of test data: a new attribute "level" in transaction 0,
