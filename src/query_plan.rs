@@ -13,7 +13,8 @@
 use database::{Builtins, Database};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use index::{Avet, Eavt};
-use query::{self, Query};
+use query::{Query, self};
+use store;
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -134,7 +135,9 @@ impl QueryPlan {
     ///
     /// For now, this uses an extremely naive query planner, which loops over
     /// all variables in the order that they appear.
-    pub fn new(query: Query, database: &Database) -> QueryPlan {
+    pub fn new<Store>(query: Query, database: &Database<Store>) -> QueryPlan
+    where Store: store::Store
+    {
         // Map variables in the query to variables in the plan. They may have
         // different indices.
         let mut mapping = Mapping::new(query.variable_names.len());
@@ -261,7 +264,9 @@ impl QueryPlan {
     }
 
     /// Assert that all invariants are respected.
-    pub fn assert_valid(&self, db: &Database) {
+    pub fn assert_valid<Store>(&self, db: &Database<Store>)
+    where Store: store::Store
+    {
         for (i, ref def) in self.definitions.iter().enumerate() {
             let v = Var(i as u32);
 
@@ -419,7 +424,7 @@ impl QueryPlan {
 type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 
 /// Iterator that yields results from a given query plan.
-pub struct Evaluator<'a> {
+pub struct Evaluator<'a, Store: 'a> {
     /// The query plan.
     plan: &'a QueryPlan,
 
@@ -430,11 +435,11 @@ pub struct Evaluator<'a> {
     values: Vec<Value>,
 
     /// The database to query.
-    database: &'a Database,
+    database: &'a Database<Store>,
 }
 
-impl<'a> Evaluator<'a> {
-    pub fn new(plan: &'a QueryPlan, database: &'a Database) -> Evaluator<'a> {
+impl<'a, Store: store::Store> Evaluator<'a, Store> {
+    pub fn new(plan: &'a QueryPlan, database: &'a Database<Store>) -> Evaluator<'a, Store> {
         use std::iter;
 
         plan.assert_valid(database);
@@ -538,7 +543,7 @@ impl<'a> Evaluator<'a> {
     }
 }
 
-impl<'a> Iterator for Evaluator<'a> {
+impl<'a, Store: store::Store> Iterator for Evaluator<'a, Store> {
     type Item = Box<[Value]>;
 
     fn next(&mut self) -> Option<Box<[Value]>> {

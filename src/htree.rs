@@ -325,8 +325,8 @@ pub struct Cursor {
 /// on inserts. See doc/htree.md for more details.
 ///
 /// The `HTree` struct is a thin wrapper around the `Store`, which provides
-/// storage for its tree nodes. A tree node is stored in exactly one page in the
-/// store.
+/// storage for its tree nodes. A tree node is stored in exactly one page in
+/// the store.
 pub struct HTree<Cmp, Store> {
     /// The page that contains the root node.
     pub root_page: PageId,

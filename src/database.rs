@@ -12,6 +12,7 @@ use std::collections::HashSet;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use index::{Aevt, Avet, Eavt, Vaet};
+use store::{PageId, self};
 use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
@@ -194,18 +195,20 @@ impl Builtins {
     }
 }
 
-pub struct Database {
+pub struct Database<Store> {
     pub builtins: Builtins,
     pub eavt: BTreeSet<Eavt>,
     pub aevt: BTreeSet<Aevt>,
     pub avet: BTreeSet<Avet>,
     pub vaet: BTreeSet<Vaet>,
+    store: Store,
     next_id: u64,
     next_transaction_id: u64,
+    eavt_root: PageId,
 }
 
-impl Database {
-    pub fn new() -> Database {
+impl<Store: store::Store> Database<Store> {
+    pub fn new(store: Store) -> Database<Store> {
         let (builtins, genisis_datoms) = Builtins::new();
         let mut db = Database {
             eavt: BTreeSet::new(),
@@ -213,6 +216,7 @@ impl Database {
             avet: BTreeSet::new(),
             vaet: BTreeSet::new(),
             builtins: builtins,
+            store: store,
             // Transaction ids must be even. For now we do that by just tracking
             // separate counters and incrementing both by 2. Perhaps the
             // property that transaction ids are even could be exploited later,
@@ -223,6 +227,7 @@ impl Database {
             // transaction.
             next_id: 101,
             next_transaction_id: 100,
+            eavt_root: PageId(0),
         };
 
         for datom in &genisis_datoms[..] {

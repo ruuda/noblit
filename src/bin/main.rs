@@ -12,9 +12,11 @@ use noblit::datom;
 use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::types;
+use noblit::store::{MemoryStore, PageSize4096};
 
 fn main() {
-    let mut db = Database::new();
+    let store: MemoryStore<PageSize4096> = MemoryStore::new();
+    let mut db = Database::new(store);
 
     {
         // Insert a bit of test data: a new attribute "level" in transaction 0,

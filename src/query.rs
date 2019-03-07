@@ -12,6 +12,7 @@
 
 use database::Database;
 use datom::{Aid, Value};
+use store;
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -75,7 +76,9 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn fix_attributes(&mut self, database: &Database) {
+    pub fn fix_attributes<Store>(&mut self, database: &Database<Store>)
+    where Store: store::Store
+    {
         for stmt in self.where_statements.iter_mut() {
             let aid = match stmt.attribute {
                 QueryAttribute::Named(ref name) => database
@@ -89,7 +92,9 @@ impl Query {
     }
 
     /// Infer the type of every variables.
-    pub fn infer_types(&self, database: &Database) -> Result<Vec<Type>, String> {
+    pub fn infer_types<Store>(&self, database: &Database<Store>) -> Result<Vec<Type>, String>
+    where Store: store::Store
+    {
         let mut types: Vec<Option<Type>> = self.variable_names.iter().map(|_| None).collect();
 
         for statement in &self.where_statements {
