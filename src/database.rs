@@ -13,7 +13,7 @@ use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
-use index::{Aevt, Avet, Eavt, Vaet, EavtOrd};
+use index::{Aevt, Avet, Eavt, Vaet, AevtOrd, AvetOrd, EavtOrd};
 use store::{PageId, self};
 use types::Type;
 
@@ -207,6 +207,8 @@ pub struct Database<Store> {
     next_id: u64,
     next_transaction_id: u64,
     eavt_root: PageId,
+    aevt_root: PageId,
+    avet_root: PageId,
 }
 
 impl<Store: store::Store> Database<Store> {
@@ -214,6 +216,8 @@ impl<Store: store::Store> Database<Store> {
         let (builtins, genisis_datoms) = Builtins::new();
 
         let eavt_root = HTree::initialize(EavtOrd, &mut store, &genisis_datoms)?.root_page;
+        let aevt_root = HTree::initialize(AevtOrd, &mut store, &genisis_datoms)?.root_page;
+        let avet_root = HTree::initialize(AvetOrd, &mut store, &genisis_datoms)?.root_page;
 
         let mut db = Database {
             eavt: BTreeSet::new(),
@@ -233,6 +237,8 @@ impl<Store: store::Store> Database<Store> {
             next_id: 101,
             next_transaction_id: 100,
             eavt_root: eavt_root,
+            aevt_root: aevt_root,
+            avet_root: avet_root,
         };
 
         for datom in &genisis_datoms[..] {
@@ -252,6 +258,18 @@ impl<Store: store::Store> Database<Store> {
         // TODO: Need to remember the new root, if it changes.
         // Give the tree a reference to the page id?
         HTree::new(self.eavt_root, EavtOrd, &mut self.store)
+    }
+
+    /// Return the (attribute, value, entity, transaction) index.
+    pub fn avet(&self) -> HTree<AvetOrd, &Store> {
+        HTree::new(self.avet_root, AvetOrd, &self.store)
+    }
+
+    /// Return the (attribute, value, entity, transaction) index, writable.
+    pub fn avet_mut(&mut self) -> HTree<AvetOrd, &mut Store> where Store: store::StoreMut {
+        // TODO: Need to remember the new root, if it changes.
+        // Give the tree a reference to the page id?
+        HTree::new(self.avet_root, AvetOrd, &mut self.store)
     }
 
     pub fn insert(&mut self, datom: &Datom) {
@@ -301,23 +319,23 @@ impl<Store: store::Store> Database<Store> {
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
         // TODO: This function should return an iterator of values, from newer
-        // to older, with retracted tuples deleted.
+        // to older, with retracted tuples deleted. Currently it just returns
+        // the first one.
         let min = Datom::new(entity, attribute, Value::min(), Tid(0), Operation::Retract);
         let max = Datom::new(entity, attribute, Value::max(), Tid(0), Operation::Retract);
         // TODO: Could use Eavt or Aevt for this, which indicates it is probably
         // inefficient to do one by one. I could look up multiple attributes, or
         // multiple entities, at once.
-        let range = self.eavt.range(Eavt(min)..Eavt(max));
-        range.map(|&Eavt(datom)| datom.value).next_back()
+        self.eavt().iter(&min, &max).map(|&datom| datom.value).next()
     }
 
     pub fn lookup_entity(&self, attribute: Aid, value: Value) -> Option<Eid> {
         // TODO: This function should return an iterator of values, from newer
-        // to older, with retracted tuples deleted.
+        // to older, with retracted tuples deleted. Currently it just returns
+        // the first one.
         let min = Datom::new(Eid::min(), attribute, value, Tid::min(), Operation::Retract);
         let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Retract);
-        let range = self.avet.range(Avet(min)..Avet(max));
-        range.map(|&Avet(datom)| datom.entity).next_back()
+        self.avet().iter(&min, &max).map(|&datom| datom.entity).next()
     }
 
     pub fn lookup_attribute_id(&self, name: &str) -> Option<Aid> {
@@ -365,8 +383,8 @@ impl<Store: store::Store> Database<Store> {
 
             // TODO: Cancel tuples against retractions, if there is a
             // retraction.
-            for &Eavt(tuple) in self.eavt.range(Eavt(min)..Eavt(max)) {
-                attributes.insert(tuple.attribute);
+            for &datom in self.eavt().iter(&min, &max) {
+                attributes.insert(datom.attribute);
             }
         }
 
@@ -377,7 +395,10 @@ impl<Store: store::Store> Database<Store> {
         // 6 9 7 11 9
         println!("entity  attribute     value       type    transaction  operation");
         println!("------  ------------  ----------  ------  -----------  ---------");
-        for &Eavt(tuple) in self.eavt.iter() {
+        // TODO: Add support for open-ended ranges.
+        let min = Datom::new(Eid::min(), Aid::min(), Value::min(), Tid(0), Operation::Assert);
+        let max = Datom::new(Eid::max(), Aid::max(), Value::max(), Tid(0), Operation::Retract);
+        for &tuple in self.eavt().iter(&min, &max) {
             let attribute_name = self.lookup_attribute_name(tuple.attribute);
             let attribute_type = self.lookup_attribute_type(tuple.attribute);
 
