@@ -241,10 +241,6 @@ impl<Store: store::Store> Database<Store> {
             avet_root: avet_root,
         };
 
-        for datom in &genisis_datoms[..] {
-            db.insert(datom);
-        }
-
         Ok(db)
     }
 
@@ -260,6 +256,18 @@ impl<Store: store::Store> Database<Store> {
         HTree::new(self.eavt_root, EavtOrd, &mut self.store)
     }
 
+    /// Return the (entity, attribute, value, transaction) index.
+    pub fn aevt(&self) -> HTree<AevtOrd, &Store> {
+        HTree::new(self.aevt_root, AevtOrd, &self.store)
+    }
+
+    /// Return the (entity, attribute, value, transaction) index, writable.
+    pub fn aevt_mut(&mut self) -> HTree<AevtOrd, &mut Store> where Store: store::StoreMut {
+        // TODO: Need to remember the new root, if it changes.
+        // Give the tree a reference to the page id?
+        HTree::new(self.aevt_root, AevtOrd, &mut self.store)
+    }
+
     /// Return the (attribute, value, entity, transaction) index.
     pub fn avet(&self) -> HTree<AvetOrd, &Store> {
         HTree::new(self.avet_root, AvetOrd, &self.store)
@@ -272,17 +280,19 @@ impl<Store: store::Store> Database<Store> {
         HTree::new(self.avet_root, AvetOrd, &mut self.store)
     }
 
-    pub fn insert(&mut self, datom: &Datom) {
-        self.eavt.insert(Eavt(*datom));
-        self.aevt.insert(Aevt(*datom));
-        self.avet.insert(Avet(*datom));
-        self.vaet.insert(Vaet(*datom));
+    pub fn insert(&mut self, datom: &Datom) -> io::Result<()>
+    where Store: store::StoreMut {
+        self.eavt_mut().insert(&[*datom])?;
+        self.aevt_mut().insert(&[*datom])?;
+        self.avet_mut().insert(&[*datom])?;
+        Ok(())
     }
 
-    pub fn create_transaction(&mut self) -> Tid {
+    pub fn create_transaction(&mut self) -> Tid where Store: store:: StoreMut {
         let tid = Tid(self.next_transaction_id);
         self.next_transaction_id += 2;
 
+        // TODO: This should not write directly, only create the datoms.
         let timestamp_aid = Aid(1);
         let timestamp_value = Value(0); // TODO
         let _attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid);
@@ -290,7 +300,8 @@ impl<Store: store::Store> Database<Store> {
         tid
     }
 
-    pub fn create_entity(&mut self, attribute: Aid, value: Value, transaction: Tid) -> Eid {
+    pub fn create_entity(&mut self, attribute: Aid, value: Value, transaction: Tid) -> Eid
+    where Store: store:: StoreMut {
         let eid = Eid(self.next_id);
         self.next_id += 2;
 
@@ -306,7 +317,8 @@ impl<Store: store::Store> Database<Store> {
         eid
     }
 
-    pub fn assert(&mut self, entity: Eid, attribute: Aid, value: Value, transaction: Tid) {
+    pub fn assert(&mut self, entity: Eid, attribute: Aid, value: Value, transaction: Tid)
+    where Store: store:: StoreMut {
         let datom = Datom {
             entity: entity,
             attribute: attribute,
