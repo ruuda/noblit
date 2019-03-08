@@ -886,7 +886,7 @@ mod test {
     use datom::{Aid, Datom, Eid, Tid, Value};
     use store::{MemoryStore, PageId, PageSize, PageSize256, PageSize563, PageSize4096, StoreMut};
     use super::{HTree, Iter, Node, Cursor};
-    use index::EavtOrd;
+    use index::Eavt;
 
     #[test]
     fn node_write_after_read_is_identity() {
@@ -932,7 +932,7 @@ mod test {
         store1.write_page(&node.write::<Size>()).unwrap();
 
         let mut store2 = MemoryStore::<Size>::new();
-        HTree::initialize(EavtOrd, &mut store2, &node.datoms).unwrap();
+        HTree::initialize(Eavt, &mut store2, &node.datoms).unwrap();
 
         assert_eq!(store1.as_bytes(), store2.as_bytes());
     }
@@ -961,7 +961,7 @@ mod test {
 
         let iter = Iter {
             store: &store,
-            comparator: EavtOrd,
+            comparator: Eavt,
             nodes: vec![node],
             begin: Cursor {
                 indices: vec![0],
@@ -1020,7 +1020,7 @@ mod test {
 
         let tree = HTree {
             root_page: PageId(2),
-            comparator: EavtOrd,
+            comparator: Eavt,
             store: &store,
         };
 
@@ -1077,7 +1077,7 @@ mod test {
 
         let tree = HTree {
             root_page: PageId(2),
-            comparator: EavtOrd,
+            comparator: Eavt,
             store: &store,
         };
 
@@ -1096,7 +1096,7 @@ mod test {
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let mut tree = HTree::new(root, EavtOrd, store);
+        let mut tree = HTree::new(root, Eavt, store);
 
         for i in 0..500 {
             let datoms = &[
@@ -1123,7 +1123,7 @@ mod test {
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let mut tree = HTree::new(root, EavtOrd, store);
+        let mut tree = HTree::new(root, Eavt, store);
 
         // One node in the tree can hold `capacity` datoms. A two-layer tree can
         // hold `capacity^2` datoms, plus `capacity` for the midpoints. If we

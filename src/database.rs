@@ -12,7 +12,7 @@ use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
-use index::{AevtOrd, AvetOrd, EavtOrd};
+use index::{Aevt, Avet, Eavt};
 use store::{PageId, self};
 use types::Type;
 
@@ -210,9 +210,9 @@ impl<Store: store::Store> Database<Store> {
     pub fn new(mut store: Store) -> io::Result<Database<Store>> where Store: store::StoreMut {
         let (builtins, genisis_datoms) = Builtins::new();
 
-        let eavt_root = HTree::initialize(EavtOrd, &mut store, &genisis_datoms)?.root_page;
-        let aevt_root = HTree::initialize(AevtOrd, &mut store, &genisis_datoms)?.root_page;
-        let avet_root = HTree::initialize(AvetOrd, &mut store, &genisis_datoms)?.root_page;
+        let eavt_root = HTree::initialize(Eavt, &mut store, &genisis_datoms)?.root_page;
+        let aevt_root = HTree::initialize(Aevt, &mut store, &genisis_datoms)?.root_page;
+        let avet_root = HTree::initialize(Avet, &mut store, &genisis_datoms)?.root_page;
 
         let db = Database {
             builtins: builtins,
@@ -236,39 +236,39 @@ impl<Store: store::Store> Database<Store> {
     }
 
     /// Return the (entity, attribute, value, transaction) index.
-    pub fn eavt(&self) -> HTree<EavtOrd, &Store> {
-        HTree::new(self.eavt_root, EavtOrd, &self.store)
+    pub fn eavt(&self) -> HTree<Eavt, &Store> {
+        HTree::new(self.eavt_root, Eavt, &self.store)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn eavt_mut(&mut self) -> HTree<EavtOrd, &mut Store> where Store: store::StoreMut {
+    pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store> where Store: store::StoreMut {
         // TODO: Need to remember the new root, if it changes.
         // Give the tree a reference to the page id?
-        HTree::new(self.eavt_root, EavtOrd, &mut self.store)
+        HTree::new(self.eavt_root, Eavt, &mut self.store)
     }
 
     /// Return the (entity, attribute, value, transaction) index.
-    pub fn aevt(&self) -> HTree<AevtOrd, &Store> {
-        HTree::new(self.aevt_root, AevtOrd, &self.store)
+    pub fn aevt(&self) -> HTree<Aevt, &Store> {
+        HTree::new(self.aevt_root, Aevt, &self.store)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn aevt_mut(&mut self) -> HTree<AevtOrd, &mut Store> where Store: store::StoreMut {
+    pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store> where Store: store::StoreMut {
         // TODO: Need to remember the new root, if it changes.
         // Give the tree a reference to the page id?
-        HTree::new(self.aevt_root, AevtOrd, &mut self.store)
+        HTree::new(self.aevt_root, Aevt, &mut self.store)
     }
 
     /// Return the (attribute, value, entity, transaction) index.
-    pub fn avet(&self) -> HTree<AvetOrd, &Store> {
-        HTree::new(self.avet_root, AvetOrd, &self.store)
+    pub fn avet(&self) -> HTree<Avet, &Store> {
+        HTree::new(self.avet_root, Avet, &self.store)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
-    pub fn avet_mut(&mut self) -> HTree<AvetOrd, &mut Store> where Store: store::StoreMut {
+    pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store> where Store: store::StoreMut {
         // TODO: Need to remember the new root, if it changes.
         // Give the tree a reference to the page id?
-        HTree::new(self.avet_root, AvetOrd, &mut self.store)
+        HTree::new(self.avet_root, Avet, &mut self.store)
     }
 
     pub fn insert(&mut self, datom: &Datom) -> io::Result<()>

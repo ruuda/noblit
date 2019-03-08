@@ -7,7 +7,7 @@
 
 //! Defines indexes.
 
-use std::cmp::{PartialOrd, Ord, Ordering};
+use std::cmp::{Ord, Ordering};
 
 use datom::Datom;
 
@@ -17,13 +17,13 @@ pub trait DatomOrd {
 }
 
 /// An (attribute, entity, value, transaction) ordering.
-pub struct AevtOrd;
+pub struct Aevt;
 
 /// An (attribute, value, entity, transaction) ordering.
-pub struct AvetOrd;
+pub struct Avet;
 
 /// An (entity, attribute, value, transaction) ordering.
-pub struct EavtOrd;
+pub struct Eavt;
 
 /// Helper macro to compare on a specific property.
 ///
@@ -38,7 +38,7 @@ macro_rules! compare_by {
     };
 }
 
-impl DatomOrd for AevtOrd {
+impl DatomOrd for Aevt {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.entity, rhs.entity);
@@ -48,7 +48,7 @@ impl DatomOrd for AevtOrd {
     }
 }
 
-impl DatomOrd for AvetOrd {
+impl DatomOrd for Avet {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.value, rhs.value);
@@ -58,7 +58,7 @@ impl DatomOrd for AvetOrd {
     }
 }
 
-impl DatomOrd for EavtOrd {
+impl DatomOrd for Eavt {
     fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.attribute, rhs.attribute);
