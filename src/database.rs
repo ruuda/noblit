@@ -271,28 +271,35 @@ impl<Store: store::Store> Database<Store> {
         HTree::new(self.avet_root, Avet, &mut self.store)
     }
 
-    pub fn insert(&mut self, datom: &Datom) -> io::Result<()>
+    /// Insert datoms into the database.
+    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()>
     where Store: store::StoreMut {
-        self.eavt_mut().insert(&[*datom])?;
-        self.aevt_mut().insert(&[*datom])?;
-        self.avet_mut().insert(&[*datom])?;
+        // TODO: We need to sort these datoms before insertion,
+        // otherwise the tree will be messed up.
+        self.eavt_mut().insert(datoms)?;
+        self.aevt_mut().insert(datoms)?;
+        self.avet_mut().insert(datoms)?;
         Ok(())
     }
 
-    pub fn create_transaction(&mut self) -> Tid where Store: store:: StoreMut {
+    pub fn create_transaction(&mut self, datoms: &mut Vec<Datom>) -> Tid {
         let tid = Tid(self.next_transaction_id);
         self.next_transaction_id += 2;
 
-        // TODO: This should not write directly, only create the datoms.
         let timestamp_aid = Aid(1);
         let timestamp_value = Value(0); // TODO
-        let _attr_timestamp = self.create_entity(timestamp_aid, timestamp_value, tid);
+        let _attr_timestamp = self.create_entity(datoms, timestamp_aid, timestamp_value, tid);
 
         tid
     }
 
-    pub fn create_entity(&mut self, attribute: Aid, value: Value, transaction: Tid) -> Eid
-    where Store: store:: StoreMut {
+    pub fn create_entity(
+        &mut self,
+        datoms: &mut Vec<Datom>,
+        attribute: Aid,
+        value: Value,
+        transaction: Tid
+    ) -> Eid {
         let eid = Eid(self.next_id);
         self.next_id += 2;
 
@@ -303,13 +310,19 @@ impl<Store: store::Store> Database<Store> {
             transaction_operation: TidOp::new(transaction, Operation::Assert),
         };
 
-        self.insert(&datom);
+        datoms.push(datom);
 
         eid
     }
 
-    pub fn assert(&mut self, entity: Eid, attribute: Aid, value: Value, transaction: Tid)
-    where Store: store:: StoreMut {
+    pub fn assert(
+        &mut self,
+        datoms: &mut Vec<Datom>,
+        entity: Eid,
+        attribute: Aid,
+        value: Value,
+        transaction: Tid
+    ) {
         let datom = Datom {
             entity: entity,
             attribute: attribute,
@@ -317,7 +330,7 @@ impl<Store: store::Store> Database<Store> {
             transaction_operation: TidOp::new(transaction, Operation::Assert),
         };
 
-        self.insert(&datom);
+        datoms.push(datom);
     }
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {

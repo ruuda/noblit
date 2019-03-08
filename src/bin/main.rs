@@ -28,18 +28,27 @@ fn main() {
         let db_attr_many = db.builtins.attribute_db_attribute_many;
         let db_type_uint64 = db.builtins.entity_db_type_uint64;
 
-        let t0 = db.create_transaction();
-        let eid = db.create_entity(db_attr_name, Value::from_str("level"), t0);
-        db.assert(eid, db_attr_type, Value::from_eid(db_type_uint64), t0);
-        db.assert(eid, db_attr_unique, Value::from_bool(false), t0);
-        db.assert(eid, db_attr_many, Value::from_bool(false), t0);
+        let mut datoms = Vec::new();
+        let t0 = db.create_transaction(&mut datoms);
+        let eid = db.create_entity(&mut datoms, db_attr_name, Value::from_str("level"), t0);
+        db.assert(&mut datoms, eid, db_attr_type, Value::from_eid(db_type_uint64), t0);
+        db.assert(&mut datoms, eid, db_attr_unique, Value::from_bool(false), t0);
+        db.assert(&mut datoms, eid, db_attr_many, Value::from_bool(false), t0);
+        db.insert(&datoms).expect("Failed to commit transaction.");
 
+        let mut datoms = Vec::new();
         let attr_level = Aid(eid.0);
-        let t1 = db.create_transaction();
-        db.create_entity(attr_level, Value::from_u64(5), t1);
-        db.create_entity(attr_level, Value::from_u64(10), t1);
-        db.create_entity(attr_level, Value::from_u64(11), t1);
+        let t1 = db.create_transaction(&mut datoms);
+        db.create_entity(&mut datoms, attr_level, Value::from_u64(5), t1);
+        db.create_entity(&mut datoms, attr_level, Value::from_u64(10), t1);
+        db.create_entity(&mut datoms, attr_level, Value::from_u64(11), t1);
+        db.insert(&datoms).expect("Failed to commit transaction.");
     }
+
+    // TODO: These are rather useless now, because they check the old root.
+    db.eavt().check_invariants().unwrap();
+    db.aevt().check_invariants().unwrap();
+    db.avet().check_invariants().unwrap();
 
     {
         // where
