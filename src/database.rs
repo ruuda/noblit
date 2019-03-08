@@ -7,13 +7,12 @@
 
 //! Defines the database itself.
 
-use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
-use index::{Aevt, Avet, Eavt, Vaet, AevtOrd, AvetOrd, EavtOrd};
+use index::{AevtOrd, AvetOrd, EavtOrd};
 use store::{PageId, self};
 use types::Type;
 
@@ -199,10 +198,6 @@ impl Builtins {
 
 pub struct Database<Store> {
     pub builtins: Builtins,
-    pub eavt: BTreeSet<Eavt>,
-    pub aevt: BTreeSet<Aevt>,
-    pub avet: BTreeSet<Avet>,
-    pub vaet: BTreeSet<Vaet>,
     store: Store,
     next_id: u64,
     next_transaction_id: u64,
@@ -219,11 +214,7 @@ impl<Store: store::Store> Database<Store> {
         let aevt_root = HTree::initialize(AevtOrd, &mut store, &genisis_datoms)?.root_page;
         let avet_root = HTree::initialize(AvetOrd, &mut store, &genisis_datoms)?.root_page;
 
-        let mut db = Database {
-            eavt: BTreeSet::new(),
-            aevt: BTreeSet::new(),
-            avet: BTreeSet::new(),
-            vaet: BTreeSet::new(),
+        let db = Database {
             builtins: builtins,
             store: store,
             // Transaction ids must be even. For now we do that by just tracking
