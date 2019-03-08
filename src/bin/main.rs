@@ -34,15 +34,18 @@ fn main() {
         db.assert(&mut datoms, eid, db_attr_type, Value::from_eid(db_type_uint64), t0);
         db.assert(&mut datoms, eid, db_attr_unique, Value::from_bool(false), t0);
         db.assert(&mut datoms, eid, db_attr_many, Value::from_bool(false), t0);
-        db.insert(&datoms).expect("Failed to commit transaction.");
+        db.insert(datoms).expect("Failed to commit transaction.");
 
         let mut datoms = Vec::new();
         let attr_level = Aid(eid.0);
         let t1 = db.create_transaction(&mut datoms);
-        db.create_entity(&mut datoms, attr_level, Value::from_u64(5), t1);
-        db.create_entity(&mut datoms, attr_level, Value::from_u64(10), t1);
+        // Note: the insertion order is deliberately not sorted in advance to
+        // expose ordering bugs.
+        // TODO: Turn this into a test case.
         db.create_entity(&mut datoms, attr_level, Value::from_u64(11), t1);
-        db.insert(&datoms).expect("Failed to commit transaction.");
+        db.create_entity(&mut datoms, attr_level, Value::from_u64(10), t1);
+        db.create_entity(&mut datoms, attr_level, Value::from_u64(5), t1);
+        db.insert(datoms).expect("Failed to commit transaction.");
     }
 
     // TODO: These are rather useless now, because they check the old root.

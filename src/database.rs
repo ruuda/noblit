@@ -12,7 +12,7 @@ use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
-use index::{Aevt, Avet, Eavt};
+use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
 use types::Type;
 
@@ -266,25 +266,30 @@ impl<Store: store::Store> Database<Store> {
     }
 
     /// Insert datoms into the database.
-    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()>
+    ///
+    /// Takes the datoms by value in order to sort them in-place during
+    /// insertion without allocating an unnecessary copy, in case the datoms
+    /// are not going to be used afterwards anyway.
+    pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
     where Store: store::StoreMut {
-        // TODO: We need to sort these datoms before insertion,
-        // otherwise the tree will be messed up.
         // TODO: Make these insertions a bit more ergonomic.
         // Maybe insert should just return the new root page id?
         self.eavt_root = {
             let mut i = self.eavt_mut();
-            i.insert(datoms)?;
+            datoms.sort_by(|x, y| i.comparator.cmp(x, y));
+            i.insert(&datoms[..])?;
             i.root_page
         };
         self.aevt_root = {
             let mut i = self.aevt_mut();
-            i.insert(datoms)?;
+            datoms.sort_by(|x, y| i.comparator.cmp(x, y));
+            i.insert(&datoms[..])?;
             i.root_page
         };
         self.avet_root = {
             let mut i = self.avet_mut();
-            i.insert(datoms)?;
+            datoms.sort_by(|x, y| i.comparator.cmp(x, y));
+            i.insert(&datoms[..])?;
             i.root_page
         };
         Ok(())
