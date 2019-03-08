@@ -242,8 +242,6 @@ impl<Store: store::Store> Database<Store> {
 
     /// Return the (entity, attribute, value, transaction) index, writable.
     pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store> where Store: store::StoreMut {
-        // TODO: Need to remember the new root, if it changes.
-        // Give the tree a reference to the page id?
         HTree::new(self.eavt_root, Eavt, &mut self.store)
     }
 
@@ -254,8 +252,6 @@ impl<Store: store::Store> Database<Store> {
 
     /// Return the (entity, attribute, value, transaction) index, writable.
     pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store> where Store: store::StoreMut {
-        // TODO: Need to remember the new root, if it changes.
-        // Give the tree a reference to the page id?
         HTree::new(self.aevt_root, Aevt, &mut self.store)
     }
 
@@ -266,8 +262,6 @@ impl<Store: store::Store> Database<Store> {
 
     /// Return the (attribute, value, entity, transaction) index, writable.
     pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store> where Store: store::StoreMut {
-        // TODO: Need to remember the new root, if it changes.
-        // Give the tree a reference to the page id?
         HTree::new(self.avet_root, Avet, &mut self.store)
     }
 
@@ -276,9 +270,23 @@ impl<Store: store::Store> Database<Store> {
     where Store: store::StoreMut {
         // TODO: We need to sort these datoms before insertion,
         // otherwise the tree will be messed up.
-        self.eavt_mut().insert(datoms)?;
-        self.aevt_mut().insert(datoms)?;
-        self.avet_mut().insert(datoms)?;
+        // TODO: Make these insertions a bit more ergonomic.
+        // Maybe insert should just return the new root page id?
+        self.eavt_root = {
+            let mut i = self.eavt_mut();
+            i.insert(datoms)?;
+            i.root_page
+        };
+        self.aevt_root = {
+            let mut i = self.aevt_mut();
+            i.insert(datoms)?;
+            i.root_page
+        };
+        self.avet_root = {
+            let mut i = self.avet_mut();
+            i.insert(datoms)?;
+            i.root_page
+        };
         Ok(())
     }
 
