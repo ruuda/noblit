@@ -272,25 +272,20 @@ impl<Store: store::Store> Database<Store> {
     /// are not going to be used afterwards anyway.
     pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
     where Store: store::StoreMut {
-        // TODO: Make these insertions a bit more ergonomic.
-        // Maybe insert should just return the new root page id?
         self.eavt_root = {
-            let mut i = self.eavt_mut();
-            datoms.sort_by(|x, y| i.comparator.cmp(x, y));
-            i.insert(&datoms[..])?;
-            i.root_page
+            let mut index = self.eavt_mut();
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y));
+            index.insert(&datoms[..])?
         };
         self.aevt_root = {
-            let mut i = self.aevt_mut();
-            datoms.sort_by(|x, y| i.comparator.cmp(x, y));
-            i.insert(&datoms[..])?;
-            i.root_page
+            let mut index = self.aevt_mut();
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y));
+            index.insert(&datoms[..])?
         };
         self.avet_root = {
-            let mut i = self.avet_mut();
-            datoms.sort_by(|x, y| i.comparator.cmp(x, y));
-            i.insert(&datoms[..])?;
-            i.root_page
+            let mut index = self.avet_mut();
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y));
+            index.insert(&datoms[..])?
         };
         Ok(())
     }

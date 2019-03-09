@@ -330,6 +330,7 @@ pub struct Cursor {
 /// the store.
 pub struct HTree<Cmp, Store> {
     /// The page that contains the root node.
+    // TODO: Remove this member and pass it in externally?
     pub root_page: PageId,
 
     /// Ordering on datoms.
@@ -369,7 +370,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
             store: store,
         };
 
-        tree.replace_root(node)?;
+        tree.root_page = tree.write_root(node)?;
 
         Ok(tree)
     }
@@ -541,7 +542,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         Ok(result)
     }
 
-    /// Write back the root of the tree and set the root page.
+    /// Write back the root of the tree return the root page id.
     ///
     /// This is used to implement insertion as well as initialization of a
     /// non-empty tree. The node should contain all datoms that need to be
@@ -549,7 +550,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     /// initialization, there is no current root, and the node will become
     /// the root (it might be split, if required). If the node has no datoms,
     /// then it should point to a single child node which is the new root.
-    fn replace_root(&mut self, mut node: VecNode) -> io::Result<()> where Store: store::StoreMut {
+    fn write_root(&mut self, mut node: VecNode) -> io::Result<PageId> where Store: store::StoreMut {
         // The node contains all datoms that need to be inserted into a new
         // higher level in the tree. There might be so many of those, that one
         // page is not enough. Then we need to split, and create yet a higher
@@ -561,20 +562,20 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         // If we get only one new page id, then that is the new root. If there
         // is more, then the tree grows in height, and we write the entire new
         // node as the new root.
-        match node.children.len() {
+        let root_page = match node.children.len() {
             0 => panic!("Result of insert_into must contain at least one child page."),
-            1 => self.root_page = node.children[0],
-            _ => self.root_page = self.store.write_page(&node.as_node().write::<Store::Size>())?,
-        }
+            1 => node.children[0],
+            _ => self.store.write_page(&node.as_node().write::<Store::Size>())?,
+        };
 
-        Ok(())
+        Ok(root_page)
     }
 
-    /// Insert datoms into the tree.
-    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<()> where Store: store::StoreMut {
+    /// Insert datoms into the tree, return the new root page.
+    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<PageId> where Store: store::StoreMut {
         let old_root = self.root_page;
         let node = self.insert_into(old_root, datoms)?;
-        self.replace_root(node)
+        self.write_root(node)
     }
 
     /// Assert that the node at the given page, and its children, are well-formed.
