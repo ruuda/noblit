@@ -107,7 +107,7 @@ impl<'a> Node<'a> {
         }
     }
 
-    /// Write the node to backing storage.
+    /// Serialize the node to bytes, for writing to a store.
     pub fn write<Size: PageSize>(&self) -> Vec<u8> {
         assert_eq!(
             self.datoms.len() + 1,
@@ -226,7 +226,7 @@ impl<'a> Node<'a> {
         range
     }
 
-    /// Insert datoms into a node, if there is space.
+    /// Insert datoms into a node.
     ///
     /// Construct a new node, which incudes all of the datoms in the current
     /// node, and additionally all of `datoms` as pending datoms.
@@ -729,7 +729,7 @@ pub struct Iter<'a, Cmp: 'a, Store: 'a> {
     /// The store that contains the tree to iterate.
     store: &'a Store,
 
-    /// Datom ordering used by the underlying tree.
+    /// Datom ordering used by the tree.
     comparator: Cmp,
 
     /// The nodes into which `begin.indices` point.
