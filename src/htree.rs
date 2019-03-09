@@ -364,6 +364,11 @@ pub struct HTree<Cmp, Store> {
     pub store: Store,
 }
 
+/// Read the node with the given page id from the store.
+fn get_node<Store: store::Store>(store: &Store, page: PageId) -> Node {
+    Node::from_bytes::<Store::Size>(store.get(page))
+}
+
 impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     /// Create a new view into an existing index in the store.
     pub fn new(root_page: PageId, comparator: Cmp, store: Store) -> HTree<Cmp, Store> {
@@ -397,11 +402,6 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         tree.root_page = tree.write_root(node)?;
 
         Ok(tree)
-    }
-
-    /// Read the node with the given page id.
-    fn get(&self, page: PageId) -> Node {
-        Node::from_bytes::<Store::Size>(self.store.get(page))
     }
 
     /// Split a given node into pieces, and write them.
@@ -533,7 +533,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     {
         // Make a heap-allocated copy of the node to insert into, and merge-sort
         // insert the datoms into it.
-        let mut new_node = self.get(page).insert(&self.comparator, datoms);
+        let mut new_node = get_node(&self.store, page).insert(&self.comparator, datoms);
 
         // If the new node does not fit in a page, try flushing pending datoms
         // until it fits.
@@ -616,7 +616,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         infimum: Option<&Datom>,
         supremum: Option<&Datom>,
     ) -> io::Result<()> {
-        let node = self.get(page);
+        let node = get_node(&self.store, page);
 
         // We track two infimums: one for the datoms array, and one for the
         // children. For the datoms array, we need every datom to be larger than
@@ -679,18 +679,13 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
 }
 
 impl<'a, Cmp: DatomOrd, Store: store::Store> HTree<Cmp, &'a Store> {
-    /// Like `HTree::get`, but with an extended liftetime.
-    fn get_extended(&self, page: PageId) -> Node<'a> {
-        Node::from_bytes::<Store::Size>(self.store.get(page))
-    }
-
     /// Locate the first datom that is greater than or equal to the queried one.
     ///
     /// Returns a cursor that points to the datom, which can be used as the
     /// lower bound for an iterator. Also returns a vector of nodes that the
     /// indices point into.
     fn find(&self, datom: &Datom) -> (Cursor, Vec<Node<'a>>) {
-        let mut node = self.get_extended(self.root_page);
+        let mut node = get_node(self.store, self.root_page);
         let mut indices = Vec::with_capacity(node.level as usize + 1);
         let mut nodes = Vec::with_capacity(node.level as usize + 1);
 
@@ -718,8 +713,10 @@ impl<'a, Cmp: DatomOrd, Store: store::Store> HTree<Cmp, &'a Store> {
             if node.level == 0 {
                 break
             } else {
-                let pid = node.next_midpoint(index);
-                node = self.get_extended(pid.expect("Node at level > 0 must have a final child."));
+                let pid = node
+                    .next_midpoint(index)
+                    .expect("Node at level > 0 must have a final child.");
+                node = get_node(self.store, pid);
             }
         }
 
@@ -795,10 +792,6 @@ pub struct Iter<'a, Cmp: 'a, Store: 'a> {
 }
 
 impl<'a, Cmp: DatomOrd, Store: store::Store> Iter<'a, Cmp, Store> {
-    fn get(&self, page: PageId) -> Node<'a> {
-        Node::from_bytes::<Store::Size>(self.store.get(page))
-    }
-
     /// Advance the begin pointer after yielding a datom.
     ///
     /// `level` is the index into the `nodes` and `indices` stacks
@@ -825,7 +818,7 @@ impl<'a, Cmp: DatomOrd, Store: store::Store> Iter<'a, Cmp, Store> {
                     Some(pid) => pid,
                     None => panic!("Node at level {} should have one more child.", k + 1),
                 };
-                let node = self.get(child_pid);
+                let node = get_node(self.store, child_pid);
                 assert_eq!(node.level as usize, k);
                 self.nodes[k] = node;
                 self.begin.indices[k] = 0;
