@@ -399,7 +399,8 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         Ok(tree)
     }
 
-    pub fn get(&self, page: PageId) -> Node {
+    /// Read the node with the given page id.
+    fn get(&self, page: PageId) -> Node {
         Node::from_bytes::<Store::Size>(self.store.get(page))
     }
 
@@ -520,7 +521,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     /// splits. The midpoints for these splits need to be pushed up one level,
     /// so they are returned from the insert.
     ///
-    /// The last child of the returned child contains the page id of the new
+    /// The last child of the returned node contains the page id of the new
     /// node, where the datoms have been inserted. If the insert required
     /// splits, then the midpoint datoms and associated page ids precede the
     /// final child, respecting the ordering.
@@ -566,14 +567,15 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
         Ok(result)
     }
 
-    /// Write back the root of the tree return the root page id.
+    /// Write a new tree root, return the root page id.
     ///
     /// This is used to implement insertion as well as initialization of a
     /// non-empty tree. The node should contain all datoms that need to be
     /// inserted into a higher level than the current root. In the case of
     /// initialization, there is no current root, and the node will become
     /// the root (it might be split, if required). If the node has no datoms,
-    /// then it should point to a single child node which is the new root.
+    /// then it should point to a single child node which is the new root. In
+    /// that case nothing is written.
     fn write_root(&mut self, mut node: VecNode) -> io::Result<PageId> where Store: store::StoreMut {
         // The node contains all datoms that need to be inserted into a new
         // higher level in the tree. There might be so many of those, that one
@@ -596,10 +598,11 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
     }
 
     /// Insert datoms into the tree, return the new root page.
-    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<PageId> where Store: store::StoreMut {
-        let old_root = self.root_page;
-        let node = self.insert_into(old_root, datoms)?;
-        self.write_root(node)
+    pub fn insert(&mut self, datoms: &[Datom]) -> io::Result<PageId>
+    where Store: store::StoreMut {
+        let old_root_page = self.root_page;
+        let new_root_node = self.insert_into(old_root_page, datoms)?;
+        self.write_root(new_root_node)
     }
 
     /// Assert that the node at the given page, and its children, are well-formed.
@@ -676,7 +679,7 @@ impl<Cmp: DatomOrd, Store: store::Store> HTree<Cmp, Store> {
 }
 
 impl<'a, Cmp: DatomOrd, Store: store::Store> HTree<Cmp, &'a Store> {
-    /// Like get, but with an extended liftetime.
+    /// Like `HTree::get`, but with an extended liftetime.
     fn get_extended(&self, page: PageId) -> Node<'a> {
         Node::from_bytes::<Store::Size>(self.store.get(page))
     }
