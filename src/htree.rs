@@ -343,31 +343,6 @@ impl VecNode {
     }
 }
 
-/// Points to a datom in the tree.
-///
-/// Datoms in the tree are ordered. A cursor identifies how to reach a given
-/// datom, and also how to reach the next ones.
-///
-/// A cursor is a stack of indices into nodes. There is one index for each level
-/// of the tree.
-///
-/// * `nodes[i]` contains the node pointed to, with `nodes[i].level == i`.
-/// * `indices[i]` is an index into the datoms array of `nodes[i]`.
-/// * `nodes[i]` is the node pointed at by `nodes[i + 1].children[j]`, where
-///   `j >= indices[i + 1]` is the smallest `j` at which the children array
-///   contains a page id (as opposed to being paired with a pending datom).
-///
-/// Note that the nodes are not stored in the cursor. Rather, they are stored
-/// in the iterator when iterating.
-pub struct Cursor {
-    /// Stack of indices into the datom array, of the next datom to yield.
-    ///
-    /// The element at index `i` indexes into a node of level `i`.
-    // TODO: Could be a fixed-size array, max depth is not very deep. The index
-    // could also be u32 or even u16, as there aren't that much datoms per node.
-    indices: Vec<usize>,
-}
-
 /// A hitchhiker tree.
 ///
 /// A hitchhiker tree is similar to a persistent (as in _immutable_, not as in
@@ -769,6 +744,31 @@ impl<'a, Cmp: DatomOrd, Store: store::Store> HTree<Cmp, &'a Store> {
             end: cursor_end,
         }
     }
+}
+
+/// Points to a datom in the tree.
+///
+/// Datoms in the tree are ordered. A cursor identifies how to reach a given
+/// datom, and also how to reach the next ones.
+///
+/// A cursor is a stack of indices into nodes. There is one index for each level
+/// of the tree.
+///
+/// * `nodes[i]` contains the node pointed to, with `nodes[i].level == i`.
+/// * `indices[i]` is an index into the datoms array of `nodes[i]`.
+/// * `nodes[i]` is the node pointed at by `nodes[i + 1].children[j]`, where
+///   `j >= indices[i + 1]` is the smallest `j` at which the children array
+///   contains a page id (as opposed to being paired with a pending datom).
+///
+/// Note that the nodes are not stored in the cursor. Rather, they are stored
+/// in the iterator when iterating.
+pub struct Cursor {
+    /// Stack of indices into the datom array, of the next datom to yield.
+    ///
+    /// The element at index `i` indexes into a node of level `i`.
+    // TODO: Could be a fixed-size array, max depth is not very deep. The index
+    // could also be u32 or even u16, as there aren't that much datoms per node.
+    indices: Vec<usize>,
 }
 
 /// An iterator over a range of a tree.
