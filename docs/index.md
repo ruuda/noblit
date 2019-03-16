@@ -1,6 +1,6 @@
 # Noblit
 
-**Vaporware warning: much of the content below is hypothetical.**
+*Vaporware warning: much of the content below is hypothetical.*
 
 Noblit is an embeddable append-only database. The database is a set of immutable
 (entity, attribute, value, time) tuples called *datoms*. Datoms can be asserted

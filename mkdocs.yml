@@ -1,7 +1,9 @@
 site_name: Noblit
 repo_url: https://github.com/ruuda/noblit
 strict: true
-theme: readthedocs
+theme:
+  name: null
+  custom_dir: theme
 nav:
   - Overview: index.md
   - Internals:
