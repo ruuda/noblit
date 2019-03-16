@@ -14,7 +14,7 @@ datoms. Furthermore, Noblit makes history first-class and queryable.
    Noblit stores (entity, attribute, value) tuples. A traditional relational
    model can be expressed like this, but less rigid structures such as graphs
    can be expressed too.
- * **Relational machine-friendly queries.** Queries are data structures rather
+ * **Machine-friendly relational queries.** Queries are data structures rather
    than strings. There is no need for string formatting or escaping, and the
    full power of the host language is available to safely generate and compose
    queries.

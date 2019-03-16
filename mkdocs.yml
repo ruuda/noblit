@@ -6,6 +6,8 @@ theme:
   custom_dir: theme
 nav:
   - Overview: index.md
+  - Concepts:
+    - Data model: data-model.md
   - Internals:
     - Files: files.md
     - Trees: htree.md
