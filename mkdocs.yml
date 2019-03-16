@@ -1,0 +1,10 @@
+site_name: Noblit
+repo_url: https://github.com/ruuda/noblit
+strict: true
+theme: readthedocs
+nav:
+  - Overview: index.md
+  - Internals:
+    - Files: files.md
+    - Trees: htree.md
+    - Query: query.md

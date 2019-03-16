@@ -1,4 +1,4 @@
-# Disk Format
+# Files
 
 Noblit stores thee kinds of data on disk:
 
