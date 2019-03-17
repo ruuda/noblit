@@ -51,7 +51,7 @@ Select all tracks titled "One", their artist, and release year:
 
 ## Semantics
 
-The answer to a query, identify every variable in the query with the set values
+To answer a query, identify every variable in the query with the set of values
 it can assume. The answer to the query is the cartesian product of these sets,
 filtered such that for every tuple in the product, a datom exists in the
 database for each of the where-statements. For example, consider the following

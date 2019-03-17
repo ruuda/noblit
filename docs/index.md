@@ -24,7 +24,29 @@ datoms. Furthermore, Noblit makes history first-class and queryable.
  * **Reified schema**.
    Noblit stores the schema as ordinary datoms in the database itself.
    The schema can be evolved through normal assertions and retractions,
-   and the full history is available.
+   and the full migration history is available.
+ * **Reified transactions**.
+   Transactions in Noblit are entities that can have attributes like any other
+   entity. Possibilities include the transaction timestamp and the user who
+   initiated the transaction. Transactions can inspected in queries.
+
+## Comparison
+
+Noblit is heavily inspired by [Datomic][datomic], especially by its data model.
+In comparison to other databases such as [SQLite][sqlite] and
+[Postgres][postgres], Noblit positions itself as follows:
+
+|               | Client-server | Embedded |
+|---------------|---------------|----------|
+| **Mutable**   | Postgres      | SQLite   |
+| **Immutable** | Datomic       | *Noblit* |
+
+Noblit combines the low operational overhead of an embedded database with the
+simplicity of an append-only database with value semantics.
+
+[datomic]:  https://www.datomic.com/
+[sqlite]:   https://sqlite.org/index.html
+[postgres]: https://www.postgresql.org/about/
 
 ## Goals
 
