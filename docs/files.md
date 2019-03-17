@@ -1,5 +1,8 @@
 # Files
 
+*Vaporware warning: much of the content below is hypothetical. In particular,
+Noblit does not yet keep a journal.*
+
 Noblit stores thee kinds of data on disk:
 
  * [The *journal*](#the-journal) (sometimes called *write-ahead log*) of new datoms.
@@ -25,12 +28,11 @@ datoms will have been stored.
 
 ## The Indexes
 
-The indexes in Noblit store datoms in sorted order. There are four indexes:
+The indexes in Noblit store datoms in sorted order. There are three indexes:
 
  * **Eavt**: sorted by entity, attribute, value, and transaction.
  * **Aevt**: sorted by attribute, entity, value, and transaction.
  * **Avet**: sorted by attribute, value, entity, and transaction.
- * **Vaet**: sorted by value, attribute, entity, and transaction.
 
 See also [Datomic's index documentation][datomic-indexes], which formed the
 inspiration for Noblit.
@@ -44,8 +46,8 @@ containing the index into the value heap.
 
 Noblit stores indexes as [hitchhiker trees][htree], a variation on immutable
 B-trees which reduces write amplification. Noblit accumulates new datoms in
-memory first. When there is enough new data, it flushes those at once to the
-disk as new tree nodes, which may share child nodes with the previous tree. To
+memory first. At the end of a transaction it flushes those at once to the disk
+as new tree nodes, which may share child nodes with the previous tree. To
 prevent unreachable nodes from accumulating, trees need to be compacted
 occasionally though a copying garbage collection process. Unreachable nodes
 are not recycled to ensure immutability of written files: new data is only ever
