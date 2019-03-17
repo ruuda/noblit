@@ -38,11 +38,10 @@ Tree nodes are 4096 bytes.
    * Byte 0 contains the depth of the node (0 for a leaf, 1 for its parent, etc.).
    * Byte 1 contains the number of datoms in the node internally, say <var>k</var>.
      <var>k</var> is at most 102.
+     TODO: Leaf nodes could store 127 datoms and no child page ids,
+     as opposed to 102 midpoints.
    * The remaining 6 bytes are currently not used.
      TODO: I could store a checksum there.
-     TODO: I might add a marker byte for leaf nodes.
-     These could store 127 datoms and no child page ids,
-     as opposed to 102 midpoints.
  * At byte 0, the datom array starts. It contains <var>k</var> datoms in
    increasing order.
  * At byte 3264, the child array starts. It contains 64-bit page ids of the
