@@ -8,6 +8,8 @@ nav:
   - Overview: index.md
   - Concepts:
     - Data model: data-model.md
+  - Examples:
+    - Bug tracker: examples/bug-tracker.md
   - Internals:
     - Files: files.md
     - Trees: htree.md
