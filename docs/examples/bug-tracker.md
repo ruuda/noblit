@@ -16,6 +16,28 @@ reified in Noblit. This means that the schema is data, and it can be manipulated
 using the same query language as domain data.
 
     where
+      db.type.name(string_t, "string").
+      db.type.name(uint64_t, "uint64").
+      db.type.name(ref_t, "ref").
+
+      attribute(a, name, type, unique, many) :-
+        db.attribute.name(a, name),
+        db.attribute.type(a, type),
+        db.attribute.unique(a, unique),
+        db.attribute.many(a, many).
+
+    assert
+      attribute(user_name, "user.name", string_t, true, false).
+      attribute(issue_title, "issue.title", string_t, true, false).
+      attribute(issue_description, "issue.description", string_t, false, false).
+      attribute(issue_priority, "issue.priority", uint64_t, false, false).
+      attribute(issue_author, "issue.author", ref_t, false, false).
+      attribute(issue_comment, "issue.comment", ref_t, true, false).
+      attribute(comment_content, "comment.content", string_t, false, false).
+      attribute(comment_author, "comment.author", ref_t, false, false).
+
+
+    where
       -- Lookp up the data types by name, so we can refer to these types when
       -- defining new attributes.
       string_t db.type.name "string"
