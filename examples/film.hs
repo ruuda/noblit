@@ -25,28 +25,41 @@ data Variable :: * -> * where
   String :: Variable Text
   Ref    :: Variable EntityId
 
+data Operation = Assert | Retract
+
 class Rhs where
 instance Rhs Value where
 instance Rhs Variable where
 
-data Triplets a
-instance Functor Triplet
-instance Applicative Triplet
+data Triplets
+instance Semigroup Triplets
+instance Monoid Triplets
 
-triplet :: Rhs v => Variable a -> Attribute a -> v a -> Triplets ()
+triplet
+  :: Rhs value
+  => Variable a
+  -> Attribute a
+  -> value a
+  -> Triplets
 
-data Query a
-instance Functor Query
-instance Applicative Query
-instance Monad Query
+data Datoms
+instance Semigroup Datoms
+instance Monoid Datoms
 
-variable :: Query (Variable a)
+datom
+  :: Rhs value
+  => Variable a
+  -> Attribute a
+  -> value a
+  -> Variable EntityId
+  -> Operation
+  -> Datoms
 
-dbTypeName :: Attribute String
-dbAttributeName :: Attribute String
-dbAttributeType :: Attribute EntityId
+dbTypeName        :: Attribute String
+dbAttributeName   :: Attribute String
+dbAttributeType   :: Attribute EntityId
 dbAttributeUnique :: Attribute Uint64
-dbAttributeMany :: Attribute Uint64
+dbAttributeMany   :: Attribute Uint64
 
 attribute
   :: Variable EntityId
@@ -54,18 +67,38 @@ attribute
   -> Value EntityId
   -> Value Uint64
   -> Value Uint64
-  -> Triplets ()
+  -> Triplets
 attribute a name datatype unique many = do
   triplet a dbAttributeName name
   triplet a dbAttributeType datatype
   triplet a dbAttributeUnique unique
   triplet a dbAttributeMany many
 
-where_ :: Triplets a -> Query a
-assert :: Triplets a -> Query a
-retract :: Triplets a -> Query a
+class Query q where
+  variable      :: q (Variable a)
+  where_        :: Triplets -> q ()
+  whereHistoric :: Datoms -> q ()
+  select        :: Variable a -> q a
 
-buildSchema :: Query ()
+data Read a
+instance Functor     Read
+instance Applicative Read
+instance Monad       Read
+instance Query       Read
+
+data Write a
+instance Functor     Write
+instance Applicative Write
+instance Monad       Write
+instance Query       Write
+
+assert  :: Triplets -> Write ()
+retract :: Triplets -> Write ()
+
+query    :: Database -> Read a  -> IO [a]
+transact :: Database -> Write a -> IO ([a], Database)
+
+buildSchema :: Write (EntityId, EntitiyId)
 buildSchema = do
   string_t <- variable
   uint64_t <- variable
@@ -82,3 +115,5 @@ buildSchema = do
   assert $ do
     attribute author_name (String "author.name") string_t (Uint64 1) (Uint64 0)
     attribute issue_title (String "issue.title") string_t (Uint64 1) (Uint64 0)
+
+  (,) <$> select author_name <*> select issue_title
