@@ -9,20 +9,7 @@ newtype VariableId = VariableId Word32
 
 type TransatctionId = EntityId
 type AttributeId = EntityId
-
-data Attribute :: * -> * where
-  AttrBool   :: AttributeId -> Attribute Bool
-  AttrRef    :: AttributeId -> Attribute EntityId
-  AttrUint64 :: AttributeId -> Attribute Word64
-  AttrBytes  :: AttributeId -> Attribute ByteString
-  AttrString :: AttributeId -> Attribute Text
-
-data Datatype :: * -> * where
-  TypeBool   :: Datatype Bool
-  TypeRef    :: Datatype EntityId
-  TypeUint64 :: Datatype Word64
-  TypeBytes  :: Datatype ByteString
-  TypeString :: Datatype Text
+type TypeId = EntityId
 
 data Variable :: * -> * where
   VariableBool     :: VariableId -> Variable Bool
@@ -52,11 +39,37 @@ instance Value Word64     Word64     where encode x = ValueConstant $ ConstantUi
 instance Value ByteString ByteString where encode x = ValueConstant $ ConstantBytes x
 instance Value Text       Text       where encode x = ValueConstant $ ConstantString x
 
+data Attribute :: * -> * where
+  AttrBool   :: QueryValue EntityId -> Attribute Bool
+  AttrRef    :: QueryValue EntityId -> Attribute EntityId
+  AttrUint64 :: QueryValue EntityId -> Attribute Word64
+  AttrBytes  :: QueryValue EntityId -> Attribute ByteString
+  AttrString :: QueryValue EntityId -> Attribute Text
+
+attributeEntityId :: Attribute a -> EntityId
+attributeEntityId a = case a of
+  AttrBool aid -> aid
+  _ -> error "TODO"
+
+data Datatype :: * -> * where
+  TypeBool   :: QueryValue EntityId -> Datatype Bool
+  TypeRef    :: QueryValue EntityId -> Datatype EntityId
+  TypeUint64 :: QueryValue EntityId -> Datatype Word64
+  TypeBytes  :: QueryValue EntityId -> Datatype ByteString
+  TypeString :: QueryValue EntityId -> Datatype Text
+
+typeEntityId :: Datatype a -> EntityId
+typeEntityId a = case a of
+  TypeBool tyid -> tyid
+  _ -> error "TODO"
+
 data Operation = Assert | Retract
 
-data Triplets
-instance Semigroup Triplets
-instance Monoid Triplets
+data Clause a
+instance Functor Clause
+instance Applicative Clause
+instance Semigroup a => Semigroup (Clause a)
+instance Monoid a => Semigroup (Clause a)
 
 triplet
   :: Value u
@@ -64,11 +77,7 @@ triplet
   -> u EntityId
   -> Attribute a
   -> v a
-  -> Triplets
-
-data Datoms
-instance Semigroup Datoms
-instance Monoid Datoms
+  -> Clause ()
 
 datom
   :: Value u
@@ -79,7 +88,7 @@ datom
   -> v a
   -> w TransactionId
   -> Operation
-  -> Datoms
+  -> Clause ()
 
 dbTypeName        :: Attribute String
 dbAttributeName   :: Attribute String
@@ -90,25 +99,26 @@ dbAttributeMany   :: Attribute Uint64
 attribute
   :: Value va
   => Value vn
-  => Value vt
   => Value vu
   => Value vm
   => va EntityId
   -> vn String
-  -> vt EntityId
+  -> Datatype a
   -> vu Bool
   -> vm Bool
-  -> Triplets
+  -> Clause (Attribute a)
 attribute a name datatype unique many = do
   triplet a dbAttributeName name
-  triplet a dbAttributeType datatype
+  triplet a dbAttributeType (typeEntityId datatype)
   triplet a dbAttributeUnique unique
   triplet a dbAttributeMany many
+  pure $ case datatype of
+    TypeBool _ -> AttrBool a
+    TypeRef _  -> AttrRef a
 
 class Query q where
   variable      :: q (Variable a)
-  where_        :: Triplets -> q ()
-  whereHistoric :: Datoms -> q ()
+  where_        :: Clause a   -> q a
   select        :: Variable a -> q a
   orderBy       :: Variable a -> q ()
 
