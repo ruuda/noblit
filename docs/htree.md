@@ -16,13 +16,13 @@ garbage collection.
 
 ## Index Trees 
 
-Indexes in Noblit are sorted sets of datoms. Each dataom is 32 bytes. (For large
+Indexes in Noblit are sorted sets of datoms. Each datom is 32 bytes. (For large
 values, the datom contains a reference to a value on the heap.) The indexes
 store the datoms themselves: they are sorted sets, not key-values maps. In other
 words, indexes are *covering indexes*.
 
 Trees in Noblit are based on B-trees, which means that datoms in the interior
-nodes are *not* repeated in the leaf nodes. (Unlike a B+ tree, which would store
+nodes are not repeated in the leaf nodes. (Unlike a B+ tree, which would store
 all datoms in leaf nodes, and repeat some in the interior nodes.)
 
 In addition to the midpoint datoms, tree nodes store *pending* datoms: datoms
