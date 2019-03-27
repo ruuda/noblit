@@ -21,13 +21,13 @@ values, the datom contains a reference to a value on the heap.) The indexes
 store the datoms themselves: they are sorted sets, not key-values maps. In other
 words, indexes are *covering indexes*.
 
-Trees in Noblit are based on B-trees, which means that datoms in the interior
-nodes are not repeated in the leaf nodes. (Unlike a B+ tree, which would store
-all datoms in leaf nodes, and repeat some in the interior nodes.)
+Trees in Noblit store every datom exactly once. Datoms in leaves are not
+repeated in interior nodes, unlike a B+ tree, which would store all datoms in
+leaf nodes, and repeat some datoms as midpoints in interior nodes.
 
 In addition to the midpoint datoms, tree nodes store *pending* datoms: datoms
 that need to be flushed into the leaves, but which we avoid as long as possible.
-This modification is what makes the tree a hitchhiker tree.
+This modification is what turns a B-tree into a hitchhiker tree.
 
 ## Disk Format
 
