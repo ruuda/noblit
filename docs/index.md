@@ -5,8 +5,8 @@
 Noblit is an embeddable append-only database. The database records a history
 of immutable (entity, attribute, value) tuples. Tuples can be asserted and
 retracted. A retraction is recorded as a new fact; it is not a delete. Any
-historical state of the database can be reproduced, simply by ignoring new
-tuples. Furthermore, Noblit makes history first-class and queryable.
+historical state of the database can be reproduced, and the history is
+first-class and queryable.
 
 ## Features
 
