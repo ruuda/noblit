@@ -1,0 +1,21 @@
+name:                noblit
+version:             0.0.0.0
+synopsis:            An immutable append-only database
+homepage:            https://github.com/ruuda/noblit
+license:             Apache-2.0
+author:              Ruud van Asseldonk
+maintainer:          Ruud van Asseldonk <dev@veniogames.com>
+copyright:           2019 Ruud van Asseldonk
+category:            Database
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Lib
+  build-depends:       base >= 4.7 && < 5
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/ruuda/noblit

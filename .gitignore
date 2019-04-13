@@ -4,3 +4,6 @@
 # Editor files
 *.swo
 *.swp
+
+# Haskell build files.
+/client/haskell/.stack-work
