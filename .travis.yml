@@ -2,7 +2,28 @@
 notifications:
   email: false
 
-language: rust
+language: generic
 
-rust:
-  - 1.28.0
+cache:
+  directories:
+  - $HOME/.stack
+
+addons:
+  apt:
+    packages:
+      # Required for GHC.
+      - libgmp-dev
+
+before_install:
+  - mkdir -p ~/.local/bin
+  - export PATH=$HOME/.local/bin:$PATH
+  - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
+install:
+  - travis_retry curl -sSf https://build.travis-ci.org/files/rustup-init.sh | sh -s -- --default-toolchain=1.28.0 -y
+
+script:
+  - cargo build
+  - cargo test
+  - cd client/haskell && stack --no-terminal build
+  - cd client/haskell && stack --no-terminal test
