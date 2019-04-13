@@ -1,13 +1,22 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Main where
 
-import Data.ByteString.Strict (ByteString)
+import Data.ByteString (ByteString)
+import Data.Word (Word32, Word64)
+import Prelude hiding (Read)
 
 type Text = String -- For now.
 
 newtype EntityId = EntityId Word64
 newtype VariableId = VariableId Word32
 
-type TransatctionId = EntityId
+type TransactionId = EntityId
 type AttributeId = EntityId
 type TypeId = EntityId
 
@@ -19,11 +28,11 @@ data Variable :: * -> * where
   VariableString   :: VariableId -> Variable Text
 
 data Constant :: * -> * where
-  ConstantBool     :: Bool       -> Value Bool
-  ConstantRef      :: EntityId   -> Value EntityId
-  ConstantUint64   :: Word64     -> Value Word64
-  ConstantBytes    :: ByteString -> Value BytesString
-  ConstantString   :: Text       -> Value Text
+  ConstantBool     :: Bool       -> Constant Bool
+  ConstantRef      :: EntityId   -> Constant EntityId
+  ConstantUint64   :: Word64     -> Constant Word64
+  ConstantBytes    :: ByteString -> Constant ByteString
+  ConstantString   :: Text       -> Constant Text
 
 data QueryValue :: * -> * where
   ValueVariable :: Variable a -> QueryValue a
@@ -32,12 +41,12 @@ data QueryValue :: * -> * where
 class Value v a | v -> a where
   encode :: v -> QueryValue a
 
-instance Value (Variable a) a        where encode v = ValueVariable v
-instance Value Bool       Bool       where encode x = ValueConstant $ ConstantBool x
-instance Value EntityId   EntityId   where encode x = ValueConstant $ ConstantRef x
-instance Value Word64     Word64     where encode x = ValueConstant $ ConstantUint64 x
-instance Value ByteString ByteString where encode x = ValueConstant $ ConstantBytes x
-instance Value Text       Text       where encode x = ValueConstant $ ConstantString x
+instance Value (Variable a) a          where encode v = ValueVariable v
+instance Value Bool         Bool       where encode x = ValueConstant $ ConstantBool x
+instance Value EntityId     EntityId   where encode x = ValueConstant $ ConstantRef x
+instance Value Word64       Word64     where encode x = ValueConstant $ ConstantUint64 x
+instance Value ByteString   ByteString where encode x = ValueConstant $ ConstantBytes x
+instance Value Text         Text       where encode x = ValueConstant $ ConstantString x
 
 data Attribute :: * -> * where
   AttrBool   :: QueryValue EntityId -> Attribute Bool
@@ -68,44 +77,53 @@ data Operation = Assert | Retract
 data Clause a
 instance Functor Clause
 instance Applicative Clause
-instance Semigroup a => Semigroup (Clause a)
-instance Monoid a => Semigroup (Clause a)
 
 triplet
-  :: Value u
-  => Value v
-  -> u EntityId
+  :: Value u EntityId
+  => Value v a
+  => u
   -> Attribute a
-  -> v a
+  -> v
   -> Clause ()
+triplet = undefined
 
 datom
-  :: Value u
-  => Value v
-  => Value w
-  :: u EntityId
+  :: Value u EntityId
+  => Value v a
+  => Value w TransactionId
+  => u
   -> Attribute a
-  -> v a
-  -> w TransactionId
+  -> v
+  -> w
   -> Operation
   -> Clause ()
+datom = undefined
 
 dbTypeName        :: Attribute String
+dbTypeName = undefined
+
 dbAttributeName   :: Attribute String
+dbAttributeName = undefined
+
 dbAttributeType   :: Attribute EntityId
-dbAttributeUnique :: Attribute Uint64
-dbAttributeMany   :: Attribute Uint64
+dbAttributeType = undefined
+
+dbAttributeUnique :: Attribute Word64
+dbAttributeUnique = undefined
+
+dbAttributeMany   :: Attribute Word64
+dbAttributeMany = undefined
 
 attribute
-  :: Value va
-  => Value vn
-  => Value vu
-  => Value vm
-  => va EntityId
-  -> vn String
+  :: Value va EntityId
+  => Value vn String
+  => Value vu Bool
+  => Value vm Bool
+  => va
+  -> vn
   -> Datatype a
-  -> vu Bool
-  -> vm Bool
+  -> vu
+  -> vm
   -> Clause (Attribute a)
 attribute a name datatype unique many = do
   triplet a dbAttributeName name
@@ -122,6 +140,10 @@ class Query q where
   select        :: Variable a -> q a
   orderBy       :: Variable a -> q ()
 
+class Transaction q where
+  assert :: Clause a -> q a
+  retract :: Clause a -> q a
+
 data Read a
 instance Functor     Read
 instance Applicative Read
@@ -133,9 +155,7 @@ instance Functor     Write
 instance Applicative Write
 instance Monad       Write
 instance Query       Write
-
-assert  :: Triplets -> Write ()
-retract :: Triplets -> Write ()
+instance Transaction Write
 
 data Noblit a
 instance Functor Noblit
@@ -144,9 +164,13 @@ instance Monad Noblit
 
 newtype Error = Error Text
 latest    :: Noblit TransactionId
+latest = undefined
 query     :: TransactionId -> Read a  -> Noblit [a]
+query = undefined
 transact  :: TransactionId -> Write a -> Noblit ([a], TransactionId)
+transact = undefined
 runNoblit :: Noblit a -> IO (Either Error a)
+runNoblit = undefined
 
 -- Domain specific code below.
 
@@ -158,7 +182,7 @@ data Schema a = Schema
   , attrIssueAuthor   :: a EntityId
   , attrCommentBody   :: a Text
   , attrCommentAuthor :: a EntityId
-  , attrIssueComment  :: a Ref
+  , attrIssueComment  :: a EntityId
   }
 
 -- Construct a query for the bug tracker database schema.
@@ -167,7 +191,7 @@ data Schema a = Schema
 -- in the schema at startup time,
 schema
   :: Query q
-  => (Triplets -> q ())
+  => (Clause a -> q a)
   -> q (Schema Attribute)
 schema f = do
   dbTypeString  <- variable
