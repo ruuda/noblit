@@ -22,7 +22,8 @@ before_install:
   - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$PATH
 
 install:
-  - cd client/haskell && stack setup
+  - cd $TRAVIS_BUILD_DIR/client/haskell
+  - stack setup
 
 script:
   # Noblit itself.
@@ -30,7 +31,6 @@ script:
   - cargo test
 
   # Haskell client library.
-  - cd client/haskell
+  - cd $TRAVIS_BUILD_DIR/client/haskell
   - stack --no-terminal build
   - stack --no-terminal test
-  - cd ../..
