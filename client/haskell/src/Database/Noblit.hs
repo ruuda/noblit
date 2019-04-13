@@ -1,6 +1,8 @@
-module Lib
-    ( someFunc
-    ) where
+module Database.Noblit
+(
+  someFunc
+)
+where
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
