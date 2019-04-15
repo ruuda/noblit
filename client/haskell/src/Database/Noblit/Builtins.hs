@@ -1,0 +1,63 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ApplicativeDo #-}
+
+module Database.Noblit.Builtins
+(
+  attribute,
+  attributeMany,
+  attributeName,
+  attributeUnique,
+  typeName,
+)
+where
+
+import Database.Noblit.Primitive (EntityId, Value)
+import Database.Noblit.Query (Clause, Query, triplet)
+import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), typeEntityId)
+
+type Text = String -- For now.
+
+-- db.type.name
+typeName :: Attribute Text
+typeName = undefined
+
+-- db.attribute.name
+attributeName :: Attribute Text
+attributeName = undefined
+
+-- db.attribute.type
+attributeType :: Attribute EntityId
+attributeType = undefined
+
+-- db.attribute.unique
+attributeUnique :: Attribute Bool
+attributeUnique = undefined
+
+-- db.attribute.many
+attributeMany :: Attribute Bool
+attributeMany = undefined
+
+attribute
+  :: Value va AttributeId
+  => Value vn Text
+  => Value vu Bool
+  => Value vm Bool
+  => va
+  -> vn
+  -> Datatype a
+  -> vu
+  -> vm
+  -> Clause (Attribute a)
+attribute a name datatype unique many = do
+  triplet a attributeName name
+  triplet a attributeType (typeEntityId datatype)
+  triplet a attributeUnique unique
+  triplet a attributeMany many
+  pure $ case datatype of
+    TypeBool _ -> AttrBool a
+    TypeRef _  -> AttrRef a

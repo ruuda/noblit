@@ -15,6 +15,15 @@ library
   exposed-modules:     Database.Noblit
   build-depends:       base >= 4.7 && < 5
   default-language:    Haskell2010
+  ghc-options:         -Wall -Werror
+
+  other-modules: Database.Noblit.Builtins
+               , Database.Noblit.Primitive
+               , Database.Noblit.Query
+               , Database.Noblit.Schema
+
+  build-depends: base
+               , bytestring
 
 source-repository head
   type:     git
