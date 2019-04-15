@@ -7,26 +7,43 @@
 
 module Database.Noblit
 (
+  Error (..),
+  latest,
+  query,
+  transact,
+  run,
 )
 where
 
-import Database.Noblit.Query (Clause, Write)
-import Database.Noblit.Primitive (EntityId, Value)
+import Prelude hiding (Read)
+
+import Database.Noblit.Query (Read, Write)
 import Database.Noblit.Schema (TransactionId)
 
 type Text = String -- For now.
 
 data Noblit a
-instance Functor Noblit
-instance Applicative Noblit
-instance Monad Noblit
+
+instance Functor Noblit where
+  fmap = undefined
+
+instance Applicative Noblit where
+  pure = undefined
+  _ <*> _ = undefined
+
+instance Monad Noblit where
+  _ >>= _ = undefined
 
 newtype Error = Error Text
-latest    :: Noblit TransactionId
+
+latest :: Noblit TransactionId
 latest = undefined
-query     :: TransactionId -> Read a  -> Noblit [a]
+
+query :: TransactionId -> Read a  -> Noblit [a]
 query = undefined
-transact  :: TransactionId -> Write a -> Noblit ([a], TransactionId)
+
+transact :: TransactionId -> Write a -> Noblit ([a], TransactionId)
 transact = undefined
-runNoblit :: Noblit a -> IO (Either Error a)
-runNoblit = undefined
+
+run :: Noblit a -> IO (Either Error a)
+run = undefined

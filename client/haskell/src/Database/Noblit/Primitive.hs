@@ -45,10 +45,11 @@ data QueryValue :: * -> * where
 class Value v a | v -> a where
   encode :: v -> QueryValue a
 
-instance Value (Variable a) a          where encode v = ValueVariable v
-instance Value Bool         Bool       where encode x = ValueConstant $ ConstantBool x
-instance Value EntityId     EntityId   where encode x = ValueConstant $ ConstantRef x
-instance Value Word64       Word64     where encode x = ValueConstant $ ConstantUint64 x
-instance Value ByteString   ByteString where encode x = ValueConstant $ ConstantBytes x
-instance Value Text         Text       where encode x = ValueConstant $ ConstantString x
+instance Value (QueryValue a) a          where encode = id
+instance Value (Variable a)   a          where encode v = ValueVariable v
+instance Value Bool           Bool       where encode x = ValueConstant $ ConstantBool x
+instance Value EntityId       EntityId   where encode x = ValueConstant $ ConstantRef x
+instance Value Word64         Word64     where encode x = ValueConstant $ ConstantUint64 x
+instance Value ByteString     ByteString where encode x = ValueConstant $ ConstantBytes x
+instance Value Text           Text       where encode x = ValueConstant $ ConstantString x
 

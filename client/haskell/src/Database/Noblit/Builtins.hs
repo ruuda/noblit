@@ -16,8 +16,8 @@ module Database.Noblit.Builtins
 )
 where
 
-import Database.Noblit.Primitive (EntityId, Value)
-import Database.Noblit.Query (Clause, Query, triplet)
+import Database.Noblit.Primitive (EntityId, Value, encode)
+import Database.Noblit.Query (Clause, triplet)
 import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), typeEntityId)
 
 type Text = String -- For now.
@@ -59,5 +59,8 @@ attribute a name datatype unique many = do
   triplet a attributeUnique unique
   triplet a attributeMany many
   pure $ case datatype of
-    TypeBool _ -> AttrBool a
-    TypeRef _  -> AttrRef a
+    TypeBool _   -> AttrBool (encode a)
+    TypeRef _    -> AttrRef (encode a)
+    TypeUint64 _ -> AttrUint64 (encode a)
+    TypeBytes _  -> AttrBytes (encode a)
+    TypeString _ -> AttrString (encode a)
