@@ -2,10 +2,12 @@
 
 Noblit stores *datoms*. Datoms assert or retract attributes of entities. For
 example, entity 12 might have an attribute `user.email` with value
-`rachael@tyrell.com`. Conceptually, a view of the database at a given point in
-time is a set of (entity, attribute, value) tuples. To go from mutable sets of
-such tuples to an append-only database, datoms further specify an operation
-(assert or retract), and time of that operation, in the form of a transaction id.
+`rachael@tyrell.com`. Conceptually, the database is an append-only log of
+(entity, attribute, value) tuples, together with the time at which they were
+asserted or retracted in the form of a transaction id. A view of the database at
+a given point in time is the set of all (entity, attribute, value) tuples that
+have been asserted and not retracted before or at that time.
+
 A datom is a tuple of the following five values:
 
  * **Entity**: An integer that uniquely identifies an entity in the database.
