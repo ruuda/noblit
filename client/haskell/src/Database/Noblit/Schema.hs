@@ -18,11 +18,10 @@ module Database.Noblit.Schema
 where
 
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 
 import Data.Word (Word64)
 import Database.Noblit.Primitive (EntityId, QueryValue)
-
-type Text = String -- For now.
 
 type TransactionId = EntityId
 type AttributeId = EntityId

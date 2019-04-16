@@ -16,11 +16,11 @@ module Database.Noblit
 where
 
 import Prelude hiding (Read)
+import Data.Text (Text)
 
 import Database.Noblit.Query (Read, Write)
 import Database.Noblit.Schema (TransactionId)
 
-type Text = String -- For now.
 
 data Noblit a
 

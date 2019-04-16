@@ -16,11 +16,11 @@ module Database.Noblit.Builtins
 )
 where
 
+import Data.Text (Text)
+
 import Database.Noblit.Primitive (EntityId, Value, encode)
 import Database.Noblit.Query (Clause, triplet)
 import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), typeEntityId)
-
-type Text = String -- For now.
 
 -- db.type.name
 typeName :: Attribute Text

@@ -17,9 +17,8 @@ module Database.Noblit.Primitive
 where
 
 import Data.ByteString (ByteString)
+import Data.Text (Text)
 import Data.Word (Word32, Word64)
-
-type Text = String -- For now.
 
 newtype EntityId = EntityId Word64
 newtype VariableId = VariableId Word32
