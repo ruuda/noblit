@@ -3,8 +3,8 @@ version:             0.0.0.0
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable film
-  main-is:           film.hs
-  build-depends:     noblit
+executable bug-tracker
+  main-is:           BugTracker.hs
+  build-depends:     base, noblit, text
   default-language:  Haskell2010
   ghc-options:       -Wall -Werror

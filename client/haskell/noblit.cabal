@@ -16,10 +16,10 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall -Werror
 
-  other-modules: Database.Noblit.Builtins
-               , Database.Noblit.Primitive
-               , Database.Noblit.Query
-               , Database.Noblit.Schema
+  exposed-modules: Database.Noblit.Builtins
+                 , Database.Noblit.Primitive
+                 , Database.Noblit.Query
+                 , Database.Noblit.Schema
 
   build-depends: base
                , bytestring
