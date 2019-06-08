@@ -50,7 +50,7 @@ datom
   -> Clause ()
 datom = undefined
 
-class Query q where
+class Monad q => Query q where
   variable      :: q (Variable a)
   where_        :: Clause a   -> q a
   select        :: Variable a -> q a

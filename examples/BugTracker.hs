@@ -1,4 +1,6 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main where
 
@@ -8,7 +10,6 @@ import Database.Noblit.Primitive (EntityId)
 import Data.Text (Text)
 import Data.Word (Word64)
 
-import qualified Database.Noblit as Noblit
 import qualified Database.Noblit.Query as Noblit
 import qualified Database.Noblit.Builtins as Builtins
 
@@ -31,7 +32,7 @@ data Schema a = Schema
 -- in the schema at startup time,
 schema
   :: Query q
-  => (Clause a -> q a)
+  => (forall a. Clause a -> q a)
   -> q (Schema Attribute)
 schema f = do
   dbTypeString  <- Noblit.variable
@@ -62,25 +63,15 @@ schema f = do
     single    = False
 
   -- We might be asserting, or we might be selecting.
-  f $ do
-    attrUserName      <- Builtins.attribute userName      "user.name"      typeString unique    single
-    attrIssueTitle    <- Builtins.attribute issueTitle    "issue.title"    typeString unique    single
-    attrIssueBody     <- Builtins.attribute issueBody     "issue.body"     typeString nonUnique single
-    attrIssuePriority <- Builtins.attribute issuePriority "issue.priority" typeUint64 nonUnique single
-    attrIssueAuthor   <- Builtins.attribute issueAuthor   "issue.author"   typeRef    nonUnique single
-    attrCommentBody   <- Builtins.attribute commentBody   "comment.body"   typeString nonUnique single
-    attrCommentAuthor <- Builtins.attribute commentAuthor "comment.author" typeRef    nonUnique single
-    attrIssueComment  <- Builtins.attribute issueComment  "issue.comment"  typeRef    nonUnique many
-
-    Schema
-      <$> attrUserName
-      <*> attrIssueTitle
-      <*> attrIssueBody
-      <*> attrIssuePriority
-      <*> attrIssueAuthor
-      <*> attrCommentBody
-      <*> attrCommentAuthor
-      <*> attrIssueComment
+  f $ Schema
+    <$> Builtins.attribute userName      ("user.name"      :: Text) typeString unique    single
+    <*> Builtins.attribute issueTitle    ("issue.title"    :: Text) typeString unique    single
+    <*> Builtins.attribute issueBody     ("issue.body"     :: Text) typeString nonUnique single
+    <*> Builtins.attribute issuePriority ("issue.priority" :: Text) typeUint64 nonUnique single
+    <*> Builtins.attribute issueAuthor   ("issue.author"   :: Text) typeRef    nonUnique single
+    <*> Builtins.attribute commentBody   ("comment.body"   :: Text) typeString nonUnique single
+    <*> Builtins.attribute commentAuthor ("comment.author" :: Text) typeRef    nonUnique single
+    <*> Builtins.attribute issueComment  ("issue.comment"  :: Text) typeRef    nonUnique many
 
 main :: IO ()
 main = putStrLn ""
