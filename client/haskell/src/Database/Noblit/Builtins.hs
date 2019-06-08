@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Database.Noblit.Builtins
 (
@@ -9,14 +10,19 @@ module Database.Noblit.Builtins
   attributeName,
   attributeUnique,
   typeName,
+  typeBool,
+  typeRef,
+  typeString,
+  typeUint64,
 )
 where
 
 import Data.Text (Text)
+import Data.Word (Word64)
 
 import Database.Noblit.Primitive (EntityId, Value, encode)
 import Database.Noblit.Query (Clause, triplet)
-import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), typeEntityId)
+import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), TypeId, typeEntityId)
 
 -- db.type.name
 typeName :: Attribute Text
@@ -37,6 +43,30 @@ attributeUnique = undefined
 -- db.attribute.many
 attributeMany :: Attribute Bool
 attributeMany = undefined
+
+-- db.type.bool
+typeBool :: Value vt TypeId => vt -> Clause (Datatype Bool)
+typeBool t = do
+  triplet t typeName ("db.type.bool" :: Text)
+  pure $ TypeBool $ encode t
+
+-- db.type.ref
+typeRef :: Value vt TypeId => vt -> Clause (Datatype EntityId)
+typeRef t = do
+  triplet t typeName ("db.type.ref" :: Text)
+  pure $ TypeRef $ encode t
+
+-- db.type.uint64
+typeUint64 :: Value vt TypeId => vt -> Clause (Datatype Word64)
+typeUint64 t = do
+  triplet t typeName ("db.type.uint64" :: Text)
+  pure $ TypeUint64 $ encode t
+
+-- db.type.string
+typeString :: Value vt TypeId => vt -> Clause (Datatype Text)
+typeString t = do
+  triplet t typeName ("db.type.string" :: Text)
+  pure $ TypeString $ encode t
 
 attribute
   :: Value va AttributeId

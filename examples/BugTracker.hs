@@ -46,10 +46,11 @@ schema f = do
   commentAuthor <- Noblit.variable
   issueComment  <- Noblit.variable
 
-  Noblit.where_ $ do
-    Noblit.triplet dbTypeString Builtins.typeName "string"
-    Noblit.triplet dbTypeUint64 Builtins.typeName "uint64"
-    Noblit.triplet dbTypeRef    Builtins.typeName "ref"
+  (typeString, typeUint64, typeRef) <- Noblit.where_ $ do
+    a <- Builtins.typeString dbTypeString
+    b <- Builtins.typeUint64 dbTypeUint64
+    c <- Builtins.typeRef dbTypeRef
+    pure (a, b, c)
 
   let
     -- db.attribute.unique and db.attribute.many
@@ -62,14 +63,14 @@ schema f = do
 
   -- We might be asserting, or we might be selecting.
   f $ do
-    attrUserName      <- Builtins.attribute userName      "user.name"      dbTypeString unique    single
-    attrIssueTitle    <- _ -- Builtins.attribute issueTitle    "issue.title"    dbTypeString unique    single
-    attrIssueBody     <- _ -- Builtins.attribute issueBody     "issue.body"     dbTypeString nonUnique single
-    attrIssuePriority <- _ -- Builtins.attribute issuePriority "issue.priority" dbTypeUint64 nonUnique single
-    attrIssueAuthor   <- _ -- Builtins.attribute issueAuthor   "issue.author"   dbTypeRef    nonUnique single
-    attrCommentBody   <- _ -- Builtins.attribute commentBody   "comment.body"   dbTypeString nonUnique single
-    attrCommentAuthor <- _ -- Builtins.attribute commentAuthor "comment.author" dbTypeRef    nonUnique single
-    attrIssueComment  <- _ -- Builtins.attribute issueComment  "issue.comment"  dbTypeRef    nonUnique many
+    attrUserName      <- Builtins.attribute userName      "user.name"      typeString unique    single
+    attrIssueTitle    <- Builtins.attribute issueTitle    "issue.title"    typeString unique    single
+    attrIssueBody     <- Builtins.attribute issueBody     "issue.body"     typeString nonUnique single
+    attrIssuePriority <- Builtins.attribute issuePriority "issue.priority" typeUint64 nonUnique single
+    attrIssueAuthor   <- Builtins.attribute issueAuthor   "issue.author"   typeRef    nonUnique single
+    attrCommentBody   <- Builtins.attribute commentBody   "comment.body"   typeString nonUnique single
+    attrCommentAuthor <- Builtins.attribute commentAuthor "comment.author" typeRef    nonUnique single
+    attrIssueComment  <- Builtins.attribute issueComment  "issue.comment"  typeRef    nonUnique many
 
     Schema
       <$> attrUserName
