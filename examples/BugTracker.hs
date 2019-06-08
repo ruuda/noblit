@@ -35,9 +35,13 @@ schema
   => (forall a. Clause a -> q a)
   -> q (Schema Attribute)
 schema f = do
-  dbTypeString  <- Noblit.variable
-  dbTypeUint64  <- Noblit.variable
-  dbTypeRef     <- Noblit.variable
+  -- Get the built-in data types so we can use them in attributes.
+  datatypes <- Builtins.datatypes
+  let
+    typeString = Builtins.typeString datatypes
+    typeUint64 = Builtins.typeUint64 datatypes
+    typeRef    = Builtins.typeRef datatypes
+
   userName      <- Noblit.variable
   issueTitle    <- Noblit.variable
   issueBody     <- Noblit.variable
@@ -46,12 +50,6 @@ schema f = do
   commentBody   <- Noblit.variable
   commentAuthor <- Noblit.variable
   issueComment  <- Noblit.variable
-
-  (typeString, typeUint64, typeRef) <- Noblit.where_ $ do
-    a <- Builtins.typeString dbTypeString
-    b <- Builtins.typeUint64 dbTypeUint64
-    c <- Builtins.typeRef dbTypeRef
-    pure (a, b, c)
 
   let
     -- db.attribute.unique and db.attribute.many
@@ -64,14 +62,14 @@ schema f = do
 
   -- We might be asserting, or we might be selecting.
   f $ Schema
-    <$> Builtins.attribute userName      ("user.name"      :: Text) typeString unique    single
-    <*> Builtins.attribute issueTitle    ("issue.title"    :: Text) typeString unique    single
-    <*> Builtins.attribute issueBody     ("issue.body"     :: Text) typeString nonUnique single
-    <*> Builtins.attribute issuePriority ("issue.priority" :: Text) typeUint64 nonUnique single
-    <*> Builtins.attribute issueAuthor   ("issue.author"   :: Text) typeRef    nonUnique single
-    <*> Builtins.attribute commentBody   ("comment.body"   :: Text) typeString nonUnique single
-    <*> Builtins.attribute commentAuthor ("comment.author" :: Text) typeRef    nonUnique single
-    <*> Builtins.attribute issueComment  ("issue.comment"  :: Text) typeRef    nonUnique many
+    <$> Builtins.isAttribute userName      ("user.name"      :: Text) typeString unique    single
+    <*> Builtins.isAttribute issueTitle    ("issue.title"    :: Text) typeString unique    single
+    <*> Builtins.isAttribute issueBody     ("issue.body"     :: Text) typeString nonUnique single
+    <*> Builtins.isAttribute issuePriority ("issue.priority" :: Text) typeUint64 nonUnique single
+    <*> Builtins.isAttribute issueAuthor   ("issue.author"   :: Text) typeRef    nonUnique single
+    <*> Builtins.isAttribute commentBody   ("comment.body"   :: Text) typeString nonUnique single
+    <*> Builtins.isAttribute commentAuthor ("comment.author" :: Text) typeRef    nonUnique single
+    <*> Builtins.isAttribute issueComment  ("issue.comment"  :: Text) typeRef    nonUnique many
 
 main :: IO ()
 main = putStrLn ""

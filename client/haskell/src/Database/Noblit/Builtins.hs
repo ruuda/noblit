@@ -5,15 +5,17 @@
 
 module Database.Noblit.Builtins
 (
-  attribute,
+  Datatypes (..),
+  datatypes,
   attributeMany,
   attributeName,
   attributeUnique,
   typeName,
-  typeBool,
-  typeRef,
-  typeString,
-  typeUint64,
+  isAttribute,
+  isTypeBool,
+  isTypeRef,
+  isTypeString,
+  isTypeUint64,
 )
 where
 
@@ -21,7 +23,7 @@ import Data.Text (Text)
 import Data.Word (Word64)
 
 import Database.Noblit.Primitive (EntityId, Value, encode)
-import Database.Noblit.Query (Clause, triplet)
+import Database.Noblit.Query (Clause, Query, triplet, variable, where_)
 import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), TypeId, typeEntityId)
 
 -- db.type.name
@@ -45,30 +47,49 @@ attributeMany :: Attribute Bool
 attributeMany = undefined
 
 -- db.type.bool
-typeBool :: Value vt TypeId => vt -> Clause (Datatype Bool)
-typeBool t = do
+isTypeBool :: Value vt TypeId => vt -> Clause (Datatype Bool)
+isTypeBool t = do
   triplet t typeName ("db.type.bool" :: Text)
   pure $ TypeBool $ encode t
 
 -- db.type.ref
-typeRef :: Value vt TypeId => vt -> Clause (Datatype EntityId)
-typeRef t = do
+isTypeRef :: Value vt TypeId => vt -> Clause (Datatype EntityId)
+isTypeRef t = do
   triplet t typeName ("db.type.ref" :: Text)
   pure $ TypeRef $ encode t
 
 -- db.type.uint64
-typeUint64 :: Value vt TypeId => vt -> Clause (Datatype Word64)
-typeUint64 t = do
+isTypeUint64 :: Value vt TypeId => vt -> Clause (Datatype Word64)
+isTypeUint64 t = do
   triplet t typeName ("db.type.uint64" :: Text)
   pure $ TypeUint64 $ encode t
 
 -- db.type.string
-typeString :: Value vt TypeId => vt -> Clause (Datatype Text)
-typeString t = do
+isTypeString :: Value vt TypeId => vt -> Clause (Datatype Text)
+isTypeString t = do
   triplet t typeName ("db.type.string" :: Text)
   pure $ TypeString $ encode t
 
-attribute
+data Datatypes = Datatypes
+  { typeBool   :: Datatype Bool
+  , typeRef    :: Datatype EntityId
+  , typeUint64 :: Datatype Word64
+  , typeString :: Datatype Text
+  }
+
+datatypes :: Query q => q Datatypes
+datatypes = do
+  tBool   <- variable
+  tRef    <- variable
+  tUint64 <- variable
+  tString <- variable
+  where_ $ Datatypes
+    <$> isTypeBool tBool
+    <*> isTypeRef tRef
+    <*> isTypeUint64 tUint64
+    <*> isTypeString tString
+
+isAttribute
   :: Value va AttributeId
   => Value vn Text
   => Value vu Bool
@@ -79,7 +100,7 @@ attribute
   -> vu
   -> vm
   -> Clause (Attribute a)
-attribute a name datatype unique many = do
+isAttribute a name datatype unique many = do
   triplet a attributeName name
   triplet a attributeType (typeEntityId datatype)
   triplet a attributeUnique unique
