@@ -1,7 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main where
 
@@ -11,6 +11,9 @@ import Database.Noblit.Primitive (EntityId)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Trans.Reader (runReaderT)
+
+import Database.Noblit (MonadNoblit)
 
 import qualified Database.Noblit as Noblit
 import qualified Database.Noblit.Query as Noblit
@@ -76,13 +79,20 @@ schema f = do
     <*> Builtins.isAttribute commentAuthor ("comment.author" :: Text) typeRef    nonUnique single
     <*> Builtins.isAttribute issueComment  ("issue.comment"  :: Text) typeRef    nonUnique many
 
+noblitMain :: MonadNoblit m => m Text
+noblitMain = do
+  db <- Noblit.latest
+  result <- Noblit.query db (schema Noblit.where_)
+  case result of
+    [_scm] -> pure "Got single schema."
+    _      -> pure "Got unexpected number of results."
+
 main :: IO ()
 main = do
   result <- runExceptT $ do
-    db <- Noblit.latest
-    Noblit.query db (schema Noblit.where_)
+    database <- Noblit.connect
+    runReaderT noblitMain database
 
   case result of
-    Right [_scm] -> putStrLn "Got single schema"
-    Right _ -> putStrLn "Got unexpected number of results"
-    Left err-> putStrLn $ "Got error: " <> show err
+    Left err  -> putStrLn $ (show err)
+    Right msg -> putStrLn $ (show msg)
