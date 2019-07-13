@@ -15,7 +15,7 @@ where
 
 import Control.Monad.Reader.Class (MonadReader)
 import Control.Monad.Error.Class (MonadError)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Prelude hiding (Read)
 import Data.Text (Text)
 
@@ -41,7 +41,10 @@ latest =
   pure (EntityId 0)
 
 query :: MonadNoblit m => TransactionId -> Read a -> m [a]
-query _atTransaction _query = error "TODO: implement"
+query _atTransaction readOnlyQuery = do
+  -- TODO: Actually run query against database.
+  liftIO $ putStrLn $ show readOnlyQuery
+  error "TODO: implement"
 
 transact :: MonadNoblit m => TransactionId -> Write a -> m ([a], TransactionId)
 transact _assumedLatest _write = error "TODO: implement"

@@ -1,4 +1,6 @@
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Database.Noblit.Query
 (
@@ -61,6 +63,10 @@ class Transaction q where
   retract :: Clause a -> q a
 
 data Read a
+
+instance Show (Read a) where
+  show = \case {}
+
 instance Functor Read where
   fmap = undefined
 
