@@ -23,6 +23,7 @@ import qualified Data.Text as Text
 
 import Database.Noblit.Query (Read, Write)
 import Database.Noblit.Schema (TransactionId)
+import Database.Noblit.Primitive (EntityId (..))
 
 newtype Error = Error Text
 
@@ -34,9 +35,10 @@ newtype Database = Database Int -- TODO: Pointer to foreign db.
 -- TODO: Remove MonadIO constraint, and provide a runNoblit function instead.
 type MonadNoblit m = (MonadIO m, MonadError Error m, MonadReader Database m)
 
---class (MonadReader Database m, MonadError Error m) => MonadNoblit m where
 latest :: MonadNoblit m => m TransactionId
-latest = error "TODO: implement"
+latest =
+  -- TODO: Actually get transaction id from database.
+  pure (EntityId 0)
 
 query :: MonadNoblit m => TransactionId -> Read a -> m [a]
 query _atTransaction _query = error "TODO: implement"
