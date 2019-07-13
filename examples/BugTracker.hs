@@ -1,6 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Main where
 
@@ -9,7 +10,9 @@ import Database.Noblit.Query (Clause, Query)
 import Database.Noblit.Primitive (EntityId)
 import Data.Text (Text)
 import Data.Word (Word64)
+import Control.Monad.Trans.Except (runExceptT)
 
+import qualified Database.Noblit as Noblit
 import qualified Database.Noblit.Query as Noblit
 import qualified Database.Noblit.Builtins as Builtins
 
@@ -29,7 +32,9 @@ data Schema a = Schema
 -- Construct a query for the bug tracker database schema.
 -- The function `f` controls the type of query. If we merely
 -- want to retrieve the attribute ids of the attributes used
--- in the schema at startup time,
+-- in the schema at startup time, then we would do a read, but
+-- if we need to create the initial schema, then it could be a
+-- write.
 schema
   :: Query q
   => (forall a. Clause a -> q a)
@@ -72,4 +77,12 @@ schema f = do
     <*> Builtins.isAttribute issueComment  ("issue.comment"  :: Text) typeRef    nonUnique many
 
 main :: IO ()
-main = putStrLn ""
+main = do
+  result <- runExceptT $ do
+    db <- Noblit.latest
+    Noblit.query db (schema Noblit.where_)
+
+  case result of
+    Right [_scm] -> putStrLn "Got single schema"
+    Right _ -> putStrLn "Got unexpected number of results"
+    Left err-> putStrLn $ "Got error: " <> show err

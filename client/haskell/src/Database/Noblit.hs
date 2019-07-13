@@ -14,10 +14,15 @@ import Control.Monad.Except (ExceptT)
 import Prelude hiding (Read)
 import Data.Text (Text)
 
+import qualified Data.Text as Text
+
 import Database.Noblit.Query (Read, Write)
 import Database.Noblit.Schema (TransactionId)
 
 newtype Error = Error Text
+
+instance Show Error where
+  show (Error message) = Text.unpack message
 
 class MonadError Error m => MonadNoblit m where
   latest :: m TransactionId
