@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -22,20 +23,21 @@ import Prelude hiding (Read)
 import qualified Control.Monad.Trans.RWS.CPS as Rws
 
 import Database.Noblit.Primitive (Blank, EntityId, Value, Variable, VariableId (..))
-import Database.Noblit.Schema (Attribute, TransactionId)
+import Database.Noblit.Schema (Attribute, TransactionId, attributeEntityId)
 
 import qualified Database.Noblit.Primitive as Primitive
 
 data Operation = Assert | Retract
 
-data Clause a
+data QueryTriplet = QueryTriplet String String String
 
-instance Functor Clause where
-  fmap = undefined
+data Clause a
+  = Clause [QueryTriplet] a
+  deriving (Functor)
 
 instance Applicative Clause where
-  pure = undefined
-  _ <*> _ = undefined
+  pure x = Clause [] x
+  (Clause xs f) <*> (Clause ys x) = Clause (xs ++ ys) (f x)
 
 triplet
   :: Value u EntityId
@@ -44,7 +46,13 @@ triplet
   -> Attribute a
   -> v
   -> Clause ()
-triplet = undefined
+triplet entity attribute value =
+  let
+    e = Primitive.encodeQueryValue $ Primitive.value entity
+    a = Primitive.encodeQueryValue $ Primitive.value $ attributeEntityId attribute
+    v = Primitive.encodeQueryValue $ Primitive.value value
+  in
+    Clause [QueryTriplet e a v] ()
 
 datom
   :: Value u EntityId
@@ -59,10 +67,10 @@ datom
 datom = undefined
 
 class Monad q => Query q where
-  variable      :: Blank a => q (Variable a)
-  where_        :: Clause a   -> q a
-  select        :: Variable a -> q a
-  orderBy       :: Variable a -> q ()
+  variable :: Blank a    => q (Variable a)
+  where_   :: Clause a   -> q a
+  select   :: Variable a -> q a
+  orderBy  :: Variable a -> q ()
 
 class Transaction q where
   assert :: Clause a -> q a
@@ -91,7 +99,14 @@ instance Query Read where
     Rws.put $ i + 1
     pure $ Primitive.variable $ VariableId i
 
-  where_ _clause = undefined
+  where_ (Clause xs x) =
+    let
+      showTriplet (QueryTriplet e a v) = "  " ++ e ++ " " ++ a ++ " " ++ v
+    in
+      Read $ do
+        Rws.tell $ "where:" : fmap showTriplet xs
+        pure x
+
   select _var = undefined
   orderBy _var = undefined
 

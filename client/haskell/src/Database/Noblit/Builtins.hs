@@ -22,7 +22,7 @@ where
 import Data.Text (Text)
 import Data.Word (Word64)
 
-import Database.Noblit.Primitive (EntityId, Value, encode)
+import Database.Noblit.Primitive (EntityId, Value, value)
 import Database.Noblit.Query (Clause, Query, triplet, variable, where_)
 import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), TypeId, typeEntityId)
 
@@ -50,25 +50,25 @@ attributeMany = undefined
 isTypeBool :: Value vt TypeId => vt -> Clause (Datatype Bool)
 isTypeBool t = do
   triplet t typeName ("db.type.bool" :: Text)
-  pure $ TypeBool $ encode t
+  pure $ TypeBool $ value t
 
 -- db.type.ref
 isTypeRef :: Value vt TypeId => vt -> Clause (Datatype EntityId)
 isTypeRef t = do
   triplet t typeName ("db.type.ref" :: Text)
-  pure $ TypeRef $ encode t
+  pure $ TypeRef $ value t
 
 -- db.type.uint64
 isTypeUint64 :: Value vt TypeId => vt -> Clause (Datatype Word64)
 isTypeUint64 t = do
   triplet t typeName ("db.type.uint64" :: Text)
-  pure $ TypeUint64 $ encode t
+  pure $ TypeUint64 $ value t
 
 -- db.type.string
 isTypeString :: Value vt TypeId => vt -> Clause (Datatype Text)
 isTypeString t = do
   triplet t typeName ("db.type.string" :: Text)
-  pure $ TypeString $ encode t
+  pure $ TypeString $ value t
 
 data Datatypes = Datatypes
   { typeBool   :: Datatype Bool
@@ -106,8 +106,8 @@ isAttribute a name datatype unique many = do
   triplet a attributeUnique unique
   triplet a attributeMany many
   pure $ case datatype of
-    TypeBool _   -> AttrBool (encode a)
-    TypeRef _    -> AttrRef (encode a)
-    TypeUint64 _ -> AttrUint64 (encode a)
-    TypeBytes _  -> AttrBytes (encode a)
-    TypeString _ -> AttrString (encode a)
+    TypeBool _   -> AttrBool (value a)
+    TypeRef _    -> AttrRef (value a)
+    TypeUint64 _ -> AttrUint64 (value a)
+    TypeBytes _  -> AttrBytes (value a)
+    TypeString _ -> AttrString (value a)
