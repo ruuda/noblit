@@ -39,11 +39,17 @@ data Datatype :: * -> * where
 
 attributeEntityId :: Attribute a -> QueryValue EntityId
 attributeEntityId a = case a of
-  AttrBool aid -> aid
-  _ -> error "TODO"
+  AttrBool aid   -> aid
+  AttrRef aid    -> aid
+  AttrUint64 aid -> aid
+  AttrBytes aid  -> aid
+  AttrString aid -> aid
 
 typeEntityId :: Datatype a -> QueryValue EntityId
 typeEntityId a = case a of
-  TypeBool tyid -> tyid
-  _ -> error "TODO"
+  TypeBool tyid   -> tyid
+  TypeRef tyid    -> tyid
+  TypeUint64 tyid -> tyid
+  TypeBytes tyid  -> tyid
+  TypeString tyid -> tyid
 
