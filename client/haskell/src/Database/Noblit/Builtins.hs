@@ -22,29 +22,34 @@ where
 import Data.Text (Text)
 import Data.Word (Word64)
 
-import Database.Noblit.Primitive (EntityId, Value, value)
+import Database.Noblit.Primitive (EntityId (..), Value, value)
 import Database.Noblit.Query (Clause, Query, triplet, variable, where_)
 import Database.Noblit.Schema (Attribute (..), AttributeId, Datatype (..), TypeId, typeEntityId)
 
+import qualified Database.Noblit.Primitive as Primitive
+
+-- NOTE: The magic entity ids here match those in Builtins defined in
+-- database.rs.
+
 -- db.type.name
 typeName :: Attribute Text
-typeName = undefined
+typeName = AttrString (Primitive.value $ EntityId 5)
 
 -- db.attribute.name
 attributeName :: Attribute Text
-attributeName = undefined
+attributeName = AttrString (Primitive.value $ EntityId 1)
 
 -- db.attribute.type
 attributeType :: Attribute EntityId
-attributeType = undefined
+attributeType = AttrRef (Primitive.value $ EntityId 2)
 
 -- db.attribute.unique
 attributeUnique :: Attribute Bool
-attributeUnique = undefined
+attributeUnique = AttrBool (Primitive.value $ EntityId 3)
 
 -- db.attribute.many
 attributeMany :: Attribute Bool
-attributeMany = undefined
+attributeMany = AttrBool (Primitive.value $ EntityId 4)
 
 -- db.type.bool
 isTypeBool :: Value vt TypeId => vt -> Clause (Datatype Bool)
