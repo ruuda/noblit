@@ -7,6 +7,7 @@ module Database.Noblit.Primitive
 (
   Constant (..),
   EntityId (..),
+  Blank (..),
   Value (..),
   Variable (..),
   VariableId (..),
@@ -39,8 +40,17 @@ data QueryValue :: * -> * where
   ValueVariable :: Variable a -> QueryValue a
   ValueConstant :: Constant a -> QueryValue a
 
+class Blank v where
+  variable :: VariableId -> Variable v
+
 class Value v a | v -> a where
   encode :: v -> QueryValue a
+
+instance Blank Bool       where variable = VariableBool
+instance Blank EntityId   where variable = VariableRef
+instance Blank Word64     where variable = VariableUint64
+instance Blank ByteString where variable = VariableBytes
+instance Blank Text       where variable = VariableString
 
 instance Value (QueryValue a) a          where encode = id
 instance Value (Variable a)   a          where encode v = ValueVariable v
@@ -49,4 +59,3 @@ instance Value EntityId       EntityId   where encode x = ValueConstant $ Consta
 instance Value Word64         Word64     where encode x = ValueConstant $ ConstantUint64 x
 instance Value ByteString     ByteString where encode x = ValueConstant $ ConstantBytes x
 instance Value Text           Text       where encode x = ValueConstant $ ConstantString x
-

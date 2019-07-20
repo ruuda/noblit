@@ -25,6 +25,7 @@ library
                , bytestring
                , mtl
                , text
+               , transformers
 
 source-repository head
   type:     git
