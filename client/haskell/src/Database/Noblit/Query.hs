@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Database.Noblit.Query
 (
@@ -22,22 +24,45 @@ import Prelude hiding (Read)
 
 import qualified Control.Monad.Trans.RWS.CPS as Rws
 
-import Database.Noblit.Primitive (Blank, EntityId, Value, Variable, VariableId (..))
-import Database.Noblit.Schema (Attribute, TransactionId, attributeEntityId)
+import Database.Noblit.Primitive (Blank, EntityId, QueryValue, Value, Variable, VariableId (..))
+import Database.Noblit.Schema (Attribute, AttributeId, TransactionId, attributeEntityId)
 
 import qualified Database.Noblit.Primitive as Primitive
 
 data Operation = Assert | Retract
 
-data QueryTriplet = QueryTriplet String String String
+data Triplet = forall a. Triplet (QueryValue EntityId) (QueryValue AttributeId) (QueryValue a)
+
+encodeTriplet :: Triplet -> String
+encodeTriplet (Triplet e a v) =
+  let
+    e' = Primitive.encodeQueryValue e
+    a' = Primitive.encodeQueryValue a
+    v' = Primitive.encodeQueryValue v
+  in
+    "  " <> e' <> " " <> a' <> " " <> v'
+
+data ClauseData = ClauseData
+  { clauseWhere :: [Triplet]
+  }
+
+instance Semigroup ClauseData where
+  xs <> ys = ClauseData
+    { clauseWhere = clauseWhere xs <> clauseWhere ys
+    }
+
+instance Monoid ClauseData where
+  mempty = ClauseData
+    { clauseWhere = []
+    }
 
 data Clause a
-  = Clause [QueryTriplet] a
+  = Clause ClauseData a
   deriving (Functor)
 
 instance Applicative Clause where
-  pure x = Clause [] x
-  (Clause xs f) <*> (Clause ys x) = Clause (xs ++ ys) (f x)
+  pure x = Clause mempty x
+  (Clause xs f) <*> (Clause ys x) = Clause (xs <> ys) (f x)
 
 triplet
   :: Value u EntityId
@@ -48,11 +73,12 @@ triplet
   -> Clause ()
 triplet entity attribute value =
   let
-    e = Primitive.encodeQueryValue $ Primitive.value entity
-    a = Primitive.encodeQueryValue $ Primitive.value $ attributeEntityId attribute
-    v = Primitive.encodeQueryValue $ Primitive.value value
+    e = Primitive.value entity
+    a = Primitive.value $ attributeEntityId attribute
+    v = Primitive.value value
+    clauseData = mempty { clauseWhere = [Triplet e a v] }
   in
-    Clause [QueryTriplet e a v] ()
+    Clause clauseData ()
 
 datom
   :: Value u EntityId
@@ -80,7 +106,7 @@ class Transaction q where
 -- output is the query (string log for now), and the state is the counter to
 -- supply fresh variables.
 type Context = ()
-type Output  = [String]
+type Output  = ClauseData
 type State   = Word32
 
 newtype Read a = Read (RWS Context Output State a)
@@ -89,9 +115,10 @@ newtype Read a = Read (RWS Context Output State a)
 instance Show (Read a) where
   show (Read rws) =
     let
-      (_, xs) = Rws.evalRWS rws () 0
+      (_, clauseData) = Rws.evalRWS rws () 0
+      wheres = clauseWhere clauseData
     in
-      intercalate "\n" xs
+      "where:\n" <> (intercalate "\n" $ fmap encodeTriplet wheres)
 
 instance Query Read where
   variable = Read $ do
@@ -99,13 +126,9 @@ instance Query Read where
     Rws.put $ i + 1
     pure $ Primitive.variable $ VariableId i
 
-  where_ (Clause xs x) =
-    let
-      showTriplet (QueryTriplet e a v) = "  " ++ e ++ " " ++ a ++ " " ++ v
-    in
-      Read $ do
-        Rws.tell $ "where:" : fmap showTriplet xs
-        pure x
+  where_ (Clause clauseData x) = Read $ do
+    Rws.tell clauseData
+    pure x
 
   select _var = undefined
   orderBy _var = undefined
