@@ -46,9 +46,11 @@ pub trait PoolMut: Pool {
 }
 
 impl<'a, T: Pool> Pool for &'a T {
-    /// Retrieve a 64-bit unsigned integer constant.
     fn get_u64(&self, offset: CidInt) -> u64 { (**self).get_u64(offset) }
+    fn get_bytes(&self, offset: CidBytes) -> &[u8] { (**self).get_bytes(offset) }
+}
 
-    /// Retrieve a byte string constant.
+impl<'a, T: Pool> Pool for &'a mut T {
+    fn get_u64(&self, offset: CidInt) -> u64 { (**self).get_u64(offset) }
     fn get_bytes(&self, offset: CidBytes) -> &[u8] { (**self).get_bytes(offset) }
 }

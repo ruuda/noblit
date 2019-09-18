@@ -237,13 +237,13 @@ impl<Store: store::Store> Database<Store> {
     {
         let (builtins, genisis_datoms, genisis_consts) = Builtins::new();
 
-        let eavt_root = HTree::initialize(Eavt, &mut store, &genisis_datoms)?.root_page;
-        let aevt_root = HTree::initialize(Aevt, &mut store, &genisis_datoms)?.root_page;
-        let avet_root = HTree::initialize(Avet, &mut store, &genisis_datoms)?.root_page;
-
         for const_str in genisis_consts {
             store.append_bytes(const_str.as_bytes())?;
         }
+
+        let eavt_root = HTree::initialize(Eavt, &mut store, &genisis_datoms)?.root_page;
+        let aevt_root = HTree::initialize(Aevt, &mut store, &genisis_datoms)?.root_page;
+        let avet_root = HTree::initialize(Avet, &mut store, &genisis_datoms)?.root_page;
 
         let db = Database {
             builtins: builtins,
@@ -292,20 +292,23 @@ impl<Store: store::Store> Database<Store> {
     /// insertion without allocating an unnecessary copy, in case the datoms
     /// are not going to be used afterwards anyway.
     pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
-    where Store: store::StoreMut {
+    where Store: pool::Pool + store::StoreMut {
+        // TODO: Use the right pool; the new datoms may have values in a new pool.
+        // Furthermore, we need to extract them from the old pool and write them
+        // to the new one. Or, we assume that that has already been done.
         self.eavt_root = {
             let mut index = self.eavt_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, &self.store));
             index.insert(&datoms[..])?
         };
         self.aevt_root = {
             let mut index = self.aevt_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, &self.store));
             index.insert(&datoms[..])?
         };
         self.avet_root = {
             let mut index = self.avet_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, &self.store));
             index.insert(&datoms[..])?
         };
         Ok(())
@@ -364,6 +367,12 @@ impl<Store: store::Store> Database<Store> {
 }
 
 impl<'a, Store: 'a + store::Store + pool::Pool> QueryEngine<'a, Store> {
+    /// Return the pool that should be used to resolve values.
+    ///
+    /// TODO: is there a better way to do this?
+    pub fn pool(&self) -> &StackPool<&'a Store> {
+        &self.stack_pool
+    }
 
     /// Return the (entity, attribute, value, transaction) index.
     pub fn eavt(&self) -> HTree<Eavt, &Store> {
@@ -430,7 +439,7 @@ impl<'a, Store: 'a + store::Store + pool::Pool> QueryEngine<'a, Store> {
             .expect("All attributes must have a value type.");
 
         // TODO: I can make these numbers constants rather than variables.
-        match value.as_u64() {
+        match value.as_u64(&self.stack_pool) {
             k if k == self.database.builtins.entity_db_type_bool.0 => Type::Bool,
             k if k == self.database.builtins.entity_db_type_ref.0 => Type::Ref,
             k if k == self.database.builtins.entity_db_type_uint64.0 => Type::Uint64,
@@ -466,21 +475,22 @@ impl<'a, Store: 'a + store::Store + pool::Pool> QueryEngine<'a, Store> {
         // TODO: Add support for open-ended ranges.
         let min = Datom::new(Eid::min(), Aid::min(), Value::min(), Tid(0), Operation::Assert);
         let max = Datom::new(Eid::max(), Aid::max(), Value::max(), Tid(0), Operation::Retract);
+        let pool = &self.stack_pool;
         for &tuple in self.eavt().into_iter(&min, &max) {
             let attribute_name = self.lookup_attribute_name(tuple.attribute);
             let attribute_type = self.lookup_attribute_type(tuple.attribute);
 
-            let attribute = format!("{} ({})", attribute_name.as_str(), tuple.attribute.0);
+            let attribute = format!("{} ({})", attribute_name.as_str(pool), tuple.attribute.0);
             print!("{:6}  {:12}  ", tuple.entity.0, attribute);
 
 
             match attribute_type {
                 Type::Bool if tuple.value.as_bool() => print!("true        bool  "),
                 Type::Bool   => print!("false       bool  "),
-                Type::Ref    => print!("{:>10}  ref   ", tuple.value.as_u64()),
-                Type::Uint64 => print!("{:>10}  uint64", tuple.value.as_u64()),
+                Type::Ref    => print!("{:>10}  ref   ", tuple.value.as_u64(pool)),
+                Type::Uint64 => print!("{:>10}  uint64", tuple.value.as_u64(pool)),
                 Type::Bytes  => unimplemented!("TODO"),
-                Type::String => print!("{:<10}  string", tuple.value.as_str()),
+                Type::String => print!("{:<10}  string", tuple.value.as_str(pool)),
             }
 
             println!("  {:11}  {:>9}",

@@ -8,8 +8,9 @@
 //! Defines the datom, the basic unit of information.
 
 use std;
+use std::cmp::Ordering;
 
-use pool::{CidInt, CidBytes};
+use pool::{CidInt, CidBytes, Pool};
 
 /// Entity id.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -114,8 +115,9 @@ impl TidOp {
 ///       string, padded with zeros. This means that the empty string is
 ///       represented as `0x8000_0000_0000_0000`.
 /// * 11: A string stored externally. The remaining 62 bits indicate its storage
-///       address.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+///       address. The special addres `0xfff_ffff_ffff_ffff` indicates the
+///       maximal value.
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Value(pub u64); // TODO: Non-public field?
 
 impl Value {
@@ -125,6 +127,21 @@ impl Value {
     const TAG_EXTERNAL: u64 = 0x4000_0000_0000_0000;
     /// Only "bytestring" bit set (unset indicates "64-bit int");
     const TAG_BYTES: u64 = 0x8000_0000_0000_0000;
+
+    /// Return whether the value type is u64, as opposed to a byte string.
+    fn is_u64(&self) -> bool {
+        self.0 & Value::TAG_BYTES == 0
+    }
+
+    /// Return whether the value type is a byte string, as opposed to u64.
+    fn is_bytes(&self) -> bool {
+        self.0 & Value::TAG_BYTES != 0
+    }
+
+    /// Return whether the value is the offset of an externally stored value.
+    fn is_external(&self) -> bool {
+        self.0 & Value::TAG_EXTERNAL != 0
+    }
 
     pub fn from_u64(value: u64) -> Value {
         assert_eq!(value & Value::TAG_MASK, 0, "TODO: Implement spilling.");
@@ -172,28 +189,39 @@ impl Value {
         Value(offset | Value::TAG_EXTERNAL | Value::TAG_BYTES)
     }
 
-    pub fn as_str(&self) -> &str {
+    pub fn as_bytes<'a, P: Pool + ?Sized>(&'a self, pool: &'a P) -> &'a [u8] {
         use std::mem;
-        use std::str;
-        debug_assert_ne!(self.0 & Value::TAG_BYTES, Value::TAG_BYTES, "Value must be string for as_str.");
-        let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
-        let len = (bytes[7] & 0x3f) as usize;
-        debug_assert!(len <= 7);
-        str::from_utf8(&bytes[..len]).expect("Should only store UTF-8 strings.")
+        debug_assert!(self.is_bytes(), "Value must be byte string for as_bytes.");
+        if self.is_external() {
+            pool.get_bytes(CidBytes(self.0 & !Value::TAG_MASK))
+        } else {
+            let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
+            let len = (bytes[7] & 0x3f) as usize;
+            debug_assert!(len <= 7);
+            &bytes[..len]
+        }
     }
 
-    pub fn as_u64(&self) -> u64 {
-        // TODO: Check only the top bit, deal with out of band integers.
-        debug_assert_eq!(self.0 & Value::TAG_BYTES, 0, "Value must be int for as_u64.");
-        self.0 & 0x3fff_ffff_ffff_ffff
+    pub fn as_str<'a, P: Pool + ?Sized>(&'a self, pool: &'a P) -> &'a str {
+        std::str::from_utf8(self.as_bytes(pool)).expect("Should only store UTF-8 strings.")
     }
 
-    pub fn as_eid(&self) -> Eid {
-        Eid(self.as_u64())
+    pub fn as_u64<P: Pool + ?Sized>(&self, pool: &P) -> u64 {
+        debug_assert!(self.is_u64(), "Value must be int for as_u64.");
+        if self.is_external() {
+            pool.get_u64(CidInt(self.0 & !Value::TAG_MASK))
+        } else {
+            self.0
+        }
+    }
+
+    pub fn as_eid<P: Pool + ?Sized>(&self, pool: &P) -> Eid {
+        Eid(self.as_u64(pool))
     }
 
     pub fn as_bool(&self) -> bool {
-        debug_assert_eq!(self.0 & Value::TAG_BYTES, 0, "Value must be int for as_bool.");
+        debug_assert!(self.is_u64(), "Value must be int for as_bool.");
+        debug_assert!(!self.is_external(), "Value must be inline for as_bool.");
         match self.0 {
             0 => false,
             1 => true,
@@ -207,6 +235,18 @@ impl Value {
 
     pub fn max() -> Value {
         Value(0xffff_ffff_ffff_ffff)
+    }
+
+    pub fn cmp<P: Pool + ?Sized>(&self, other: &Value, pool: &P) -> Ordering {
+        // Integers sort before byte strings, so if the types differ, we are
+        // done. If the types match, then do a type-based comparison.
+        match (self.is_bytes(), other.is_bytes()) {
+            (false, false) => self.as_u64(pool).cmp(&other.as_u64(pool)),
+            (false, true) => Ordering::Less,
+            (true, false) => Ordering::Greater,
+            (true, true) => self.as_bytes(pool).cmp(other.as_bytes(pool)),
+
+        }
     }
 }
 
@@ -239,29 +279,5 @@ impl Datom {
     /// Shorthand for `new` with operation `Retract`.
     pub fn retract(entity: Eid, attribute: Aid, value: Value, transaction: Tid) -> Datom {
         Datom::new(entity, attribute, value, transaction, Operation::Retract)
-    }
-
-    /// The (attribute, entity, value, transaction) tuple.
-    pub fn aevt(&self) -> (u64, u64, u64, u64) {
-        // TODO: Deref the value.
-        (self.attribute.0, self.entity.0, self.value.0, self.transaction_operation.0)
-    }
-
-    /// The (attribute, value, entity, transaction) tuple.
-    pub fn avet(&self) -> (u64, u64, u64, u64) {
-        // TODO: Deref the value.
-        (self.attribute.0, self.value.0, self.entity.0, self.transaction_operation.0)
-    }
-
-    /// The (entity, attribute, value, transaction) tuple.
-    pub fn eavt(&self) -> (u64, u64, u64, u64) {
-        // TODO: Deref the value.
-        (self.entity.0, self.attribute.0, self.value.0, self.transaction_operation.0)
-    }
-
-    /// The (value, attribute, entity, transaction) tuple.
-    pub fn vaet(&self) -> (u64, u64, u64, u64) {
-        // TODO: Deref the value.
-        (self.value.0, self.attribute.0, self.value.0, self.transaction_operation.0)
     }
 }

@@ -13,7 +13,7 @@ use datom::{Datom, Aid, Eid, Value, Tid};
 use index::{DatomOrd, Eavt};
 use htree::{HTree, Node};
 use store::{PageSize, StoreMut};
-use memory_store::MemoryStore;
+use memory_store::MemoryStorePool;
 
 /// Print, except when fuzzing.
 ///
@@ -44,7 +44,7 @@ fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) -> bool {
 }
 
 fn run<Size: PageSize>(full_data: &[u8]) {
-    let mut store = MemoryStore::<Size>::new();
+    let mut store = MemoryStorePool::<Size>::new();
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
     let mut tree = HTree::new(root, Eavt, store);
@@ -68,8 +68,9 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         // chance. Sorting here is slower and adds more distracting branches as
         // interesting cases, but it also helps to discover interesting inputs
         // faster.
-        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y));
-        datoms.dedup_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y) == Ordering::Equal);
+        let pool = &store;
+        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool));
+        datoms.dedup_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool) == Ordering::Equal);
 
         dprintln!("Inserting {} datoms:", datoms.len());
         for &datom in &datoms {

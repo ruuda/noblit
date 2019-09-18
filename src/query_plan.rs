@@ -503,7 +503,7 @@ impl<'a, Store: store::Store + pool::Pool> Evaluator<'a, Store> {
                 Box::new(iter)
             }
             Retrieval::LookupEavt { entity, attribute } => {
-                let e = self.get_value(entity).as_eid();
+                let e = self.get_value(entity).as_eid(&self.engine.pool());
                 let min = Datom::new(e, attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self

@@ -10,10 +10,11 @@
 use std::cmp::{Ord, Ordering};
 
 use datom::Datom;
+use pool::Pool;
 
 /// An ordering on datoms.
 pub trait DatomOrd {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering;
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering;
 }
 
 /// An (attribute, entity, value, transaction) ordering.
@@ -36,22 +37,29 @@ macro_rules! compare_by {
             Ordering::Equal => {}
         }
     };
+    ($lhs:expr, $rhs:expr, $pool:expr) => {
+        match $lhs.cmp(&$rhs, $pool) {
+            Ordering::Less => return Ordering::Less,
+            Ordering::Greater => return Ordering::Greater,
+            Ordering::Equal => {}
+        }
+    };
 }
 
 impl DatomOrd for Aevt {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.entity, rhs.entity);
-        compare_by!(lhs.value, rhs.value);
+        compare_by!(lhs.value, rhs.value, pool);
         compare_by!(lhs.transaction_operation, rhs.transaction_operation);
         Ordering::Equal
     }
 }
 
 impl DatomOrd for Avet {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
-        compare_by!(lhs.value, rhs.value);
+        compare_by!(lhs.value, rhs.value, pool);
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.transaction_operation, rhs.transaction_operation);
         Ordering::Equal
@@ -59,10 +67,10 @@ impl DatomOrd for Avet {
 }
 
 impl DatomOrd for Eavt {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering {
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.attribute, rhs.attribute);
-        compare_by!(lhs.value, rhs.value);
+        compare_by!(lhs.value, rhs.value, pool);
         compare_by!(lhs.transaction_operation, rhs.transaction_operation);
         Ordering::Equal
     }

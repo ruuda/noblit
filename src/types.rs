@@ -11,6 +11,7 @@ use std::io;
 use std::fmt;
 
 use datom::Value;
+use pool;
 
 /// The supported value types for entity values.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -22,8 +23,9 @@ pub enum Type {
     String,
 }
 
-pub fn write_value<W>(
+pub fn write_value<W, P: pool::Pool>(
     writer: &mut W,
+    pool: &P,
     value: Value,
     value_type: Type,
     ) -> Result<(), fmt::Error>
@@ -33,10 +35,10 @@ where
     match value_type {
         Type::Bool if value.as_bool() => write!(writer, "true"),
         Type::Bool => write!(writer, "false"),
-        Type::Ref => write!(writer, "# {}", value.as_u64()),
-        Type::Uint64 => write!(writer, "{}", value.as_u64()),
+        Type::Ref => write!(writer, "# {}", value.as_u64(pool)),
+        Type::Uint64 => write!(writer, "{}", value.as_u64(pool)),
         Type::Bytes => unimplemented!("TODO: Bytes formatting."),
-        Type::String => write!(writer, "{:?}", value.as_str()),
+        Type::String => write!(writer, "{:?}", value.as_str(pool)),
     }
 }
 
@@ -74,14 +76,16 @@ where
 }
 
 /// Format values into a table using box drawing characters.
-pub fn draw_table<'a, W, HeaderIter, RowIter>(
+pub fn draw_table<'a, W, HeaderIter, RowIter, Pool>(
     writer: &'a mut W,
+    pool: &Pool,
     headers: HeaderIter,
     rows: RowIter,
     value_types: &'a [Type],
     ) -> io::Result<()>
 where
     W: io::Write,
+    Pool: pool::Pool,
     HeaderIter: Clone + IntoIterator<Item = &'a str>,
     RowIter: IntoIterator<Item = &'a [Value]>,
 {
@@ -92,7 +96,7 @@ where
         let mut fmt_row = Vec::with_capacity(value_types.len());
         for ((&value, &value_type), w) in row.iter().zip(value_types).zip(widths.iter_mut()) {
             let mut fmt_value = String::new();
-            write_value(&mut fmt_value, value, value_type).unwrap();
+            write_value(&mut fmt_value, pool, value, value_type).unwrap();
             *w = fmt_value.chars().count().max(*w);
             fmt_row.push(fmt_value);
         }
