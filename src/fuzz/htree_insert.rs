@@ -12,7 +12,8 @@ use std::cmp::Ordering;
 use datom::{Datom, Aid, Eid, Value, Tid};
 use index::{DatomOrd, Eavt};
 use htree::{HTree, Node};
-use store::{MemoryStore, PageSize, StoreMut};
+use store::{PageSize, StoreMut};
+use memory_store::MemoryStore;
 
 /// Print, except when fuzzing.
 ///

@@ -218,13 +218,11 @@ impl<Store: store::Store> Database<Store> {
             builtins: builtins,
             store: store,
             // Transaction ids must be even. For now we do that by just tracking
-            // separate counters and incrementing both by 2. Perhaps the
-            // property that transaction ids are even could be exploited later,
-            // or perhaps it is a very bad idea and we want to have the entities
-            // created in a transaction and the transaction itself be adjacent
-            // in the indices by giving them adjacent ids. We start these
-            // counters at 100 to reserve some room to extend the geneisis
-            // transaction.
+            // separate counters and incrementing both by 2. Perhaps this is a
+            // very bad idea and we want to have the entities created in a
+            // transaction and the transaction itself be adjacent in the indices
+            // by giving them adjacent ids. We start these counters at 100 to
+            // reserve some room to extend the geneisis transaction.
             next_id: 101,
             next_transaction_id: 100,
             eavt_root: eavt_root,

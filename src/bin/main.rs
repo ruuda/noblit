@@ -12,7 +12,8 @@ use noblit::datom;
 use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::types;
-use noblit::store::{MemoryStore, PageSize4096};
+use noblit::store::{PageSize4096};
+use noblit::memory_store::MemoryStore;
 
 fn main() {
     let store: MemoryStore<PageSize4096> = MemoryStore::new();

@@ -881,7 +881,8 @@ mod test {
     use std::iter;
 
     use datom::{Aid, Datom, Eid, Tid, Value};
-    use store::{MemoryStore, PageId, PageSize, PageSize256, PageSize563, PageSize4096, StoreMut};
+    use store::{PageId, PageSize, PageSize256, PageSize563, PageSize4096, StoreMut};
+    use memory_store::MemoryStore;
     use super::{HTree, Iter, Node, Cursor};
     use index::Eavt;
 
