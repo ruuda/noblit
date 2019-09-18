@@ -94,9 +94,45 @@ impl Pool for MemoryPool {
         // We must fit an 8-byte length, and at least 8 bytes of data (otherwise
         // the data could be stored inline in a value; it would not need to be
         // in the pool).
-        debug_assert!(len >= 8, "Store 7-byte values inline, not in the pool.");
+        debug_assert!(len >= 8, "Encountered small value in the pool.");
 
         assert!(offset.0 + 8 + len < self.buffer.len() as u64, "Constant bytestring out of bounds.");
         &self.buffer[offset.0 as usize + 8..offset.0 as usize + 8 + len as usize]
+    }
+}
+
+impl PoolMut for MemoryPool {
+    fn append_u64(&mut self, value: u64) -> io::Result<ConstId> {
+        debug_assert_eq!(self.buffer.len() % 8, 0, "Buffer should remain 8-byte aligned.");
+        let offset = self.buffer.len();
+
+        let bytes = [
+            (value >> 56) as u8,
+            (value >> 48) as u8,
+            (value >> 40) as u8,
+            (value >> 32) as u8,
+            (value >> 24) as u8,
+            (value >> 16) as u8,
+            (value >> 8) as u8,
+            (value >> 0) as u8,
+        ];
+        self.buffer.extend_from_slice(&bytes[..]);
+
+        Ok(ConstId(offset as u64))
+    }
+
+    /// Retrieve a byte string constant.
+    fn append_bytes(&mut self, value: &[u8]) -> io::Result<ConstId> {
+        debug_assert!(value.len() >= 8, "Store small values inline, not in the pool.");
+
+        let id = self.append_u64(value.len() as u64)?;
+        self.buffer.extend_from_slice(value);
+
+        // Zero-pad to align the buffer to 8 bytes again.
+        while self.buffer.len() % 8 > 0 {
+            self.buffer.push(0);
+        }
+
+        Ok(id)
     }
 }
