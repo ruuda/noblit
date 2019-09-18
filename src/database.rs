@@ -14,6 +14,7 @@ use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
+use pool::{ConstId, self};
 use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
@@ -47,7 +48,7 @@ pub struct Builtins {
 }
 
 impl Builtins {
-    pub fn new() -> (Builtins, Vec<Datom>) {
+    pub fn new() -> (Builtins, Vec<Datom>, Vec<&'static str>) {
         let id_transaction = 0;
         let id_db_attr_name = 1;
         let id_db_attr_type = 2;
@@ -76,6 +77,16 @@ impl Builtins {
             entity_db_type_string: Eid(id_db_type_string),
         };
 
+        let mut const_off = 0;
+        let mut define_const = |value: &'static str| {
+            let cid = ConstId(const_off);
+            // Increment 8 bytes for the size, and then by the value of the
+            // constant, rounded up to 8 bytes.
+            const_off += 8;
+            const_off += (value.len() as u64 + 7) / 8 * 8;
+        };
+
+        let mut consts = Vec::new();
         let mut tuples = Vec::new();
 
         macro_rules! define_attribute {
@@ -86,6 +97,8 @@ impl Builtins {
                 unique: $unique:expr,
                 many: $many:expr,
             } => {
+                let cid = define_const($name);
+                consts.push($name);
                 tuples.push(Datom::new(
                     Eid($attribute),
                     Aid(id_db_attr_name), Value::from_str($name),
@@ -111,6 +124,8 @@ impl Builtins {
 
         macro_rules! define_type {
             { eid: $entity:expr, name: $name:expr, } => {
+                let cid = define_const($name);
+                consts.push($name);
                 tuples.push(Datom::new(
                     Eid($entity),
                     Aid(id_db_type_name), Value::from_str($name),
@@ -192,7 +207,7 @@ impl Builtins {
             Tid(id_transaction), Operation::Assert,
         ));
 
-        (builtins, tuples)
+        (builtins, tuples, consts)
     }
 }
 
@@ -207,12 +222,18 @@ pub struct Database<Store> {
 }
 
 impl<Store: store::Store> Database<Store> {
-    pub fn new(mut store: Store) -> io::Result<Database<Store>> where Store: store::StoreMut {
-        let (builtins, genisis_datoms) = Builtins::new();
+    pub fn new(mut store: Store) -> io::Result<Database<Store>>
+    where Store: store::StoreMut + pool::PoolMut
+    {
+        let (builtins, genisis_datoms, genisis_consts) = Builtins::new();
 
         let eavt_root = HTree::initialize(Eavt, &mut store, &genisis_datoms)?.root_page;
         let aevt_root = HTree::initialize(Aevt, &mut store, &genisis_datoms)?.root_page;
         let avet_root = HTree::initialize(Avet, &mut store, &genisis_datoms)?.root_page;
+
+        for const_str in genisis_consts {
+            store.append_bytes(const_str.as_bytes());
+        }
 
         let db = Database {
             builtins: builtins,

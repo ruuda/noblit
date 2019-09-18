@@ -13,10 +13,10 @@ use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::types;
 use noblit::store::{PageSize4096};
-use noblit::memory_store::MemoryStore;
+use noblit::memory_store::MemoryStorePool;
 
 fn main() {
-    let store: MemoryStore<PageSize4096> = MemoryStore::new();
+    let store: MemoryStorePool<PageSize4096> = MemoryStorePool::new();
     let mut db = Database::new(store).unwrap();
 
     {
