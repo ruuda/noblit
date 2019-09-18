@@ -12,16 +12,18 @@ use std::io;
 /// An id for a 64-bit unsigned integer constant.
 ///
 /// A constant id is the offset of a constant from the start of the pool.
-/// Offsets are aligned to 8 bytes. For 64-bit unsigned integer constants, the
-/// pool stores the 8-byte integer at that offset.
+/// Offsets of persistent constants should be aligned to 8 bytes. For 64-bit
+/// unsigned integer constants, the pool stores the 8-byte integer at that
+/// offset.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CidInt(pub u64);
 
 /// An id for a byte string constant.
 ///
 /// A constant id is the offset of a constant from the start of the pool.
-/// Offsets are aligned to 8 bytes. For byte strings, the pool stores an
-/// unsigned 64-bit length at the offset, followed by the data itself.
+/// Offsets of persistent constants should be aligned to 8 bytes. For byte
+/// strings, the pool stores an unsigned 64-bit length at the offset, followed
+/// by the data itself.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CidBytes(pub u64);
 
@@ -41,4 +43,12 @@ pub trait PoolMut: Pool {
 
     /// Store a byte string constant.
     fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes>;
+}
+
+impl<'a, T: Pool> Pool for &'a T {
+    /// Retrieve a 64-bit unsigned integer constant.
+    fn get_u64(&self, offset: CidInt) -> u64 { (**self).get_u64(offset) }
+
+    /// Retrieve a byte string constant.
+    fn get_bytes(&self, offset: CidBytes) -> &[u8] { (**self).get_bytes(offset) }
 }

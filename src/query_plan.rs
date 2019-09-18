@@ -10,8 +10,9 @@
 // TODO: Remove this once I have decent query plans.
 #![allow(dead_code)]
 
-use database::{Builtins, Database};
+use database::{Builtins, QueryEngine};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
+use pool;
 use query::{Query, self};
 use store;
 use types::Type;
@@ -134,8 +135,8 @@ impl QueryPlan {
     ///
     /// For now, this uses an extremely naive query planner, which loops over
     /// all variables in the order that they appear.
-    pub fn new<Store>(query: Query, database: &Database<Store>) -> QueryPlan
-    where Store: store::Store
+    pub fn new<Store>(query: Query, engine: &QueryEngine<Store>) -> QueryPlan
+    where Store: store::Store + pool::Pool
     {
         // Map variables in the query to variables in the plan. They may have
         // different indices.
@@ -166,7 +167,7 @@ impl QueryPlan {
                     }
                     query::QueryValue::Var(v) => {
                         let vvar = mapping.get(v);
-                        if definitions.len() <= vvar.0 as usize{
+                        if definitions.len() <= vvar.0 as usize {
                             // The second variable is also not defined yet. We
                             // need to define it too.
                             let def_entity = Definition {
@@ -231,7 +232,7 @@ impl QueryPlan {
             }
         }
 
-        let perm_types = query.infer_types(database).expect("TODO: Handle type errors.");
+        let perm_types = query.infer_types(engine).expect("TODO: Handle type errors.");
         let perm_names = query.variable_names;
 
         // TODO: Do a true permutation, avoid the clone.
@@ -263,8 +264,8 @@ impl QueryPlan {
     }
 
     /// Assert that all invariants are respected.
-    pub fn assert_valid<Store>(&self, db: &Database<Store>)
-    where Store: store::Store
+    pub fn assert_valid<Store>(&self, engine: &QueryEngine<Store>)
+    where Store: store::Store + pool::Pool
     {
         for (i, ref def) in self.definitions.iter().enumerate() {
             let v = Var(i as u32);
@@ -273,7 +274,7 @@ impl QueryPlan {
                 Retrieval::ScanAvetAny { .. } => { }
                 Retrieval::ScanAvetConst { .. } => { }
                 Retrieval::ScanAvetVar { attribute, value } => {
-                    let attr_value_type = db.lookup_attribute_type(attribute);
+                    let attr_value_type = engine.lookup_attribute_type(attribute);
                     let var_type = self.get_type(value);
                     assert_eq!(var_type, attr_value_type,
                                "Type mismatche in avet scan for variable {:?}. \
@@ -282,7 +283,7 @@ impl QueryPlan {
                     assert!(value < v, "Variable {:?} refers to later variable {:?}.", v, value);
                 },
                 Retrieval::LookupEavt { entity, attribute } => {
-                    let attr_value_type = db.lookup_attribute_type(attribute);
+                    let attr_value_type = engine.lookup_attribute_type(attribute);
                     let var_type = self.get_type(v);
                     assert_eq!(var_type, attr_value_type,
                                "Type mismatche in eavt lookup for entity {:?}. \
@@ -423,9 +424,9 @@ impl QueryPlan {
 type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 
 /// Iterator that yields results from a given query plan.
-pub struct Evaluator<'a, Store: 'a> {
+pub struct Evaluator<'a, Store: 'a + store::Store + pool::Pool> {
     /// The database to query.
-    database: &'a Database<Store>,
+    engine: &'a QueryEngine<'a, Store>,
 
     /// The query plan.
     plan: &'a QueryPlan,
@@ -437,11 +438,11 @@ pub struct Evaluator<'a, Store: 'a> {
     values: Vec<Value>,
 }
 
-impl<'a, Store: store::Store> Evaluator<'a, Store> {
-    pub fn new(plan: &'a QueryPlan, database: &'a Database<Store>) -> Evaluator<'a, Store> {
+impl<'a, Store: store::Store + pool::Pool> Evaluator<'a, Store> {
+    pub fn new(plan: &'a QueryPlan, engine: &'a QueryEngine<'a, Store>) -> Evaluator<'a, Store> {
         use std::iter;
 
-        plan.assert_valid(database);
+        plan.assert_valid(engine);
         let num_variables = plan.definitions.len();
 
         let iters = iter::repeat_with(|| {
@@ -450,7 +451,7 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
         }).take(num_variables).collect();
 
         let mut eval = Evaluator {
-            database: database,
+            engine: engine,
             plan: plan,
             iters: iters,
             values: iter::repeat(Value::min()).take(num_variables).collect(),
@@ -473,7 +474,7 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let min = Datom::new(Eid::min(), attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(Eid::max(), attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
-                    .database
+                    .engine
                     .avet()
                     .into_iter(&min, &max)
                     .map(|&datom| Value::from_eid(datom.entity));
@@ -483,7 +484,7 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let min = Datom::new(Eid::min(), attribute, value, Tid::min(), Operation::Retract);
                 let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Assert);
                 let iter = self
-                    .database
+                    .engine
                     .avet()
                     .into_iter(&min, &max)
                     .map(|&datom| Value::from_eid(datom.entity));
@@ -495,7 +496,7 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let min = Datom::new(Eid::min(), attribute, v, Tid::min(), Operation::Retract);
                 let max = Datom::new(Eid::max(), attribute, v, Tid::max(), Operation::Assert);
                 let iter = self
-                    .database
+                    .engine
                     .avet()
                     .into_iter(&min, &max)
                     .map(|&datom| Value::from_eid(datom.entity));
@@ -506,7 +507,7 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
                 let min = Datom::new(e, attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
-                    .database
+                    .engine
                     .eavt()
                     .into_iter(&min, &max)
                     .map(|&datom| datom.value);
@@ -542,7 +543,7 @@ impl<'a, Store: store::Store> Evaluator<'a, Store> {
     }
 }
 
-impl<'a, Store: store::Store> Iterator for Evaluator<'a, Store> {
+impl<'a, Store: store::Store + pool::Pool> Iterator for Evaluator<'a, Store> {
     type Item = Box<[Value]>;
 
     fn next(&mut self) -> Option<Box<[Value]>> {

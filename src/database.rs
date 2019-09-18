@@ -15,6 +15,7 @@ use htree::HTree;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
 use pool::{CidBytes, self};
+use stack_pool::StackPool;
 use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
@@ -222,6 +223,14 @@ pub struct Database<Store> {
     avet_root: PageId,
 }
 
+pub struct QueryEngine<'a, Store: 'a + store::Store + pool::Pool> {
+    /// The database, which is immutable while we query it.
+    database: &'a Database<Store>,
+
+    /// The stack of temporary constants that are needed for a query.
+    stack_pool: StackPool<&'a Store>,
+}
+
 impl<Store: store::Store> Database<Store> {
     pub fn new(mut store: Store) -> io::Result<Database<Store>>
     where Store: store::StoreMut + pool::PoolMut
@@ -255,9 +264,11 @@ impl<Store: store::Store> Database<Store> {
         Ok(db)
     }
 
-    /// Return the (entity, attribute, value, transaction) index.
-    pub fn eavt(&self) -> HTree<Eavt, &Store> {
-        HTree::new(self.eavt_root, Eavt, &self.store)
+    pub fn query(&self) -> QueryEngine<Store> where Store: pool::Pool {
+        QueryEngine {
+            database: self,
+            stack_pool: StackPool::new(&self.store),
+        }
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
@@ -265,19 +276,9 @@ impl<Store: store::Store> Database<Store> {
         HTree::new(self.eavt_root, Eavt, &mut self.store)
     }
 
-    /// Return the (entity, attribute, value, transaction) index.
-    pub fn aevt(&self) -> HTree<Aevt, &Store> {
-        HTree::new(self.aevt_root, Aevt, &self.store)
-    }
-
     /// Return the (entity, attribute, value, transaction) index, writable.
     pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store> where Store: store::StoreMut {
         HTree::new(self.aevt_root, Aevt, &mut self.store)
-    }
-
-    /// Return the (attribute, value, entity, transaction) index.
-    pub fn avet(&self) -> HTree<Avet, &Store> {
-        HTree::new(self.avet_root, Avet, &self.store)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
@@ -360,6 +361,25 @@ impl<Store: store::Store> Database<Store> {
 
         datoms.push(datom);
     }
+}
+
+impl<'a, Store: 'a + store::Store + pool::Pool> QueryEngine<'a, Store> {
+
+    /// Return the (entity, attribute, value, transaction) index.
+    pub fn eavt(&self) -> HTree<Eavt, &Store> {
+        HTree::new(self.database.eavt_root, Eavt, &self.database.store)
+    }
+
+    /// Return the (entity, attribute, value, transaction) index.
+    pub fn aevt(&self) -> HTree<Aevt, &Store> {
+        HTree::new(self.database.aevt_root, Aevt, &self.database.store)
+    }
+
+    /// Return the (attribute, value, entity, transaction) index.
+    pub fn avet(&self) -> HTree<Avet, &Store> {
+        HTree::new(self.database.avet_root, Avet, &self.database.store)
+    }
+
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
         // TODO: This function should return an iterator of values, from newer
@@ -384,14 +404,14 @@ impl<Store: store::Store> Database<Store> {
 
     pub fn lookup_attribute_id(&self, name: &str) -> Option<Aid> {
         // TODO: How am I going to deal with temporary on-heap values?
-        self.lookup_entity(self.builtins.attribute_db_attribute_name, Value::from_str(name))
+        self.lookup_entity(self.database.builtins.attribute_db_attribute_name, Value::from_str(name))
             .map(|Eid(id)| Aid(id))
     }
 
     pub fn lookup_attribute_name(&self, attribute: Aid) -> Value {
         let entity = Eid(attribute.0);
         let value = self
-            .lookup_value(entity, self.builtins.attribute_db_attribute_name)
+            .lookup_value(entity, self.database.builtins.attribute_db_attribute_name)
             .expect("All attributes must have a name.");
 
         value
@@ -402,23 +422,23 @@ impl<Store: store::Store> Database<Store> {
         // a function to look both of them up at once would be more efficient.
         let entity = Eid(attribute.0);
         let value = self
-            .lookup_value(entity, self.builtins.attribute_db_attribute_type)
+            .lookup_value(entity, self.database.builtins.attribute_db_attribute_type)
             .expect("All attributes must have a value type.");
 
         // TODO: I can make these numbers constants rather than variables.
         match value.as_u64() {
-            k if k == self.builtins.entity_db_type_bool.0 => Type::Bool,
-            k if k == self.builtins.entity_db_type_ref.0 => Type::Ref,
-            k if k == self.builtins.entity_db_type_uint64.0 => Type::Uint64,
-            k if k == self.builtins.entity_db_type_bytes.0 => Type::Bytes,
-            k if k == self.builtins.entity_db_type_string.0 => Type::String,
+            k if k == self.database.builtins.entity_db_type_bool.0 => Type::Bool,
+            k if k == self.database.builtins.entity_db_type_ref.0 => Type::Ref,
+            k if k == self.database.builtins.entity_db_type_uint64.0 => Type::Uint64,
+            k if k == self.database.builtins.entity_db_type_bytes.0 => Type::Bytes,
+            k if k == self.database.builtins.entity_db_type_string.0 => Type::String,
             _ => panic!("Attribute has unsupported value type."),
         }
     }
 
     /// Return the attributes that are set for at least one of the entities.
-    pub fn get_entity_attributes<'a, I>(&'a self, entities: I) -> HashSet<Aid>
-    where I: IntoIterator<Item = &'a Eid>
+    pub fn get_entity_attributes<'b, I>(&'b self, entities: I) -> HashSet<Aid>
+    where I: IntoIterator<Item = &'b Eid>
     {
         let mut attributes = HashSet::new();
         for &eid in entities.into_iter() {

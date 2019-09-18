@@ -10,8 +10,9 @@
 //! Queries need to be translated into a query plan before they can be
 //! evaluated.
 
-use database::Database;
+use database::QueryEngine;
 use datom::{Aid, Value};
+use pool;
 use store;
 use types::Type;
 
@@ -76,12 +77,12 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn fix_attributes<Store>(&mut self, database: &Database<Store>)
-    where Store: store::Store
+    pub fn fix_attributes<Store>(&mut self, engine: &QueryEngine<Store>)
+    where Store: store::Store + pool::Pool
     {
         for stmt in self.where_statements.iter_mut() {
             let aid = match stmt.attribute {
-                QueryAttribute::Named(ref name) => database
+                QueryAttribute::Named(ref name) => engine
                     .lookup_attribute_id(&name[..])
                     .expect("TODO: Deal with missing attributes."),
                 QueryAttribute::Fixed(aid) => aid,
@@ -92,8 +93,8 @@ impl Query {
     }
 
     /// Infer the type of every variables.
-    pub fn infer_types<Store>(&self, database: &Database<Store>) -> Result<Vec<Type>, String>
-    where Store: store::Store
+    pub fn infer_types<Store>(&self, engine: &QueryEngine<Store>) -> Result<Vec<Type>, String>
+    where Store: store::Store + pool::Pool
     {
         let mut types: Vec<Option<Type>> = self.variable_names.iter().map(|_| None).collect();
 
@@ -114,7 +115,7 @@ impl Query {
                     panic!("Should have fixed attributes before type inference."),
             };
             // TODO: What if the attribute does not exist?
-            let attr_type = database.lookup_attribute_type(aid);
+            let attr_type = engine.lookup_attribute_type(aid);
 
             let value = match statement.value {
                 QueryValue::Const(..) => continue,

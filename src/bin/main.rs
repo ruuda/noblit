@@ -49,10 +49,11 @@ fn main() {
         db.insert(datoms).expect("Failed to commit transaction.");
     }
 
-    // TODO: These are rather useless now, because they check the old root.
-    db.eavt().check_invariants().unwrap();
-    db.aevt().check_invariants().unwrap();
-    db.avet().check_invariants().unwrap();
+    // TODO: These could actually use the non-mut variants, if we promise to not
+    // introduce temporary values.
+    db.eavt_mut().check_invariants().unwrap();
+    db.aevt_mut().check_invariants().unwrap();
+    db.avet_mut().check_invariants().unwrap();
 
     {
         // where
@@ -65,6 +66,9 @@ fn main() {
         //   a, name, type, unique, many
 
         use query::{Query, Statement, Var};
+
+        let engine = db.query();
+
         let mut query = Query {
             variable_names: vec![
                 "a".to_string(),        // 0
@@ -83,11 +87,11 @@ fn main() {
             ],
             select: vec![Var(0), Var(2), Var(5), Var(3), Var(4)],
         };
-        query.fix_attributes(&db);
-        let plan = QueryPlan::new(query, &db);
+        query.fix_attributes(&engine);
+        let plan = QueryPlan::new(query, &engine);
 
         println!("\nAll attributes:");
-        let eval = Evaluator::new(&plan, &db);
+        let eval = Evaluator::new(&plan, &engine);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
         types::draw_table(
@@ -105,6 +109,9 @@ fn main() {
         //   t, name
 
         use query::{Query, Statement, Var};
+
+        let engine = db.query();
+
         let mut query = Query {
             variable_names: vec![
                 "t".to_string(),        // 0
@@ -115,11 +122,11 @@ fn main() {
             ],
             select: vec![Var(0), Var(1)],
         };
-        query.fix_attributes(&db);
-        let plan = QueryPlan::new(query, &db);
+        query.fix_attributes(&engine);
+        let plan = QueryPlan::new(query, &engine);
 
         println!("\nAll types:");
-        let eval = Evaluator::new(&plan, &db);
+        let eval = Evaluator::new(&plan, &engine);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
         types::draw_table(
