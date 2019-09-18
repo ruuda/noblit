@@ -77,7 +77,7 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn fix_attributes<Store>(&mut self, engine: &QueryEngine<Store>)
+    pub fn fix_attributes<Store>(&mut self, engine: &mut QueryEngine<Store>)
     where Store: store::Store + pool::Pool
     {
         for stmt in self.where_statements.iter_mut() {

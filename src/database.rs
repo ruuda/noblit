@@ -402,9 +402,13 @@ impl<'a, Store: 'a + store::Store + pool::Pool> QueryEngine<'a, Store> {
         self.avet().into_iter(&min, &max).map(|&datom| datom.entity).next()
     }
 
-    pub fn lookup_attribute_id(&self, name: &str) -> Option<Aid> {
-        // TODO: How am I going to deal with temporary on-heap values?
-        self.lookup_entity(self.database.builtins.attribute_db_attribute_name, Value::from_str(name))
+    pub fn lookup_attribute_id(&mut self, name: &str) -> Option<Aid> {
+        // TODO: Can we avoid the copy here? We could parametrize the stack pool
+        // over the lifetime of the values it stores.
+        let name_bytes = name.to_string().into_boxed_str().into_boxed_bytes();
+        let cid = self.stack_pool.push_bytes(name_bytes);
+        let value = Value::from_const_bytes(cid);
+        self.lookup_entity(self.database.builtins.attribute_db_attribute_name, value)
             .map(|Eid(id)| Aid(id))
     }
 

@@ -67,7 +67,7 @@ fn main() {
 
         use query::{Query, Statement, Var};
 
-        let engine = db.query();
+        let mut engine = db.query();
 
         let mut query = Query {
             variable_names: vec![
@@ -79,15 +79,15 @@ fn main() {
                 "type".to_string(),     // 5
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "a.name", Var(2)),
-                Statement::named_var(Var(0), "a.type", Var(1)),
-                Statement::named_var(Var(0), "a.uniq", Var(3)),
-                Statement::named_var(Var(0), "a.many", Var(4)),
-                Statement::named_var(Var(1), "t.name", Var(5)),
+                Statement::named_var(Var(0), "db.attribute.name", Var(2)),
+                Statement::named_var(Var(0), "db.attribute.type", Var(1)),
+                Statement::named_var(Var(0), "db.attribute.uniqe", Var(3)),
+                Statement::named_var(Var(0), "db.attribute.many", Var(4)),
+                Statement::named_var(Var(1), "db.type.name", Var(5)),
             ],
             select: vec![Var(0), Var(2), Var(5), Var(3), Var(4)],
         };
-        query.fix_attributes(&engine);
+        query.fix_attributes(&mut engine);
         let plan = QueryPlan::new(query, &engine);
 
         println!("\nAll attributes:");
@@ -110,7 +110,7 @@ fn main() {
 
         use query::{Query, Statement, Var};
 
-        let engine = db.query();
+        let mut engine = db.query();
 
         let mut query = Query {
             variable_names: vec![
@@ -118,11 +118,11 @@ fn main() {
                 "name".to_string(),     // 1
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "t.name", Var(1)),
+                Statement::named_var(Var(0), "db.type.name", Var(1)),
             ],
             select: vec![Var(0), Var(1)],
         };
-        query.fix_attributes(&engine);
+        query.fix_attributes(&mut engine);
         let plan = QueryPlan::new(query, &engine);
 
         println!("\nAll types:");
