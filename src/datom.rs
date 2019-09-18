@@ -97,7 +97,7 @@ impl TidOp {
 
 /// A value: byte string or integer.
 ///
-/// A value is either a byte string, or an unsigned 62-bit integer. It is up to
+/// A value is either a byte string, or an unsigned 64-bit integer. It is up to
 /// the attribute schema to give meaning to a value. For example, a byte string
 /// might store utf-8 text, and an integer might hold an entity id.
 ///
