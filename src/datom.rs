@@ -9,6 +9,8 @@
 
 use std;
 
+use pool::ConstId;
+
 /// Entity id.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Eid(pub u64); // TODO: non-pub field?
@@ -117,8 +119,15 @@ impl TidOp {
 pub struct Value(pub u64); // TODO: Non-public field?
 
 impl Value {
+    /// Both tag bits set.
+    const TAG_MASK: u64 = 0xc000_0000_0000_0000;
+    /// Only "external" bit set.
+    const TAG_EXTERNAL: u64 = 0x4000_0000_0000_0000;
+    /// Only "bytestring" bit set (unset indicates "64-bit int");
+    const TAG_BYTES: u64 = 0x8000_0000_0000_0000;
+
     pub fn from_u64(value: u64) -> Value {
-        assert_eq!(value & 0xc000_0000_0000_0000, 0, "TODO: Implement spilling.");
+        assert_eq!(value & Value::TAG_MASK, 0, "TODO: Implement spilling.");
         Value(value)
     }
 
@@ -151,10 +160,22 @@ impl Value {
         Value(bits)
     }
 
+    pub fn from_const_u64(cid: ConstId) -> Value {
+        let offset = cid.0;
+        assert_eq!(offset & Value::TAG_MASK, 0, "Const id must fit in 62 bits.");
+        Value(offset | Value::TAG_EXTERNAL)
+    }
+
+    pub fn from_const_bytes(cid: ConstId) -> Value {
+        let offset = cid.0;
+        assert_eq!(offset & Value::TAG_MASK, 0, "Const id must fit in 62 bits.");
+        Value(offset | Value::TAG_EXTERNAL | Value::TAG_BYTES)
+    }
+
     pub fn as_str(&self) -> &str {
         use std::mem;
         use std::str;
-        debug_assert_ne!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be string for as_str.");
+        debug_assert_ne!(self.0 & Value::TAG_BYTES, Value::TAG_BYTES, "Value must be string for as_str.");
         let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
         let len = (bytes[7] & 0x3f) as usize;
         debug_assert!(len <= 7);
@@ -163,7 +184,7 @@ impl Value {
 
     pub fn as_u64(&self) -> u64 {
         // TODO: Check only the top bit, deal with out of band integers.
-        debug_assert_eq!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be int for as_u64.");
+        debug_assert_eq!(self.0 & Value::TAG_BYTES, 0, "Value must be int for as_u64.");
         self.0 & 0x3fff_ffff_ffff_ffff
     }
 
@@ -172,7 +193,7 @@ impl Value {
     }
 
     pub fn as_bool(&self) -> bool {
-        debug_assert_eq!(self.0 & 0xc000_0000_0000_0000, 0, "Value must be int for as_bool.");
+        debug_assert_eq!(self.0 & Value::TAG_BYTES, 0, "Value must be int for as_bool.");
         match self.0 {
             0 => false,
             1 => true,

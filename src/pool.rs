@@ -16,6 +16,7 @@ use std::io;
 /// pool stores the 8-byte integer at that offset. For byte strings, the pool
 /// stores an unsigned 64-bit length at the offset, followed by the data itself.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+// TODO: Split in const id for int and const id for bytes.
 pub struct ConstId(pub u64);
 
 /// A constant pool that can be read from.

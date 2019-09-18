@@ -84,6 +84,7 @@ impl Builtins {
             // constant, rounded up to 8 bytes.
             const_off += 8;
             const_off += (value.len() as u64 + 7) / 8 * 8;
+            cid
         };
 
         let mut consts = Vec::new();
@@ -101,7 +102,7 @@ impl Builtins {
                 consts.push($name);
                 tuples.push(Datom::new(
                     Eid($attribute),
-                    Aid(id_db_attr_name), Value::from_str($name),
+                    Aid(id_db_attr_name), Value::from_const_bytes(cid),
                     Tid(id_transaction), Operation::Assert,
                 ));
                 tuples.push(Datom::new(
@@ -128,7 +129,7 @@ impl Builtins {
                 consts.push($name);
                 tuples.push(Datom::new(
                     Eid($entity),
-                    Aid(id_db_type_name), Value::from_str($name),
+                    Aid(id_db_type_name), Value::from_const_bytes(cid),
                     Tid(id_transaction), Operation::Assert,
                 ));
             }
@@ -136,28 +137,28 @@ impl Builtins {
 
         define_attribute! {
             aid: id_db_attr_name,
-            name: "a.name", // TODO: Long name.
+            name: "db.attribute.name",
             type: id_db_type_string,
             unique: true,
             many: false,
         };
         define_attribute! {
             aid: id_db_attr_type,
-            name: "a.type", // TODO: Long name.
+            name: "db.attribute.type",
             type: id_db_type_ref,
             unique: false,
             many: false,
         };
         define_attribute! {
             aid: id_db_attr_unique,
-            name: "a.uniq", // TODO: Long name.
+            name: "db.attribute.unique",
             type: id_db_type_bool,
             unique: false,
             many: false,
         };
         define_attribute! {
             aid: id_db_attr_many,
-            name: "a.many", // TODO: Long name.
+            name: "db.attribute.many",
             type: id_db_type_bool,
             unique: false,
             many: false,
@@ -167,14 +168,14 @@ impl Builtins {
         // attribute. This is how we can do schema, and "tables".
         define_attribute! {
             aid: id_db_type_name,
-            name: "t.name", // TODO: Long name.
+            name: "db.type.name",
             type: id_db_type_string,
             unique: true,
             many: false,
         };
         define_attribute! {
             aid: id_db_transaction_time,
-            name: "x.time", // TODO: Long name.
+            name: "db.transaction.time",
             type: id_db_type_uint64, // TODO: Time type.
             unique: false, // TODO: Timestamp uniqueness is debatable.
             many: false,
@@ -182,23 +183,23 @@ impl Builtins {
 
         define_type! {
             eid: id_db_type_bool,
-            name: "bool", // TODO: Long name.
+            name: "db.type.bool",
         };
         define_type! {
             eid: id_db_type_ref,
-            name: "ref", // TODO: Long name.
+            name: "db.type.ref",
         };
         define_type! {
             eid: id_db_type_uint64,
-            name: "uint64", // TODO: Long name.
+            name: "db.type.uint64",
         };
         define_type! {
             eid: id_db_type_bytes,
-            name: "bytes", // TODO: Long name.
+            name: "db.type.bytes",
         };
         define_type! {
             eid: id_db_type_string,
-            name: "string", // TODO: Long name.
+            name: "db.type.string",
         };
 
         tuples.push(Datom::new(
@@ -232,7 +233,7 @@ impl<Store: store::Store> Database<Store> {
         let avet_root = HTree::initialize(Avet, &mut store, &genisis_datoms)?.root_page;
 
         for const_str in genisis_consts {
-            store.append_bytes(const_str.as_bytes());
+            store.append_bytes(const_str.as_bytes())?;
         }
 
         let db = Database {
