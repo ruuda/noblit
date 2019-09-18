@@ -9,7 +9,7 @@
 
 use std;
 
-use pool::ConstId;
+use pool::{CidInt, CidBytes};
 
 /// Entity id.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -160,13 +160,13 @@ impl Value {
         Value(bits)
     }
 
-    pub fn from_const_u64(cid: ConstId) -> Value {
+    pub fn from_const_u64(cid: CidInt) -> Value {
         let offset = cid.0;
         assert_eq!(offset & Value::TAG_MASK, 0, "Const id must fit in 62 bits.");
         Value(offset | Value::TAG_EXTERNAL)
     }
 
-    pub fn from_const_bytes(cid: ConstId) -> Value {
+    pub fn from_const_bytes(cid: CidBytes) -> Value {
         let offset = cid.0;
         assert_eq!(offset & Value::TAG_MASK, 0, "Const id must fit in 62 bits.");
         Value(offset | Value::TAG_EXTERNAL | Value::TAG_BYTES)

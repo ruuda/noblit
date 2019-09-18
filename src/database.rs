@@ -14,7 +14,7 @@ use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
 use htree::HTree;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
-use pool::{ConstId, self};
+use pool::{CidBytes, self};
 use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
@@ -79,7 +79,7 @@ impl Builtins {
 
         let mut const_off = 0;
         let mut define_const = |value: &'static str| {
-            let cid = ConstId(const_off);
+            let cid = CidBytes(const_off);
             // Increment 8 bytes for the size, and then by the value of the
             // constant, rounded up to 8 bytes.
             const_off += 8;

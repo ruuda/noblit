@@ -9,7 +9,7 @@
 
 use std::io;
 
-use pool::{ConstId, Pool, PoolMut};
+use pool::{CidBytes, CidInt, Pool, PoolMut};
 use store::{PageId, PageSize, Store, StoreMut};
 
 /// An in-memory page store, not backed by a file.
@@ -78,7 +78,7 @@ impl MemoryPool {
 }
 
 impl Pool for MemoryPool {
-    fn get_u64(&self, offset: ConstId) -> u64 {
+    fn get_u64(&self, offset: CidInt) -> u64 {
         debug_assert_eq!(offset.0 % 8, 0, "Constant ids must be 8-byte aligned.");
         assert!(offset.0 + 8 <= self.buffer.len() as u64, "Constant id out of bounds.");
 
@@ -96,8 +96,8 @@ impl Pool for MemoryPool {
     }
 
     /// Retrieve a byte string constant.
-    fn get_bytes(&self, offset: ConstId) -> &[u8] {
-        let len = self.get_u64(offset);
+    fn get_bytes(&self, offset: CidBytes) -> &[u8] {
+        let len = self.get_u64(CidInt(offset.0));
 
         // We must fit an 8-byte length, and at least 8 bytes of data (otherwise
         // the data could be stored inline in a value; it would not need to be
@@ -110,7 +110,7 @@ impl Pool for MemoryPool {
 }
 
 impl PoolMut for MemoryPool {
-    fn append_u64(&mut self, value: u64) -> io::Result<ConstId> {
+    fn append_u64(&mut self, value: u64) -> io::Result<CidInt> {
         debug_assert_eq!(self.buffer.len() % 8, 0, "Buffer should remain 8-byte aligned.");
         let offset = self.buffer.len();
 
@@ -126,11 +126,11 @@ impl PoolMut for MemoryPool {
         ];
         self.buffer.extend_from_slice(&bytes[..]);
 
-        Ok(ConstId(offset as u64))
+        Ok(CidInt(offset as u64))
     }
 
     /// Retrieve a byte string constant.
-    fn append_bytes(&mut self, value: &[u8]) -> io::Result<ConstId> {
+    fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes> {
         debug_assert!(value.len() >= 8, "Store small values inline, not in the pool.");
 
         let id = self.append_u64(value.len() as u64)?;
@@ -141,7 +141,7 @@ impl PoolMut for MemoryPool {
             self.buffer.push(0);
         }
 
-        Ok(id)
+        Ok(CidBytes(id.0))
     }
 }
 
@@ -169,13 +169,13 @@ impl<Size: PageSize> StoreMut for MemoryStorePool<Size> {
 }
 
 impl<Size: PageSize> Pool for MemoryStorePool<Size> {
-    fn get_u64(&self, offset: ConstId) -> u64 { self.pool.get_u64(offset) }
-    fn get_bytes(&self, offset: ConstId) -> &[u8] { self.pool.get_bytes(offset) }
+    fn get_u64(&self, offset: CidInt) -> u64 { self.pool.get_u64(offset) }
+    fn get_bytes(&self, offset: CidBytes) -> &[u8] { self.pool.get_bytes(offset) }
 }
 
 impl<Size: PageSize> PoolMut for MemoryStorePool<Size> {
-    fn append_u64(&mut self, value: u64) -> io::Result<ConstId> { self.pool.append_u64(value) }
-    fn append_bytes(&mut self, value: &[u8]) -> io::Result<ConstId> { self.pool.append_bytes(value) }
+    fn append_u64(&mut self, value: u64) -> io::Result<CidInt> { self.pool.append_u64(value) }
+    fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes> { self.pool.append_bytes(value) }
 }
 
 #[cfg(test)]
@@ -235,19 +235,20 @@ mod test {
     fn pool_append_get_interleaved_roundtrips() {
         use std::iter;
         let mut pool = MemoryPool::new();
-        let mut ids = Vec::new();
+        let mut ids_u64 = Vec::new();
+        let mut ids_bytes = Vec::new();
 
         // Interleave some integers and variable-length strings.
         for i in 8..256 {
             let message: Vec<u8> = iter::repeat(1).take(i as usize).collect();
-            ids.push(pool.append_u64(i).unwrap());
-            ids.push(pool.append_bytes(&message[..]).unwrap());
+            ids_u64.push(pool.append_u64(i).unwrap());
+            ids_bytes.push(pool.append_bytes(&message[..]).unwrap());
         }
 
         // Then read them back.
-        while ids.len() > 0 {
-            let id_bytes = ids.pop().unwrap();
-            let id_u64 = ids.pop().unwrap();
+        while ids_u64.len() > 0 {
+            let id_bytes = ids_bytes.pop().unwrap();
+            let id_u64 = ids_u64.pop().unwrap();
             let len = pool.get_u64(id_u64);
             let message = pool.get_bytes(id_bytes);
             assert_eq!(message.len() as u64, len);
