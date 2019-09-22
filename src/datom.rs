@@ -326,13 +326,28 @@ mod test {
     use std::u64;
 
     #[test]
-    fn cmp_works_on_uint64() {
+    fn cmp_works_on_small_uint64s() {
         let numbers = [0, 1, 2, 3, 5, 7, 128, 4096, u64::MAX >> 2];
         let pool = MemoryPool::new();
         for &i in &numbers {
             let v_i = Value::from_u64(i);
             for &j in &numbers {
                 let v_j = Value::from_u64(j);
+                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+            }
+        }
+    }
+
+    #[test]
+    fn cmp_works_on_large_uint64s() {
+        let numbers = [u64::MAX, u64::MAX - 2, u64::MAX / 2, u64::MAX - 7];
+        let mut pool = MemoryPool::new();
+        for &i in &numbers {
+            let cid_i = pool.append_u64(i).unwrap();
+            let v_i = Value::from_const_u64(cid_i);
+            for &j in &numbers {
+                let cid_j = pool.append_u64(j).unwrap();
+                let v_j = Value::from_const_u64(cid_j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
         }
