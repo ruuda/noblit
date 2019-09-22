@@ -320,10 +320,12 @@ impl std::fmt::Debug for Datom {
 
 #[cfg(test)]
 mod test {
-    use super::{Value};
+    use std::cmp::Ordering;
+    use std::u64;
+
     use memory_store::MemoryPool;
     use pool::PoolMut;
-    use std::u64;
+    use super::Value;
 
     #[test]
     fn cmp_works_on_small_uint64s() {
@@ -335,6 +337,9 @@ mod test {
                 let v_j = Value::from_u64(j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
+
+            // Also abuse this test to enforce that no value is greater than max.
+            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
         }
     }
 
@@ -350,6 +355,9 @@ mod test {
                 let v_j = Value::from_const_u64(cid_j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
+
+            // Also abuse this test to enforce that no value is greater than max.
+            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
         }
     }
 
@@ -388,6 +396,9 @@ mod test {
                 let v_j = Value::from_str(j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
+
+            // Also abuse this test to enforce that no value is greater than max.
+            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
         }
     }
 
@@ -407,6 +418,9 @@ mod test {
                 let v_j = Value::from_const_bytes(cid_j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
+
+            // Also abuse this test to enforce that no value is greater than max.
+            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
         }
     }
 
