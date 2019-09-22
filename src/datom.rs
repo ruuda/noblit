@@ -337,4 +337,42 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn cmp_works_on_small_bytes_strings() {
+        let values = [
+            "",
+            "aaaaaaa",
+            "aaaaa",
+            "abcdef",
+            "zzz",
+        ];
+        let pool = MemoryPool::new();
+        for &i in &values {
+            let v_i = Value::from_str(i);
+            for &j in &values {
+                let v_j = Value::from_str(j);
+                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+            }
+        }
+    }
+
+    #[test]
+    fn cmp_works_on_large_byte_strings() {
+        let values = [
+            "aaaaaaaaaaa",
+            "01234567",
+            "zzzzzzzz",
+        ];
+        let mut pool = MemoryPool::new();
+        for &i in &values {
+            let cid_i = pool.append_bytes(i.as_bytes()).unwrap();
+            let v_i = Value::from_const_bytes(cid_i);
+            for &j in &values {
+                let cid_j = pool.append_bytes(i.as_bytes()).unwrap();
+                let v_j = Value::from_const_bytes(cid_j);
+                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+            }
+        }
+    }
 }
