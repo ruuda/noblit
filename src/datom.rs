@@ -121,12 +121,17 @@ impl TidOp {
 pub struct Value(pub u64); // TODO: Non-public field?
 
 impl Value {
-    /// Both tag bits set.
-    const TAG_MASK: u64 = 0xc000_0000_0000_0000;
     /// Only "external" bit set.
     const TAG_EXTERNAL: u64 = 0x4000_0000_0000_0000;
     /// Only "bytestring" bit set (unset indicates "64-bit int");
     const TAG_BYTES: u64 = 0x8000_0000_0000_0000;
+    /// Both tag bits set.
+    const TAG_MASK: u64 = Value::TAG_EXTERNAL | Value::TAG_BYTES;
+
+    /// Return whether this value is the sentinel max value.
+    fn is_max(&self) -> bool {
+        self.0 == 0xffff_ffff_ffff_ffff
+    }
 
     /// Return whether the value type is u64, as opposed to a byte string.
     fn is_u64(&self) -> bool {
@@ -135,11 +140,13 @@ impl Value {
 
     /// Return whether the value type is a byte string, as opposed to u64.
     fn is_bytes(&self) -> bool {
+        debug_assert!(!self.is_max(), "Should test for max before testing type.");
         self.0 & Value::TAG_BYTES != 0
     }
 
     /// Return whether the value is the offset of an externally stored value.
     fn is_external(&self) -> bool {
+        debug_assert!(!self.is_max(), "Should test for max before testing external.");
         self.0 & Value::TAG_EXTERNAL != 0
     }
 
@@ -193,6 +200,7 @@ impl Value {
         use std::mem;
         debug_assert!(self.is_bytes(), "Value must be byte string for as_bytes.");
         if self.is_external() {
+            debug_assert!(!self.is_max(), "Value::max() is a sentinel value, it is not a byte string.");
             pool.get_bytes(CidBytes(self.0 & !Value::TAG_MASK))
         } else {
             let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
@@ -240,12 +248,18 @@ impl Value {
     pub fn cmp<P: Pool + ?Sized>(&self, other: &Value, pool: &P) -> Ordering {
         // Integers sort before byte strings, so if the types differ, we are
         // done. If the types match, then do a type-based comparison.
-        match (self.is_bytes(), other.is_bytes()) {
-            (false, false) => self.as_u64(pool).cmp(&other.as_u64(pool)),
-            (false, true) => Ordering::Less,
-            (true, false) => Ordering::Greater,
-            (true, true) => self.as_bytes(pool).cmp(other.as_bytes(pool)),
-
+        match (self.is_u64(), other.is_u64()) {
+            (true, true) => self.as_u64(pool).cmp(&other.as_u64(pool)),
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            // If the value is not an int, it could be bytes (internal or
+            // external), or it could be the special marker for max.
+            (false, false) => match (self.is_max(), other.is_max()) {
+                (false, true) => Ordering::Less,
+                (true, true) => Ordering::Equal,
+                (true, false) => Ordering::Greater,
+                (false, false) => self.as_bytes(pool).cmp(other.as_bytes(pool)),
+            }
         }
     }
 }
