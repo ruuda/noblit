@@ -13,11 +13,13 @@ use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::types;
 use noblit::store::{PageSize4096};
-use noblit::memory_store::MemoryStorePool;
+use noblit::memory_store::{MemoryStore, MemoryPool};
 
 fn main() {
-    let store: MemoryStorePool<PageSize4096> = MemoryStorePool::new();
-    let mut db = Database::new(store).unwrap();
+    let store: MemoryStore<PageSize4096> = MemoryStore::new();
+    let pool = MemoryPool::new();
+
+    let mut db = Database::new(store, pool).unwrap();
 
     {
         // Insert a bit of test data: a new attribute "level" in transaction 0,
@@ -96,6 +98,7 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
+            engine.pool(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],
@@ -131,6 +134,7 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
+            engine.pool(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],
