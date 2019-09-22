@@ -140,4 +140,40 @@ fn main() {
             &plan.select_types[..],
         ).unwrap();
     }
+
+    {
+        // where
+        //   tx db.transaction.time tt
+        // select
+        //   tx, tt
+
+        use query::{Query, Statement, Var};
+
+        let mut engine = db.query();
+
+        let mut query = Query {
+            variable_names: vec![
+                "transaction".to_string(), // 0
+                "time".to_string(),        // 1
+            ],
+            where_statements: vec![
+                Statement::named_var(Var(0), "db.transaction.time", Var(1)),
+            ],
+            select: vec![Var(0), Var(1)],
+        };
+        query.fix_attributes(&mut engine);
+        let plan = QueryPlan::new(query, &engine);
+
+        println!("\nAll transactions:");
+        let eval = Evaluator::new(&plan, &engine);
+        let rows: Vec<_> = eval.collect();
+        let stdout = std::io::stdout();
+        types::draw_table(
+            &mut stdout.lock(),
+            engine.pool(),
+            plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
+            rows.iter().map(|ref row| &row[..]),
+            &plan.select_types[..],
+        ).unwrap();
+    }
 }

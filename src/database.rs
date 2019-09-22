@@ -321,9 +321,14 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
         let tid = Tid(self.next_transaction_id);
         self.next_transaction_id += 2;
 
-        let timestamp_aid = Aid(1);
-        let timestamp_value = Value(0); // TODO
-        let _attr_timestamp = self.create_entity(datoms, timestamp_aid, timestamp_value, tid);
+        // Record the "timestamp" for the transaction.
+        let datom_timestamp = Datom {
+            entity: Eid(tid.0),
+            attribute: self.builtins.attribute_db_transaction_time,
+            value: Value::from_u64(0), // TODO: actually record an epoch number value.
+            transaction_operation: TidOp::new(tid, Operation::Assert),
+        };
+        datoms.push(datom_timestamp);
 
         tid
     }
