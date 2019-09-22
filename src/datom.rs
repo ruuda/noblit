@@ -354,6 +354,25 @@ mod test {
     }
 
     #[test]
+    fn cmp_works_on_mixed_uint64s() {
+        let numbers = [0, u64::MAX >> 2, 5, u64::MAX >> 1, 7, u64::MAX];
+        let mut pool = MemoryPool::new();
+        for &i in &numbers {
+            let v_i = match i {
+                0...0x3fff_ffff_ffff_ffff => Value::from_u64(i),
+                _ => Value::from_const_u64(pool.append_u64(i).unwrap()),
+            };
+            for &j in &numbers {
+                let v_j = match j {
+                    0...0x3fff_ffff_ffff_ffff => Value::from_u64(j),
+                    _ => Value::from_const_u64(pool.append_u64(j).unwrap()),
+                };
+                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+            }
+        }
+    }
+
+    #[test]
     fn cmp_works_on_small_bytes_strings() {
         let values = [
             "",
@@ -386,6 +405,31 @@ mod test {
             for &j in &values {
                 let cid_j = pool.append_bytes(j.as_bytes()).unwrap();
                 let v_j = Value::from_const_bytes(cid_j);
+                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+            }
+        }
+    }
+
+    #[test]
+    fn cmp_works_on_mixed_byte_strings() {
+        let values = [
+            "aaaaaaaaaaa",
+            "",
+            "01234567",
+            "pqr",
+            "zzzzzzzz",
+        ];
+        let mut pool = MemoryPool::new();
+        for &i in &values {
+            let v_i = match i.len() {
+                0...7 => Value::from_str(i),
+                _ => Value::from_const_bytes(pool.append_bytes(i.as_bytes()).unwrap()),
+            };
+            for &j in &values {
+                let v_j = match j.len() {
+                    0...7 => Value::from_str(j),
+                    _ => Value::from_const_bytes(pool.append_bytes(j.as_bytes()).unwrap()),
+                };
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
         }
