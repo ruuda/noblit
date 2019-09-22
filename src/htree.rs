@@ -909,7 +909,7 @@ mod test {
 
     use datom::{Aid, Datom, Eid, Tid, Value};
     use store::{PageId, PageSize, PageSize256, PageSize563, PageSize4096, StoreMut};
-    use memory_store::MemoryStore;
+    use memory_store::{MemoryStore, MemoryPool};
     use super::{HTree, Iter, Node, Cursor};
     use index::Eavt;
 
@@ -956,8 +956,9 @@ mod test {
         let mut store1 = MemoryStore::<Size>::new();
         store1.write_page(&node.write::<Size>()).unwrap();
 
+        let pool = MemoryPool::new();
         let mut store2 = MemoryStore::<Size>::new();
-        HTree::initialize(Eavt, &mut store2, &node.datoms).unwrap();
+        HTree::initialize(Eavt, &mut store2, &pool, &node.datoms).unwrap();
 
         assert_eq!(store1.as_bytes(), store2.as_bytes());
     }
@@ -981,11 +982,13 @@ mod test {
         };
 
         type Size = PageSize563;
+        let pool = MemoryPool::new();
         let mut store = MemoryStore::<Size>::new();
         store.write_page(&node.write::<Size>()).unwrap();
 
         let iter = Iter {
             store: &store,
+            pool: &pool,
             comparator: Eavt,
             nodes: vec![node],
             begin: Cursor {
@@ -1034,6 +1037,7 @@ mod test {
         };
 
         type Size = PageSize563;
+        let pool = MemoryPool::new();
         let mut store = MemoryStore::<Size>::new();
         let p0 = store.write_page(&node0.write::<Size>()).unwrap();
         let p1 = store.write_page(&node1.write::<Size>()).unwrap();
@@ -1047,6 +1051,7 @@ mod test {
             root_page: PageId(2),
             comparator: Eavt,
             store: &store,
+            pool: &pool,
         };
 
         let iter = tree.into_iter(&make_datom(&0), &make_datom(&10));
@@ -1091,6 +1096,7 @@ mod test {
         };
 
         type Size = PageSize563;
+        let pool = MemoryPool::new();
         let mut store = MemoryStore::<Size>::new();
         let p0 = store.write_page(&node0.write::<Size>()).unwrap();
         let p1 = store.write_page(&node1.write::<Size>()).unwrap();
@@ -1104,6 +1110,7 @@ mod test {
             root_page: PageId(2),
             comparator: Eavt,
             store: &store,
+            pool: &pool,
         };
 
         let iter = tree.into_iter(&make_datom(&0), &make_datom(&10));
@@ -1118,10 +1125,11 @@ mod test {
         let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
 
         type Size = PageSize563;
+        let pool = MemoryPool::new();
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let mut tree = HTree::new(root, Eavt, store);
+        let mut tree = HTree::new(root, Eavt, store, pool);
 
         for i in 0..500 {
             let datoms = &[
@@ -1145,10 +1153,11 @@ mod test {
 
         type Size = PageSize256;
         let capacity = <Size as PageSize>::CAPACITY as u64;
+        let pool = MemoryPool::new();
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let mut tree = HTree::new(root, Eavt, store);
+        let mut tree = HTree::new(root, Eavt, store, pool);
 
         // One node in the tree can hold `capacity` datoms. A two-layer tree can
         // hold `capacity^2` datoms, plus `capacity` for the midpoints. If we
