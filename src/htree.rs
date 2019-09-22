@@ -652,7 +652,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
             if let Some(inf) = all_infimum {
                 assert_eq!(
                     self.comparator.cmp(inf, datom, &self.pool), Ordering::Less,
-                    "Violation at page {:?}: infimum >= datom {}.", page, i,
+                    "Violation at page {:?}: infimum ({:?}) >= datom {} ({:?}).", page, inf, i, datom
                 );
             }
             if node.is_midpoint_at(i) {

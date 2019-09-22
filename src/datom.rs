@@ -267,7 +267,7 @@ impl Value {
 /// An (entity, attribute, value, transaction, operation) tuple.
 // TODO: Make copy explicit?
 // TODO: Proper debug impl, and something to compare in tests that is not Eq.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Datom {
     pub entity: Eid,
     pub attribute: Aid,
@@ -293,5 +293,23 @@ impl Datom {
     /// Shorthand for `new` with operation `Retract`.
     pub fn retract(entity: Eid, attribute: Aid, value: Value, transaction: Tid) -> Datom {
         Datom::new(entity, attribute, value, transaction, Operation::Retract)
+    }
+}
+
+impl std::fmt::Debug for Datom {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let operation = match self.transaction_operation.operation() {
+            Operation::Assert => "assert",
+            Operation::Retract => "retract",
+        };
+        write!(
+            f,
+            "{} ({}, {}, {:?}) at {}",
+            operation,
+            self.entity.0,
+            self.attribute.0,
+            self.value,
+            self.transaction_operation.transaction().0,
+        )
     }
 }
