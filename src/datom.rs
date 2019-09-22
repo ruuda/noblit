@@ -166,10 +166,10 @@ impl Value {
         Value::from_u64(value.0)
     }
 
-    pub fn from_str(value: &str) -> Value {
+    pub fn from_bytes(value: &[u8]) -> Value {
         assert!(value.len() < 8);
         let mut bytes = [0_u8; 7];
-        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        bytes[..value.len()].copy_from_slice(value);
         let bits = 0_u64
             | 0b10_u64 << 62
             | (value.len() as u64) << 56
@@ -182,6 +182,10 @@ impl Value {
             | (bytes[0] as u64)
             ;
         Value(bits)
+    }
+
+    pub fn from_str(value: &str) -> Value {
+        Value::from_bytes(value.as_bytes())
     }
 
     pub fn from_const_u64(cid: CidInt) -> Value {

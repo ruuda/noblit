@@ -355,6 +355,24 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
         eid
     }
 
+
+    /// Create a byte string `Value`.
+    ///
+    /// If the value is large and needs to be stored on the large value heap, it
+    /// is persisted there, and a reference value is returned. Therefore, this
+    /// method should not be used for temporary values (use `StackPool` instead
+    /// in that case).
+    pub fn persist_value_bytes(&mut self, bytes: &[u8]) -> io::Result<Value>
+    where Pool: pool::PoolMut
+    {
+        if bytes.len() <= 7 {
+            Ok(Value::from_bytes(bytes))
+        } else {
+            let cid = self.pool.append_bytes(bytes)?;
+            Ok(Value::from_const_bytes(cid))
+        }
+    }
+
     pub fn assert(
         &mut self,
         datoms: &mut Vec<Datom>,

@@ -30,24 +30,39 @@ fn main() {
         let db_attr_unique = db.builtins.attribute_db_attribute_unique;
         let db_attr_many = db.builtins.attribute_db_attribute_many;
         let db_type_uint64 = db.builtins.entity_db_type_uint64;
+        let db_type_string = db.builtins.entity_db_type_string;
 
         let mut datoms = Vec::new();
         let t0 = db.create_transaction(&mut datoms);
-        let eid = db.create_entity(&mut datoms, db_attr_name, Value::from_str("level"), t0);
-        db.assert(&mut datoms, eid, db_attr_type, Value::from_eid(db_type_uint64), t0);
-        db.assert(&mut datoms, eid, db_attr_unique, Value::from_bool(false), t0);
-        db.assert(&mut datoms, eid, db_attr_many, Value::from_bool(false), t0);
+        let eid_level = db.create_entity(&mut datoms, db_attr_name, Value::from_str("level"), t0);
+        db.assert(&mut datoms, eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0);
+        db.assert(&mut datoms, eid_level, db_attr_unique, Value::from_bool(false), t0);
+        db.assert(&mut datoms, eid_level, db_attr_many, Value::from_bool(false), t0);
+        let eid_name = db.create_entity(&mut datoms, db_attr_name, Value::from_str("name"), t0);
+        db.assert(&mut datoms, eid_name, db_attr_type, Value::from_eid(db_type_string), t0);
+        db.assert(&mut datoms, eid_name, db_attr_unique, Value::from_bool(true), t0);
+        db.assert(&mut datoms, eid_name, db_attr_many, Value::from_bool(false), t0);
         db.insert(datoms).expect("Failed to commit transaction.");
 
         let mut datoms = Vec::new();
-        let attr_level = Aid(eid.0);
+        let attr_level = Aid(eid_level.0);
+        let attr_name = Aid(eid_name.0);
         let t1 = db.create_transaction(&mut datoms);
         // Note: the insertion order is deliberately not sorted in advance to
         // expose ordering bugs.
         // TODO: Turn this into a test case.
-        db.create_entity(&mut datoms, attr_level, Value::from_u64(11), t1);
-        db.create_entity(&mut datoms, attr_level, Value::from_u64(10), t1);
-        db.create_entity(&mut datoms, attr_level, Value::from_u64(5), t1);
+        let e1 = db.create_entity(&mut datoms, attr_level, Value::from_u64(11), t1);
+        let e2 = db.create_entity(&mut datoms, attr_level, Value::from_u64(13), t1);
+        let e3 = db.create_entity(&mut datoms, attr_level, Value::from_u64(5), t1);
+        let e4 = db.create_entity(&mut datoms, attr_level, Value::from_u64(97), t1);
+        let v1 = db.persist_value_bytes("Henk de Steen".as_bytes()).unwrap();
+        let v2 = db.persist_value_bytes("Klaas de Rots".as_bytes()).unwrap();
+        let v3 = db.persist_value_bytes("Sjaak de Kei".as_bytes()).unwrap();
+        let v4 = db.persist_value_bytes("Aart".as_bytes()).unwrap();
+        db.assert(&mut datoms, e1, attr_name, v1, t1);
+        db.assert(&mut datoms, e2, attr_name, v2, t1);
+        db.assert(&mut datoms, e3, attr_name, v3, t1);
+        db.assert(&mut datoms, e4, attr_name, v4, t1);
         db.insert(datoms).expect("Failed to commit transaction.");
     }
 
@@ -143,9 +158,10 @@ fn main() {
 
     {
         // where
-        //   tx db.transaction.time tt
+        //   e name n
+        //   e level l
         // select
-        //   tx, tt
+        //   l, name
 
         use query::{Query, Statement, Var};
 
@@ -153,18 +169,20 @@ fn main() {
 
         let mut query = Query {
             variable_names: vec![
-                "transaction".to_string(), // 0
-                "time".to_string(),        // 1
+                "entity".to_string(), // 0
+                "name".to_string(),   // 1
+                "level".to_string(),  // 2
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "db.transaction.time", Var(1)),
+                Statement::named_var(Var(0), "name", Var(1)),
+                Statement::named_var(Var(0), "level", Var(2)),
             ],
-            select: vec![Var(0), Var(1)],
+            select: vec![Var(1), Var(2)],
         };
         query.fix_attributes(&mut engine);
         let plan = QueryPlan::new(query, &engine);
 
-        println!("\nAll transactions:");
+        println!("\nNamed entities with level:");
         let eval = Evaluator::new(&plan, &engine);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
