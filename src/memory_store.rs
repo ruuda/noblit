@@ -104,7 +104,7 @@ impl Pool for MemoryPool {
         // in the pool).
         debug_assert!(len >= 8, "Encountered small value in the pool.");
 
-        assert!(offset.0 + 8 + len < self.buffer.len() as u64, "Constant bytestring out of bounds.");
+        assert!(offset.0 + 8 + len <= self.buffer.len() as u64, "Constant bytestring out of bounds.");
         &self.buffer[offset.0 as usize + 8..offset.0 as usize + 8 + len as usize]
     }
 }

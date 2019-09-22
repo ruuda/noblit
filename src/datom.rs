@@ -369,7 +369,7 @@ mod test {
             let cid_i = pool.append_bytes(i.as_bytes()).unwrap();
             let v_i = Value::from_const_bytes(cid_i);
             for &j in &values {
-                let cid_j = pool.append_bytes(i.as_bytes()).unwrap();
+                let cid_j = pool.append_bytes(j.as_bytes()).unwrap();
                 let v_j = Value::from_const_bytes(cid_j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
