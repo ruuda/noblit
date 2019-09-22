@@ -227,6 +227,32 @@ impl<'a> Node<'a> {
         range
     }
 
+    /// Assert that the slice of datoms is monotonically increasing.
+    ///
+    /// That is, every datom should be strictly greater than the preceding
+    /// datom. This rules out duplicates too.
+    #[cfg(debug_assertions)]
+    fn check_datoms_increasing<
+        Cmp: DatomOrd,
+        Pool: pool::Pool,
+    > (
+        &self,
+        comparator: &Cmp,
+        pool: &Pool,
+        datoms: &[Datom]
+    ) {
+        let mut minimum = None;
+        for (i, datom) in datoms.iter().enumerate() {
+            if let Some(inf) = minimum {
+                assert_eq!(
+                    comparator.cmp(inf, datom, pool), Ordering::Less,
+                    "Monotonicity violation at index {}: datom ({:?}) >= ({:?}).", i, inf, datom
+                );
+            }
+            minimum = Some(datom);
+        }
+    }
+
     /// Insert datoms into a node.
     ///
     /// Construct a new node, which incudes all of the datoms in the current
@@ -241,6 +267,9 @@ impl<'a> Node<'a> {
         datoms: &[Datom]
     ) -> VecNode
     {
+        #[cfg(debug_assertions)]
+        self.check_datoms_increasing(comparator, pool, datoms);
+
         let other_datoms = datoms;
         let new_len = self.datoms.len() + other_datoms.len();
 
@@ -641,7 +670,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
     ) -> io::Result<()> {
         let node = get_node(&self.store, page);
 
-        // We track two infimums: one for the datoms array, and one for the
+        // We track two infima: one for the datoms array, and one for the
         // children. For the datoms array, we need every datom to be larger than
         // the previous one. For the children, we need every child to be larger
         // than the previous midpoint datom.
