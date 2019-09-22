@@ -77,9 +77,13 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn fix_attributes<Store>(&mut self, engine: &mut QueryEngine<Store>)
-    where Store: store::Store + pool::Pool
-    {
+    pub fn fix_attributes<
+        Store: store::Store,
+        Pool: pool::Pool,
+    > (
+        &mut self,
+        engine: &mut QueryEngine<Store, Pool>,
+    ) {
         for stmt in self.where_statements.iter_mut() {
             let aid = match stmt.attribute {
                 QueryAttribute::Named(ref name) => engine
@@ -93,8 +97,13 @@ impl Query {
     }
 
     /// Infer the type of every variables.
-    pub fn infer_types<Store>(&self, engine: &QueryEngine<Store>) -> Result<Vec<Type>, String>
-    where Store: store::Store + pool::Pool
+    pub fn infer_types<
+        Store: store::Store,
+        Pool: pool::Pool,
+    > (
+        &self,
+        engine: &QueryEngine<Store, Pool>,
+    ) -> Result<Vec<Type>, String>
     {
         let mut types: Vec<Option<Type>> = self.variable_names.iter().map(|_| None).collect();
 

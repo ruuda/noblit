@@ -135,9 +135,13 @@ impl QueryPlan {
     ///
     /// For now, this uses an extremely naive query planner, which loops over
     /// all variables in the order that they appear.
-    pub fn new<Store>(query: Query, engine: &QueryEngine<Store>) -> QueryPlan
-    where Store: store::Store + pool::Pool
-    {
+    pub fn new<
+        Store: store::Store,
+        Pool: pool::Pool,
+    > (
+        query: Query,
+        engine: &QueryEngine<Store, Pool>,
+    ) -> QueryPlan {
         // Map variables in the query to variables in the plan. They may have
         // different indices.
         let mut mapping = Mapping::new(query.variable_names.len());
@@ -264,9 +268,13 @@ impl QueryPlan {
     }
 
     /// Assert that all invariants are respected.
-    pub fn assert_valid<Store>(&self, engine: &QueryEngine<Store>)
-    where Store: store::Store + pool::Pool
-    {
+    pub fn assert_valid<
+        Store: store::Store,
+        Pool: pool::Pool,
+    > (
+        &self,
+        engine: &QueryEngine<Store, Pool>,
+    ) {
         for (i, ref def) in self.definitions.iter().enumerate() {
             let v = Var(i as u32);
 
@@ -424,9 +432,9 @@ impl QueryPlan {
 type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 
 /// Iterator that yields results from a given query plan.
-pub struct Evaluator<'a, Store: 'a + store::Store + pool::Pool> {
+pub struct Evaluator<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> {
     /// The database to query.
-    engine: &'a QueryEngine<'a, Store>,
+    engine: &'a QueryEngine<'a, Store, Pool>,
 
     /// The query plan.
     plan: &'a QueryPlan,
@@ -438,8 +446,8 @@ pub struct Evaluator<'a, Store: 'a + store::Store + pool::Pool> {
     values: Vec<Value>,
 }
 
-impl<'a, Store: store::Store + pool::Pool> Evaluator<'a, Store> {
-    pub fn new(plan: &'a QueryPlan, engine: &'a QueryEngine<'a, Store>) -> Evaluator<'a, Store> {
+impl<'a, Store: store::Store, Pool: pool::Pool> Evaluator<'a, Store, Pool> {
+    pub fn new(plan: &'a QueryPlan, engine: &'a QueryEngine<'a, Store, Pool>) -> Evaluator<'a, Store, Pool> {
         use std::iter;
 
         plan.assert_valid(engine);
@@ -543,7 +551,7 @@ impl<'a, Store: store::Store + pool::Pool> Evaluator<'a, Store> {
     }
 }
 
-impl<'a, Store: store::Store + pool::Pool> Iterator for Evaluator<'a, Store> {
+impl<'a, Store: store::Store, Pool: pool::Pool> Iterator for Evaluator<'a, Store, Pool> {
     type Item = Box<[Value]>;
 
     fn next(&mut self) -> Option<Box<[Value]>> {

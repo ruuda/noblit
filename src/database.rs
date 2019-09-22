@@ -213,9 +213,10 @@ impl Builtins {
     }
 }
 
-pub struct Database<Store> {
+pub struct Database<Store, Pool> {
     pub builtins: Builtins,
     store: Store,
+    pool: Pool,
     next_id: u64,
     next_transaction_id: u64,
     eavt_root: PageId,
@@ -223,31 +224,34 @@ pub struct Database<Store> {
     avet_root: PageId,
 }
 
-pub struct QueryEngine<'a, Store: 'a + store::Store + pool::Pool> {
+pub struct QueryEngine<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> {
     /// The database, which is immutable while we query it.
-    database: &'a Database<Store>,
+    database: &'a Database<Store, Pool>,
 
     /// The stack of temporary constants that are needed for a query.
-    stack_pool: StackPool<&'a Store>,
+    ///
+    /// The temporary values live on top of the base pool from the database.
+    stack_pool: StackPool<&'a Pool>,
 }
 
-impl<Store: store::Store> Database<Store> {
-    pub fn new(mut store: Store) -> io::Result<Database<Store>>
-    where Store: store::StoreMut + pool::PoolMut
+impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
+    pub fn new(mut store: Store, mut pool: Pool) -> io::Result<Database<Store, Pool>>
+    where Store: store::StoreMut, Pool: pool::PoolMut
     {
         let (builtins, genisis_datoms, genisis_consts) = Builtins::new();
 
         for const_str in genisis_consts {
-            store.append_bytes(const_str.as_bytes())?;
+            pool.append_bytes(const_str.as_bytes())?;
         }
 
-        let eavt_root = HTree::initialize(Eavt, &mut store, &genisis_datoms)?.root_page;
-        let aevt_root = HTree::initialize(Aevt, &mut store, &genisis_datoms)?.root_page;
-        let avet_root = HTree::initialize(Avet, &mut store, &genisis_datoms)?.root_page;
+        let eavt_root = HTree::initialize(Eavt, &mut store, &pool, &genisis_datoms)?.root_page;
+        let aevt_root = HTree::initialize(Aevt, &mut store, &pool, &genisis_datoms)?.root_page;
+        let avet_root = HTree::initialize(Avet, &mut store, &pool, &genisis_datoms)?.root_page;
 
         let db = Database {
             builtins: builtins,
             store: store,
+            pool: pool,
             // Transaction ids must be even. For now we do that by just tracking
             // separate counters and incrementing both by 2. Perhaps this is a
             // very bad idea and we want to have the entities created in a
@@ -264,26 +268,26 @@ impl<Store: store::Store> Database<Store> {
         Ok(db)
     }
 
-    pub fn query(&self) -> QueryEngine<Store> where Store: pool::Pool {
+    pub fn query(&self) -> QueryEngine<Store, Pool> {
         QueryEngine {
             database: self,
-            stack_pool: StackPool::new(&self.store),
+            stack_pool: StackPool::new(&self.pool),
         }
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store> where Store: store::StoreMut {
-        HTree::new(self.eavt_root, Eavt, &mut self.store)
+    pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store, &Pool> where Store: store::StoreMut {
+        HTree::new(self.eavt_root, Eavt, &mut self.store, &self.pool)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store> where Store: store::StoreMut {
-        HTree::new(self.aevt_root, Aevt, &mut self.store)
+    pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store, &Pool> where Store: store::StoreMut {
+        HTree::new(self.aevt_root, Aevt, &mut self.store, &self.pool)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
-    pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store> where Store: store::StoreMut {
-        HTree::new(self.avet_root, Avet, &mut self.store)
+    pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store, &Pool> where Store: store::StoreMut {
+        HTree::new(self.avet_root, Avet, &mut self.store, &self.pool)
     }
 
     /// Insert datoms into the database.
@@ -292,23 +296,22 @@ impl<Store: store::Store> Database<Store> {
     /// insertion without allocating an unnecessary copy, in case the datoms
     /// are not going to be used afterwards anyway.
     pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
-    where Store: pool::Pool + store::StoreMut {
-        // TODO: Use the right pool; the new datoms may have values in a new pool.
-        // Furthermore, we need to extract them from the old pool and write them
-        // to the new one. Or, we assume that that has already been done.
+    where Store: store::StoreMut {
+        // TODO: Enforce that large values have all been stored in the pool at
+        // this point. For now we just assume it without check.
         self.eavt_root = {
             let mut index = self.eavt_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y, &self.store));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.pool));
             index.insert(&datoms[..])?
         };
         self.aevt_root = {
             let mut index = self.aevt_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y, &self.store));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.pool));
             index.insert(&datoms[..])?
         };
         self.avet_root = {
             let mut index = self.avet_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y, &self.store));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.pool));
             index.insert(&datoms[..])?
         };
         Ok(())
@@ -366,27 +369,27 @@ impl<Store: store::Store> Database<Store> {
     }
 }
 
-impl<'a, Store: 'a + store::Store + pool::Pool> QueryEngine<'a, Store> {
+impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store, Pool> {
     /// Return the pool that should be used to resolve values.
     ///
-    /// TODO: is there a better way to do this?
-    pub fn pool(&self) -> &StackPool<&'a Store> {
+    /// TODO: is there a better way to do this, can we avoid making it public?
+    pub fn pool(&self) -> &StackPool<&'a Pool> {
         &self.stack_pool
     }
 
     /// Return the (entity, attribute, value, transaction) index.
-    pub fn eavt(&self) -> HTree<Eavt, &Store> {
-        HTree::new(self.database.eavt_root, Eavt, &self.database.store)
+    pub fn eavt(&self) -> HTree<Eavt, &Store, &StackPool<&'a Pool>> {
+        HTree::new(self.database.eavt_root, Eavt, &self.database.store, &self.stack_pool)
     }
 
     /// Return the (entity, attribute, value, transaction) index.
-    pub fn aevt(&self) -> HTree<Aevt, &Store> {
-        HTree::new(self.database.aevt_root, Aevt, &self.database.store)
+    pub fn aevt(&self) -> HTree<Aevt, &Store, &StackPool<&'a Pool>> {
+        HTree::new(self.database.aevt_root, Aevt, &self.database.store, &self.stack_pool)
     }
 
     /// Return the (attribute, value, entity, transaction) index.
-    pub fn avet(&self) -> HTree<Avet, &Store> {
-        HTree::new(self.database.avet_root, Avet, &self.database.store)
+    pub fn avet(&self) -> HTree<Avet, &Store, &StackPool<&'a Pool>> {
+        HTree::new(self.database.avet_root, Avet, &self.database.store, &self.stack_pool)
     }
 
 

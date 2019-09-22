@@ -145,39 +145,6 @@ impl PoolMut for MemoryPool {
     }
 }
 
-pub struct MemoryStorePool<Size: PageSize> {
-    store: MemoryStore<Size>,
-    pool: MemoryPool,
-}
-
-impl<Size: PageSize> MemoryStorePool<Size> {
-    pub fn new() -> MemoryStorePool<Size> {
-        MemoryStorePool {
-            store: MemoryStore::new(),
-            pool: MemoryPool::new(),
-        }
-    }
-}
-
-impl<Size: PageSize> Store for MemoryStorePool<Size> {
-    type Size = Size;
-    fn get(&self, page: PageId) -> &[u8] { self.store.get(page) }
-}
-
-impl<Size: PageSize> StoreMut for MemoryStorePool<Size> {
-    fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> { self.store.write_page(page) }
-}
-
-impl<Size: PageSize> Pool for MemoryStorePool<Size> {
-    fn get_u64(&self, offset: CidInt) -> u64 { self.pool.get_u64(offset) }
-    fn get_bytes(&self, offset: CidBytes) -> &[u8] { self.pool.get_bytes(offset) }
-}
-
-impl<Size: PageSize> PoolMut for MemoryStorePool<Size> {
-    fn append_u64(&mut self, value: u64) -> io::Result<CidInt> { self.pool.append_u64(value) }
-    fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes> { self.pool.append_bytes(value) }
-}
-
 #[cfg(test)]
 mod test {
     use pool::{Pool, PoolMut};
