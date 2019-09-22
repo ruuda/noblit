@@ -83,7 +83,7 @@ fn main() {
             where_statements: vec![
                 Statement::named_var(Var(0), "db.attribute.name", Var(2)),
                 Statement::named_var(Var(0), "db.attribute.type", Var(1)),
-                Statement::named_var(Var(0), "db.attribute.uniqe", Var(3)),
+                Statement::named_var(Var(0), "db.attribute.unique", Var(3)),
                 Statement::named_var(Var(0), "db.attribute.many", Var(4)),
                 Statement::named_var(Var(1), "db.type.name", Var(5)),
             ],

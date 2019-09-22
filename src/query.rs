@@ -86,10 +86,14 @@ impl Query {
     ) {
         for stmt in self.where_statements.iter_mut() {
             let aid = match stmt.attribute {
-                QueryAttribute::Named(ref name) => engine
-                    .lookup_attribute_id(&name[..])
-                    .expect("TODO: Deal with missing attributes."),
                 QueryAttribute::Fixed(aid) => aid,
+                QueryAttribute::Named(ref name) => match engine.lookup_attribute_id(&name[..]) {
+                    Some(aid) => aid,
+                    None => {
+                        // TODO: Have proper error handling for missing attributes.
+                        panic!("No such attribute: {:?}", name);
+                    }
+                }
             };
 
             stmt.attribute = QueryAttribute::Fixed(aid);
