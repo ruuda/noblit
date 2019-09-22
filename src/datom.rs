@@ -317,3 +317,24 @@ impl std::fmt::Debug for Datom {
         )
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{Value};
+    use memory_store::MemoryPool;
+    use pool::PoolMut;
+    use std::u64;
+
+    #[test]
+    fn cmp_works_on_uint64() {
+        let numbers = [0, 1, 2, 3, 5, 7, 128, 4096, u64::MAX >> 2];
+        let pool = MemoryPool::new();
+        for &i in &numbers {
+            let v_i = Value::from_u64(i);
+            for &j in &numbers {
+                let v_j = Value::from_u64(j);
+                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+            }
+        }
+    }
+}

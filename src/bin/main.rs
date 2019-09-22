@@ -161,7 +161,7 @@ fn main() {
         //   e name n
         //   e level l
         // select
-        //   l, name
+        //   l, n
 
         use query::{Query, Statement, Var};
 
