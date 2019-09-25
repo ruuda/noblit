@@ -133,6 +133,10 @@ impl PoolMut for MemoryPool {
     fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes> {
         debug_assert!(value.len() >= 8, "Store small values inline, not in the pool.");
 
+        // Reserve enough space for the length prefix and value.
+        // Mostly to not fool the fuzzer by making some insert sizes special.
+        self.buffer.reserve(8 + value.len());
+
         let id = self.append_u64(value.len() as u64)?;
         self.buffer.extend_from_slice(value);
 
