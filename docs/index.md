@@ -59,8 +59,8 @@ unmaintained, Noblit is vaporware.
 ## Goals
 
  * An embeddable library for queries and transactions.
- * Eventually supporting a client-server database on top of the library, with a
-   single transactor and scale-out reads.
+ * Enabling — but not requiring — a client-server database on top of the library,
+   with a single transactor and scale-out reads.
  * Storing datasets that do not fit in working memory. The result of a query and
    data to insert must fit though.
  * Handling moderate write workloads and moderately sized data.
@@ -79,4 +79,5 @@ unmaintained, Noblit is vaporware.
    not all of it remains valuable for a long time, and storage space might
    become a concern. A time series database or durable message queue might be
    a better alternative.
+ * Having the fastest lookups. A key-value store may be better suited for this.
  * Portability. Little-endian architectures that run Linux are the only target.
