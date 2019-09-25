@@ -19,7 +19,8 @@ fn main() {
     args.next();
 
     let handler: fn(&[u8]) = match args.next().as_ref().map(|s| &s[..]) {
-        Some("htree_insert") => fuzz::htree_insert::main,
+        Some("htree_insert_entity") => fuzz::htree_insert_entity::main,
+        Some("htree_insert_value") => fuzz::htree_insert_value::main,
         Some(target) => return println!("Unknown fuzz target '{}'.", target),
         None => return println!("Expected fuzz target and filename."),
     };
@@ -28,6 +29,6 @@ fn main() {
         println!("Running {}.", fname);
         let data = fs::read(&fname).expect("Failed to read file.");
         handler(&data);
-        println!("Finished {}.", fname);
+        println!("Finished {}.\n", fname);
     }
 }

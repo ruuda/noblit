@@ -12,5 +12,5 @@ extern crate libfuzzer_sys;
 extern crate noblit;
 
 fuzz_target!(|data| {
-    noblit::fuzz::htree_insert::main(data)
+    noblit::fuzz::htree_insert_entity::main(data)
 });

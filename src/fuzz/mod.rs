@@ -13,4 +13,8 @@
 //! disabled, but the the inspection program is istrumented with extra print
 //! statements to trace program flow and pretty-print a fuzz input.
 
-pub mod htree_insert;
+#[macro_use]
+mod util;
+
+pub mod htree_insert_entity;
+pub mod htree_insert_value;

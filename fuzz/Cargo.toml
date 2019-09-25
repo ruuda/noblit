@@ -16,5 +16,9 @@ libfuzzer-sys = { git = "https://github.com/rust-fuzz/libfuzzer-sys.git" }
 members = ["."]
 
 [[bin]]
-name = "htree_insert"
-path = "fuzz_targets/htree_insert.rs"
+name = "htree_insert_entity"
+path = "fuzz_targets/htree_insert_entity.rs"
+
+[[bin]]
+name = "htree_insert_value"
+path = "fuzz_targets/htree_insert_value.rs"
