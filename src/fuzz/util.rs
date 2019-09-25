@@ -20,7 +20,7 @@ macro_rules! dprintln {
 }
 
 /// Evaluate a closure on byte slices of various lengths.
-pub fn for_slices<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) -> bool {
+pub fn for_slices<'a, F>(data: &'a [u8], mut f: F) where F: FnMut(&'a [u8]) -> bool {
     let mut left = data;
 
     while left.len() > 2 {

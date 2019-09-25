@@ -7,7 +7,7 @@
 
 //! Fuzz test that asserts tree invariants after insertions.
 
-use std::cmp::Ordering;
+use std::collections::HashSet;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
 use fuzz::util::for_slices;
@@ -22,6 +22,8 @@ fn run<Size: PageSize>(full_data: &[u8]) {
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
     let mut tree = HTree::new(root, Eavt, store, &pool);
+    let mut unique_values = HashSet::new();
+    let mut datoms = Vec::new();
 
     let mut tid = 0;
 
@@ -31,20 +33,29 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         // Transaction id must be even.
         tid += 2;
 
-        let mut datoms: Vec<Datom> = xs.iter().map(|&x|
-            Datom::assert(Eid(x as u64), Aid::max(), Value::min(), Tid(tid))
-        ).collect();
+        datoms.clear();
+        unique_values.clear();
+
+        for &x in xs.iter() {
+            // Track unique values, and bail out early if there is a duplicate.
+            // We can't insert duplicate datoms anyway, so this does not shrink
+            // the space of operations. What it does do, is speed up the fuzzer
+            // by not making it focus on pointless duplicates.
+            if unique_values.contains(&x) { break }
+            unique_values.insert(x);
+
+            let datom = Datom::assert(Eid(x as u64), Aid::max(), Value::min(), Tid(tid));
+            datoms.push(datom);
+        }
 
         // The precondition for tree insertion is that datoms be sorted, and
-        // that datoms are unique. Sort to enforce this, then remove consecutive
-        // duplicates. Previously we simply exited if the list was not sorted,
-        // but it is difficult for the fuzzer to discover sorted lists by
+        // that datoms are unique. Uniqueness is guaranteed by the hash set, but
+        // we still need to sort. Previously we simply exited if the list was not
+        // sorted, but it is difficult for the fuzzer to discover sorted lists by
         // chance. Sorting here is slower and adds more distracting branches as
         // interesting cases, but it also helps to discover interesting inputs
         // faster.
-        let pool = &pool;
-        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool));
-        datoms.dedup_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool) == Ordering::Equal);
+        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, &pool));
 
         dprintln!("Inserting {} datoms:", datoms.len());
         for &datom in &datoms {
@@ -54,7 +65,10 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         tree.insert(&datoms[..]).unwrap();
         tree.check_invariants().unwrap();
 
-        true
+        // Only allow zero datoms once in a while, otherwise the fuzzer will
+        // focus too much on zero-datom inserts with very few interesting
+        // operations in between.
+        datoms.len() > 0 || (tid % 32 == 0)
     });
 }
 
