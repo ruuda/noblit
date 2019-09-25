@@ -1,7 +1,10 @@
 # Building
 
-Noblit is a native library written in Rust. It comes with official client
+Noblit is a native library written in Rust. It will come with official client
 libraries for Haskell, Python, and Rust.
+
+_The Haskell client is under construction; the Rust and Python clients do not
+yet exist._
 
 ## Noblit
 

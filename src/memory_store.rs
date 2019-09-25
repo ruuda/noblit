@@ -114,6 +114,7 @@ impl PoolMut for MemoryPool {
         debug_assert_eq!(self.buffer.len() % 8, 0, "Buffer should remain 8-byte aligned.");
         let offset = self.buffer.len();
 
+        // TODO: Use little endian, then we can skip the swap dance on x86_64.
         let bytes = [
             (value >> 56) as u8,
             (value >> 48) as u8,

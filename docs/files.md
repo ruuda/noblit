@@ -65,20 +65,18 @@ allocation; the heap only grows.
 The heap stores two kinds of values:
 
  * 64-bit integers which don't fit into 62 bytes. They are stored as-is, in 8
-   bytes.
-   TODO: Elaborate on endinanness.
+   bytes, big endian. (TODO: It should be little endian.)
  * Byte strings longer than 7 bytes. Note that e.g. strings are also stored as
    byte strings; it is the schema that specifies that those bytes should be
    interpreted as a UTF-8-encoded string. Byte strings are length-prefixed with
-   a 32-bit length. (If you want to store values larger than 4 GiB, Noblit is
-   probably not the best tool for the job. A key-value store, blob store, or
-   file system might be more suitable.) The address of a byte string is the
-   offset of the data, so its length can be found at the offset 4 bytes lower.
+   a 64-bit length. The address of a byte string is the offset of its length
+   prefix, so its data can be found at the offset 8 bytes higher.
 
 Values on the value heap are aligned to 8 bytes.
 
-TODO: Do I want some kind of chunking with checksums? Validate integrity
-somewhere?
+The heap is not checksummed. (Nor the indexes for that matter.) If you do not
+trust your storage medium, use a file system or virtual block device that can
+detect and report integrity problems.
 
 The value heap might store duplicates. Because values are immutable once stored,
 deduplication is safe. If a Datom contains a value that already exists on the
@@ -86,4 +84,6 @@ heap, it is safe to reference the existing value, rather than storing it again
 on the heap. Noblit may do this, but identifying duplicates is not free, hence
 Noblit may store the same value twice.
 
-TODO: Persist a hash table of values too, to identify duplicates?
+TODO: Persist a hash table of values too, to identify duplicates? Not really,
+can read heap at startup, although that does not scale, persistent hash table
+may be needed.
