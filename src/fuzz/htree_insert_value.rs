@@ -14,7 +14,7 @@ use fuzz::util::for_slices;
 use htree::{HTree, Node};
 use index::{DatomOrd, Eavt};
 use memory_store::{MemoryStore, MemoryPool};
-use pool::PoolMut;
+use pool::{PoolMut, self};
 use store::{PageSize, StoreMut};
 
 fn run<Size: PageSize>(full_data: &[u8]) {
@@ -63,6 +63,8 @@ fn run<Size: PageSize>(full_data: &[u8]) {
 
             true
         });
+
+        pool::check_invariants(&tree.pool);
 
         // The precondition for tree insertion is that datoms be sorted, and
         // that datoms are unique. Uniqueness is guaranteed by the hash set, but

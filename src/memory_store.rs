@@ -9,7 +9,7 @@
 
 use std::io;
 
-use pool::{CidBytes, CidInt, Pool, PoolMut};
+use pool::{CidBytes, CidInt, Pool, PoolMut, SizedPool};
 use store::{PageId, PageSize, Store, StoreMut};
 
 /// An in-memory page store, not backed by a file.
@@ -147,6 +147,12 @@ impl PoolMut for MemoryPool {
         }
 
         Ok(CidBytes(id.0))
+    }
+}
+
+impl SizedPool for MemoryPool {
+    fn len(&self) -> u64 {
+        self.buffer.len() as u64
     }
 }
 

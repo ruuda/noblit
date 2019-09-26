@@ -724,7 +724,8 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
 
     /// Assert that the tree is well-formed, that all invariants hold.
     ///
-    /// This is used in tests and during fuzzing.
+    /// This is used in tests and during fuzzing. The pool is not checked; it
+    /// can be checked separately with `pool::check_invariants`.
     pub fn check_invariants(&self) -> io::Result<()> {
         self.check_invariants_at(self.root_page, None, None)
     }
