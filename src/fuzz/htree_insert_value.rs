@@ -8,6 +8,7 @@
 //! Fuzz test that asserts tree invariants after insertions.
 
 use std::collections::HashSet;
+use std::io;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
 use fuzz::util::for_slices;
@@ -115,4 +116,36 @@ pub fn main(data: &[u8]) {
         }
         _ => return,
     }
+}
+
+pub fn generate_seed() -> io::Result<()> {
+    use std::fs;
+    use std::io::Write;
+
+    let mut file = fs::File::create("fuzz/corpus/htree_insert_value/0")?;
+
+    // Page size 256 indicator.
+    file.write_all(&[0])?;
+
+    // A tree of 258 elements fits in 3 layers of 6-element nodes (page size
+    // 256). With 259, we need a fourth layer. So we write 258, and we let the
+    // fuzzer discover an input of depth 3.
+    let num_elements = 258;
+
+    // Split the elements over two transactions, to make it slightly easier for
+    // the fuzzer to find variations without creating duplicate values.
+    for _tx in 0..2 {
+        let n = num_elements / 2;
+
+        // Write 16-bit transaction slice length prefix.
+        let len = n * 4;
+        file.write_all(&[(len >> 8) as u8, (len & 0xff) as u8])?;
+
+        for i in 0..n {
+            // A slice of length 2, with value 7i, both 16 bit.
+            file.write_all(&[0, 2, ((i * 7) >> 8) as u8, ((i * 7) & 0xff) as u8])?;
+        }
+    }
+
+    Ok(())
 }
