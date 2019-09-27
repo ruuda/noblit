@@ -665,10 +665,15 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
     fn check_invariants_at(
         &self,
         page: PageId,
+        expected_level: Option<u8>,
         infimum: Option<&Datom>,
         supremum: Option<&Datom>,
     ) -> io::Result<()> {
         let node = get_node(&self.store, page);
+
+        if let Some(level) = expected_level {
+            assert_eq!(node.level, level);
+        }
 
         // We track two infima: one for the datoms array, and one for the
         // children. For the datoms array, we need every datom to be larger than
@@ -691,6 +696,8 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
                 );
                 self.check_invariants_at(
                     node.children[i],
+                    // The level of the child should be one less than the parent.
+                    Some(node.level - 1),
                     mid_infimum,
                     Some(datom)
                 )?;
@@ -709,6 +716,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
         if node.is_midpoint_at(node.datoms.len()) {
             self.check_invariants_at(
                 node.children[node.datoms.len()],
+                Some(node.level - 1),
                 mid_infimum,
                 supremum,
             )?;
@@ -727,7 +735,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
     /// This is used in tests and during fuzzing. The pool is not checked; it
     /// can be checked separately with `pool::check_invariants`.
     pub fn check_invariants(&self) -> io::Result<()> {
-        self.check_invariants_at(self.root_page, None, None)
+        self.check_invariants_at(self.root_page, None, None, None)
     }
 }
 
