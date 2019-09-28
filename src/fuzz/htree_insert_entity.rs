@@ -10,7 +10,7 @@
 use std::collections::HashSet;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
-use fuzz::util::for_slices;
+use fuzz::util::for_slices_u16;
 use htree::{HTree, Node};
 use index::{DatomOrd, Eavt};
 use memory_store::{MemoryStore, MemoryPool};
@@ -29,7 +29,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
 
     // Insert a batch of datoms at a time, with increasing transaction id in
     // order not to create duplicates.
-    for_slices(full_data, |xs| {
+    for_slices_u16(full_data, |xs| {
         // Transaction id must be even.
         tid += 2;
 

@@ -7,112 +7,94 @@
 
 //! Fuzz test that asserts tree invariants after insertions.
 
+use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
-use fuzz::util::for_slices;
+use fuzz::util::Cursor;
 use htree::{HTree, Node};
 use index::{DatomOrd, Eavt};
 use memory_store::{MemoryStore, MemoryPool};
 use pool::{PoolMut, self};
 use store::{PageSize, StoreMut};
 
-fn run<Size: PageSize>(full_data: &[u8]) {
+fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
     let mut store = MemoryStore::<Size>::new();
     let mut pool = MemoryPool::new();
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
     let mut tree = HTree::new(root, Eavt, store, &mut pool);
-    let mut unique_values = HashSet::new();
     let mut datoms = Vec::new();
 
     let mut tid = 0;
 
-    // Insert a batch of datoms at a time, with increasing transaction id in
-    // order not to create duplicates.
-    for_slices(full_data, |tx_slice| {
-        // Transaction id must be even.
-        tid += 2;
+    loop {
+        match cursor.take_u8()? {
+            0 => {
+                dprintln!("VALUE");
+                let len = cursor.take_u8()?;
+                let value_slice = cursor.take_slice(len as usize)?;
+                let value = match len {
+                    0..=7 => {
+                        dprintln!("  inline, len {}: {:?}", len, value_slice);
+                        Value::from_bytes(value_slice)
+                    }
+                    _ => {
+                        let cid = tree.pool.append_bytes(value_slice).unwrap();
+                        dprintln!("  at pool offset {}, len {}: {:?}", cid.0, len, value_slice);
+                        pool::check_invariants(&tree.pool);
+                        Value::from_const_bytes(cid)
+                    }
+                };
 
-        datoms.clear();
-        unique_values.clear();
-
-        dprintln!("Appending values:");
-        for_slices(tx_slice, |datom_slice| {
-            // Track unique values, and bail out early if there is a duplicate.
-            // We can't insert duplicate datoms anyway, so apart from the
-            // duplicate values that it would put in the pool, this does not
-            // shrink the space of operations. What it does do, is speed up the
-            // fuzzer by not making it focus on pointless duplicates.
-            if unique_values.contains(&datom_slice) { return false }
-            unique_values.insert(datom_slice);
-
-            let value = match datom_slice.len() {
-                0...7 => {
-                    dprintln!("  inline: (len {}) {:?}", datom_slice.len(), datom_slice);
-                    Value::from_bytes(datom_slice)
+                let datom = Datom::assert(Eid(0), Aid::max(), value, Tid(tid));
+                datoms.push(datom);
+            }
+            1 => {
+                dprintln!("COMMIT");
+                // The precondition for tree insertion is that datoms be sorted,
+                // and that datoms are unique. Sort and then deduplicate to
+                // enforce this.
+                {
+                    let pool = &tree.pool;
+                    datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool));
+                    datoms.dedup_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool) == Ordering::Equal);
                 }
-                _ => {
-                    let cid = tree.pool.append_bytes(datom_slice).unwrap();
-                    dprintln!("  {}: (len {}) {:?}", cid.0, datom_slice.len(), datom_slice);
-                    Value::from_const_bytes(cid)
+
+                dprintln!("  Inserting {} datoms at transaction {}.", datoms.len(), tid);
+                for &datom in &datoms {
+                    dprintln!("  {:?}", datom);
                 }
-            };
-            let datom = Datom::assert(Eid(0), Aid::max(), value, Tid(tid));
-            datoms.push(datom);
 
-            true
-        });
-
-        pool::check_invariants(&tree.pool);
-
-        // The precondition for tree insertion is that datoms be sorted, and
-        // that datoms are unique. Uniqueness is guaranteed by the hash set, but
-        // we still need to sort. Previously we simply exited if the list was not
-        // sorted, but it is difficult for the fuzzer to discover sorted lists by
-        // chance. Sorting here is slower and adds more distracting branches as
-        // interesting cases, but it also helps to discover interesting inputs
-        // faster.
-        {
-            let pool = &tree.pool;
-            datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, pool));
+                tree.insert(&datoms[..]).unwrap();
+                tree.check_invariants().unwrap();
+                datoms.clear();
+            }
+            _ => return None,
         }
-
-        dprintln!("Inserting {} datoms:", datoms.len());
-        for &datom in &datoms {
-            dprintln!("  {:?}", datom);
-        }
-
-        tree.insert(&datoms[..]).unwrap();
-        tree.check_invariants().unwrap();
-
-        // Only allow zero datoms once in a while, otherwise the fuzzer will
-        // focus too much on zero-datom inserts with very few interesting
-        // operations in between.
-        datoms.len() > 0 || (tid % 32 == 0)
-    });
+    }
 }
 
 pub fn main(data: &[u8]) {
     use store::{PageSize256, PageSize563, PageSize4096};
 
-    if data.len() == 0 { return }
+    let mut cursor = Cursor::new(data);
 
     // Fuzz at different page sizes, in order to test all page sizes thoroughly.
     // The first byte determines the page size.
-    match data[0] {
-        0 => {
+    match cursor.take_u8() {
+        Some(0) => {
             dprintln!("Page size: 256.");
-            run::<PageSize256>(&data[1..]);
+            let _ = run::<PageSize256>(cursor);
         }
-        1 => {
+        Some(1) => {
             dprintln!("Page size: 563.");
-            run::<PageSize563>(&data[1..]);
+            let _ = run::<PageSize563>(cursor);
         }
-        2 => {
+        Some(2) => {
             dprintln!("Page size: 4096.");
-            run::<PageSize4096>(&data[1..]);
+            let _ =run::<PageSize4096>(cursor);
         }
         _ => return,
     }
@@ -137,14 +119,14 @@ pub fn generate_seed() -> io::Result<()> {
     for _tx in 0..2 {
         let n = num_elements / 2;
 
-        // Write 16-bit transaction slice length prefix.
-        let len = n * 4;
-        file.write_all(&[(len >> 8) as u8, (len & 0xff) as u8])?;
-
         for i in 0..n {
-            // A slice of length 2, with value 7i, both 16 bit.
+            // Action 0 (value), followed by an 8-bit length (2), followed by
+            // the value (7i in 16 bits).
             file.write_all(&[0, 2, ((i * 7) >> 8) as u8, ((i * 7) & 0xff) as u8])?;
         }
+
+        // Action 1 (commit).
+        file.write_all(&[1])?;
     }
 
     Ok(())
