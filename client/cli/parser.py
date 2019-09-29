@@ -7,6 +7,10 @@ Its purpose is to get something going to make it easier to write queries, in
 order to test the rest of the system. If we want to keep the ad-hock query
 language at all, this parser should be replaced with a proper one, probably in
 Rust. For now, we do some fishy string manipulation here.
+
+The program accepts a textual query on stdin, and it serializes a binary
+representation of it to stdout, unless stdout is a tty, in which case it
+debug-prints the parsed query.
 """
 
 import ast
@@ -239,7 +243,12 @@ def parse_query(lines: Iterable[str]) -> Query:
 
 if __name__ == '__main__':
     q = parse_query(sys.stdin)
-    print(str(q))
 
-    serialized = b''.join(q.serialize())
-    print('\n=>', repr(serialized))
+    if sys.stdout.isatty():
+        # Pretty-print the query when printing to a tty.
+        print(str(q))
+
+    else:
+        # When stdout is not a tty, write the binary query there.
+        for bs in q.serialize():
+            sys.stdout.buffer.write(bs)
