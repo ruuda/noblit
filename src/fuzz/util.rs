@@ -95,29 +95,3 @@ impl<'a> Cursor<'a> {
         }
     }
 }
-
-/// Evaluate a closure on byte slices stitched together from small parts.
-pub fn for_slices_chained<F>(data: &[u8], mut f: F) where F: FnMut(&[u8]) {
-    let mut left = data;
-    let mut buffer = Vec::with_capacity(data.len());
-
-    while left.len() > 0 {
-        // Read an 4-bit length prefix, and one bit that determines whether to
-        // extend the current slice, or to start a new slice.
-        let len = (left[0] & 0x0f) as usize;
-        let is_finished = left[0] & 0x10 == 0x10;
-
-        let num_bytes = len.min(left.len() - 1);
-        buffer.extend_from_slice(&left[1..1 + num_bytes]);
-        left = &left[1 + num_bytes..];
-
-        if is_finished {
-            f(&buffer[..]);
-            buffer.clear();
-        }
-    }
-
-    if buffer.len() > 0 {
-        f(&buffer[..]);
-    }
-}

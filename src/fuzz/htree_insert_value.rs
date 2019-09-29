@@ -33,9 +33,10 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
 
     loop {
         match cursor.take_u8()? {
-            0 => {
+            // Commands [0, ..., 64) enqueue a value of the given length.
+            n if n < 64 => {
                 dprintln!("VALUE");
-                let len = cursor.take_u8()?;
+                let len = n;
                 let value_slice = cursor.take_slice(len as usize)?;
 
                 let value = match len {
@@ -75,7 +76,8 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                 }
                 datoms.insert(insert_index, datom);
             }
-            1 => {
+            // Command 0xff commits a transaction with the datoms so far.
+            0xff => {
                 dprintln!("COMMIT");
                 dprintln!("  Inserting {} datoms at transaction {}.", datoms.len(), tid);
                 for &datom in &datoms {
@@ -86,9 +88,12 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                 tree.check_invariants().unwrap();
                 datoms.clear();
 
+                dprintln!("  Tree has height {}.", tree.height());
+
                 // Transaction ids must be even.
                 tid += 2;
             }
+            // Other commands are currently unused.
             _ => return None,
         }
     }
@@ -127,25 +132,34 @@ pub fn generate_seed() -> io::Result<()> {
     // Page size 256 indicator.
     file.write_all(&[0])?;
 
-    // A tree of 258 elements fits in 3 layers of 6-element nodes (page size
-    // 256). With 259, we need a fourth layer. So we write 258, and we let the
-    // fuzzer discover an input of depth 3.
-    let num_elements = 258;
+    let write_val_u0 =  |w: &mut fs::File, _v: ()|  w.write_all(&[0]);
+    let write_val_u8 =  |w: &mut fs::File,  v: u8|  w.write_all(&[1, v]);
+    let write_val_u16 = |w: &mut fs::File,  v: u16| w.write_all(&[2, (v >> 8) as u8, (v & 0xff) as u8]);
 
-    // Split the elements over two transactions, to make it slightly easier for
-    // the fuzzer to find variations without creating duplicate values.
-    for _tx in 0..2 {
-        let n = num_elements / 2;
+    // We can fit one value of length 0.
+    write_val_u0(&mut file, ())?;
 
-        for i in 0..n {
-            // Action 0 (value), followed by an 8-bit length (2), followed by
-            // the value (7i in 16 bits).
-            file.write_all(&[0, 2, ((i * 7) >> 8) as u8, ((i * 7) & 0xff) as u8])?;
-        }
-
-        // Action 1 (commit).
-        file.write_all(&[1])?;
+    // Next up we can get 256 values of length 1.
+    for i in 0..256 {
+        write_val_u8(&mut file, i as u8)?;
     }
+
+    // Next, we need to do one more value of length 2.
+    write_val_u16(&mut file, 0);
+
+    // Finally, commit the datoms with those value. (Action 0xff.)
+    file.write_all(&[0xff])?;
+
+    // At this point, we have 258 values. Page size 256 can fit 6 datoms per
+    // node (so it can have 7 children), so a tree of height 3 can fit at most
+    // 6 + 7*6 + 7*7*6 = 342 datoms. One more datom would require creating a
+    // tree of theight 4. Although in practice, we already need a tree of height
+    // 4 at 264 values.
+
+    for k in 0..8 {
+        write_val_u16(&mut file, k * 257);
+    }
+    file.write_all(&[0xff])?;
 
     Ok(())
 }
