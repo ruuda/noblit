@@ -8,6 +8,7 @@
 // TODO: Remove once the API is fleshed out more. Or when this crate is turned
 // into a library.
 
+pub mod binary;
 pub mod database;
 pub mod datom;
 pub mod htree;

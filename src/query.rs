@@ -10,6 +10,7 @@
 //! Queries need to be translated into a query plan before they can be
 //! evaluated.
 
+use binary::{Cursor, CursorError};
 use database::QueryEngine;
 use datom::{Aid, Value};
 use pool;
@@ -77,6 +78,25 @@ pub struct Query {
 }
 
 impl Query {
+    /// Deserialize a query in binary format.
+    pub fn parse(cursor: &mut Cursor) -> Result<Query, CursorError> {
+        let num_variables = cursor.take_u16_le()?;
+        let mut variable_names = Vec::with_capacity(num_variables as usize);
+        for _ in 0..num_variables {
+            let len = cursor.take_u16_le()?;
+            let name = cursor.take_utf8(len as usize)?;
+            variable_names.push(name.to_string());
+        }
+
+        let query = Query {
+            variable_names: variable_names,
+            where_statements: Vec::new(), // TODO
+            select: Vec::new(), // TODO
+        };
+
+        Ok(query)
+    }
+
     pub fn fix_attributes<
         Store: store::Store,
         Pool: pool::Pool,

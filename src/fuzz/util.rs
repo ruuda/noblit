@@ -36,6 +36,7 @@ pub fn for_slices_u16<'a, F>(data: &'a [u8], mut f: F) where F: FnMut(&'a [u8]) 
     }
 }
 
+// TODO: Use binary::Cursor instead.
 pub struct Cursor<'a> {
     data: &'a [u8],
     offset: usize,
