@@ -29,18 +29,21 @@ pub struct Var(pub u16);
 /// Named attributes are converted into fixed attribute ids at the start
 /// of evaluation. Names provide a level of indirection: attribute names
 /// may change, but their ids will not.
+#[derive(Debug)]
 pub enum QueryAttribute {
     Named(String),
     Fixed(Aid),
 }
 
 /// The value in a query can be a constant or a variable.
+#[derive(Debug)]
 pub enum QueryValue {
     Const(Value),
     Var(Var),
 }
 
 /// A statement that relates an entity, attribute, and a value.
+#[derive(Debug)]
 pub struct Statement {
     pub entity: Var,
     pub attribute: QueryAttribute,
@@ -87,10 +90,46 @@ impl Query {
             let name = cursor.take_utf8(len as usize)?;
             variable_names.push(name.to_string());
         }
+        println!("alias: {:?}", variable_names);
+
+        let num_where_statements = cursor.take_u16_le()?;
+        let mut where_statements = Vec::with_capacity(num_where_statements as usize);
+        for _ in 0..num_where_statements {
+            let entity_var = cursor.take_u16_le()?;
+            let attribute_len = cursor.take_u16_le()?;
+            let attribute = cursor.take_utf8(attribute_len as usize)?;
+            let value_type = cursor.take_u8()?;
+            let value = match value_type {
+                0 => {
+                    let value_var = cursor.take_u16_le()?;
+                    QueryValue::Var(Var(value_var))
+                }
+                1 => {
+                    // TODO: Deal with pooling large values.
+                    let value_u64 = cursor.take_u64_le()?;
+                    QueryValue::Const(Value::from_u64(value_u64))
+                }
+                2 => {
+                    // TODO: Deal with pooling large values.
+                    let value_len = cursor.take_u16_le()?;
+                    let value_str = cursor.take_utf8(value_len as usize)?;
+                    QueryValue::Const(Value::from_str(value_str))
+                }
+                _ => unimplemented!("TODO: Proper error handling."),
+            };
+
+            let statement = Statement {
+                entity: Var(entity_var),
+                attribute: QueryAttribute::Named(attribute.to_string()),
+                value: value,
+            };
+            where_statements.push(statement);
+        }
+        println!("where: {:?}", where_statements);
 
         let query = Query {
             variable_names: variable_names,
-            where_statements: Vec::new(), // TODO
+            where_statements: where_statements,
             select: Vec::new(), // TODO
         };
 

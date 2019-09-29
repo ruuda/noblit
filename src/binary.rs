@@ -85,6 +85,24 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn take_u64_le(&mut self) -> Result<u64, CursorError> {
+        if self.offset + 8 <= self.data.len() {
+            let v = 0
+                | (self.data[self.offset + 0] as u64) << 0
+                | (self.data[self.offset + 1] as u64) << 8
+                | (self.data[self.offset + 2] as u64) << 16
+                | (self.data[self.offset + 3] as u64) << 24
+                | (self.data[self.offset + 4] as u64) << 32
+                | (self.data[self.offset + 5] as u64) << 40
+                | (self.data[self.offset + 6] as u64) << 48
+                | (self.data[self.offset + 7] as u64) << 56;
+            self.offset += 8;
+            Ok(v)
+        } else {
+            Err(self.error("Expected 64-bit little endian integer."))
+        }
+    }
+
     pub fn take_slice(&mut self, len: usize) -> Result<&'a [u8], CursorError> {
         if self.offset + len <= self.data.len() {
             let v = &self.data[self.offset..self.offset + len];
