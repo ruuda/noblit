@@ -36,23 +36,6 @@ pub fn for_slices_u16<'a, F>(data: &'a [u8], mut f: F) where F: FnMut(&'a [u8]) 
     }
 }
 
-/// Evaluate a closure on byte slices of various lengths, up to 2^8.
-pub fn for_slices_u8<'a, F>(data: &'a [u8], mut f: F) where F: FnMut(&'a [u8]) -> bool {
-    let mut left = data;
-
-    while left.len() > 1 {
-        // Read an 8-bit length prefix.
-        let len = left[0] as usize;
-
-        // Stop on invalid lengths, rather than capping the slice. This improves
-        // the chances of byte strings combining in interesting ways.
-        if len > left.len() - 1 { break }
-
-        if !f(&left[1..1 + len]) { break }
-        left = &left[1 + len..];
-    }
-}
-
 pub struct Cursor<'a> {
     data: &'a [u8],
     offset: usize,
