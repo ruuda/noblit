@@ -13,7 +13,31 @@ import ast
 import sys
 
 from enum import Enum
-from typing import Iterable, List, NamedTuple, Union
+from typing import Dict, Iterable, Iterator, List, NamedTuple, Union
+
+
+def u8(x: int) -> bytes:
+    """
+    Encode an 8-bit unsigned integer.
+    """
+    assert 0 <= x < 256
+    return x.to_bytes(1, byteorder='little')
+
+
+def u16_le(x: int) -> bytes:
+    """
+    Encode a 16-bit unsigned integer in little endian.
+    """
+    assert 0 <= x < 65536
+    return x.to_bytes(2, byteorder='little')
+
+
+def u64_le(x: int) -> bytes:
+    """
+    Encode a 64-bit unsigned integer in little endian.
+    """
+    assert 0 <= x < 2**64
+    return x.to_bytes(8, byteorder='little')
 
 
 class Var(NamedTuple):
@@ -29,11 +53,77 @@ class Statement(NamedTuple):
     attribute: str
     value: Union[Var, int, str]
 
+    def __str__(self) -> str:
+        return f'  {self.entity} {self.attribute} {self.value!r}'
+
+    def serialize(self) -> Iterator[bytes]:
+        """
+        Serialize the statement to a binary format that Noblit can read.
+        """
+        # 2-byte entity variable number.
+        yield u16_le(self.entity.number)
+
+        # 2-byte attribute name length, and the attribute itself as UTF-8.
+        attribute_utf8 = self.attribute.encode('utf-8')
+        yield u16_le(len(attribute_utf8))
+        yield attribute_utf8
+
+        if isinstance(self.value, Var):
+            # 1-byte tag 0; 2-byte variable number.
+            yield u8(0)
+            yield u16_le(self.value.number)
+        elif isinstance(self.value, int):
+            # 1-byte tag 1; 8-byte integer.
+            yield u8(1)
+            yield u64_le(self.value)
+        elif isinstance(self.value, str):
+            # 1-byte tag 2; 16-byte length, UTF-8 string.
+            value_utf8 = self.value.encode('utf-8')
+            yield u8(2)
+            yield u16_le(len(value_utf8))
+            yield value_utf8
+        else:
+            raise ValueError('Invalid value in statement.')
+
 
 class Query(NamedTuple):
     variable_names: List[str]
     where_statements: List[Statement]
     select: List[Var]
+
+    def __str__(self) -> str:
+        """
+        Pretty-print the query in a format similar to what we parsed.
+        """
+        return '\n'.join((
+          'alias',
+          *(f'  ${i}: {name}' for i, name in enumerate(self.variable_names)),
+          'where',
+          *(str(statement) for statement in self.where_statements),
+          'select',
+          '  ' + ', '.join(str(var) for var in self.select)
+        ))
+
+    def serialize(self) -> Iterator[bytes]:
+        """
+        Serialize the query to a binary format that Noblit can read.
+        """
+        # 2-byte number of variables, followed by length-prefixed names.
+        yield u16_le(len(self.variable_names))
+        for variable in self.variable_names:
+            name_utf8 = variable.encode('utf-8')
+            yield u16_le(len(name_utf8))
+            yield name_utf8
+
+        # 2-byte number of statements, followed by their encodings.
+        yield u16_le(len(self.where_statements))
+        for statement in self.where_statements:
+            yield from statement.serialize()
+
+        # 2-byte nubmer of selects, followed by their 2-byte variable numbers.
+        yield u16_le(len(self.select))
+        for var in self.select:
+            yield u16_le(var.number)
 
 
 class VarMap:
@@ -111,7 +201,7 @@ def parse_statement(variables: VarMap, line: str) -> Statement:
     )
 
 
-def parse_query(lines: Iterable[str]):
+def parse_query(lines: Iterable[str]) -> Query:
     """
     Parse a query that contains a where and a select clause.
     """
@@ -149,4 +239,7 @@ def parse_query(lines: Iterable[str]):
 
 if __name__ == '__main__':
     q = parse_query(sys.stdin)
-    print(q)
+    print(str(q))
+
+    serialized = b''.join(q.serialize())
+    print('\n=>', repr(serialized))
