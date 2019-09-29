@@ -21,7 +21,7 @@ use types::Type;
 /// Variables can be named, but the names are specified separately; internally
 /// variables are referenced by index.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Var(pub u32);
+pub struct Var(pub u16);
 
 /// An attribute in a query can be named, or a fixed attribute id.
 ///

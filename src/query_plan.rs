@@ -19,7 +19,7 @@ use types::Type;
 
 /// A placeholder variable in a query.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Var(pub u32);
+pub struct Var(pub u16);
 
 pub enum Retrieval {
     /// Return entities that have the given attribute.
@@ -98,7 +98,7 @@ pub struct QueryPlan {
 struct Mapping {
     mapping: Vec<Option<Var>>,
     unmapping: Vec<query::Var>,
-    fresh: u32,
+    fresh: u16,
 }
 
 impl Mapping {
@@ -241,10 +241,10 @@ impl QueryPlan {
 
         // TODO: Do a true permutation, avoid the clone.
         let names: Vec<String> = (0..definitions.len()).map(
-            |i| perm_names[mapping.unget(Var(i as u32)).0 as usize].clone()
+            |i| perm_names[mapping.unget(Var(i as u16)).0 as usize].clone()
         ).collect();
         let types: Vec<Type> = (0..definitions.len()).map(
-            |i| perm_types[mapping.unget(Var(i as u32)).0 as usize]
+            |i| perm_types[mapping.unget(Var(i as u16)).0 as usize]
         ).collect();
 
         let select: Vec<Var> = query.select.iter().map(|&v| mapping.get(v)).collect();
@@ -276,7 +276,7 @@ impl QueryPlan {
         engine: &QueryEngine<Store, Pool>,
     ) {
         for (i, ref def) in self.definitions.iter().enumerate() {
-            let v = Var(i as u32);
+            let v = Var(i as u16);
 
             match def.retrieval {
                 Retrieval::ScanAvetAny { .. } => { }
