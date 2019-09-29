@@ -15,6 +15,7 @@ pub struct Cursor<'a> {
     offset: usize,
 }
 
+#[derive(Debug)]
 pub struct CursorError {
     pub offset: usize,
     pub message: &'static str,
