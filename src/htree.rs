@@ -456,6 +456,14 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
         Ok(tree)
     }
 
+    /// Return 1 + the level of the root node.
+    ///
+    /// Leaf nodes have level 0, so a single-node tree has height 1.
+    pub fn height(&self) -> u8 {
+        let root_node = get_node(&self.store, self.root_page);
+        1 + root_node.level
+    }
+
     /// Split a given node into pieces, and write them.
     ///
     /// Returns a `VecNode` with the split midpoints, and the children pointing
@@ -654,7 +662,11 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
     where Store: store::StoreMut {
         let old_root_page = self.root_page;
         let new_root_node = self.insert_into(old_root_page, datoms)?;
-        self.write_root(new_root_node)
+        let new_root_page = self.write_root(new_root_node)?;
+        // TODO: Maybe not return the new page id? The function is &mut self
+        // anyway, so one might reasonably expect it to mutate the root pointer.
+        self.root_page = new_root_page;
+        Ok(new_root_page)
     }
 
     /// Assert that the node at the given page, and its children, are well-formed.
