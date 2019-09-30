@@ -90,7 +90,6 @@ impl Query {
             let name = cursor.take_utf8(len as usize)?;
             variable_names.push(name.to_string());
         }
-        println!("alias: {:?}", variable_names);
 
         let num_where_statements = cursor.take_u16_le()?;
         let mut where_statements = Vec::with_capacity(num_where_statements as usize);
@@ -125,12 +124,18 @@ impl Query {
             };
             where_statements.push(statement);
         }
-        println!("where: {:?}", where_statements);
+
+        let num_selects = cursor.take_u16_le()?;
+        let mut selects = Vec::with_capacity(num_selects as usize);
+        for _ in 0..num_selects {
+            let var = cursor.take_u16_le()?;
+            selects.push(Var(var));
+        }
 
         let query = Query {
             variable_names: variable_names,
             where_statements: where_statements,
-            select: Vec::new(), // TODO
+            select: selects,
         };
 
         Ok(query)

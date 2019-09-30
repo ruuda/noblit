@@ -100,7 +100,7 @@ class Query(NamedTuple):
         Pretty-print the query in a format similar to what we parsed.
         """
         return '\n'.join((
-          'alias',
+          'variables',
           *(f'  ${i}: {name}' for i, name in enumerate(self.variable_names)),
           'where',
           *(str(statement) for statement in self.where_statements),
