@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 """
-This is a very rudametary "parser" for the ad-hoc query language.
+A very rudametary "parser" for the ad-hoc query language.
 
 Its purpose is to get something going to make it easier to write queries, in
-order to test the rest of the system. If we want to keep the ad-hock query
+order to test the rest of the system. If we want to keep the ad-hoc query
 language at all, this parser should be replaced with a proper one, probably in
 Rust. For now, we do some fishy string manipulation here.
 
