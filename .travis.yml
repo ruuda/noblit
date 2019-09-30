@@ -15,11 +15,12 @@ addons:
     packages:
       # Required for GHC.
       - libgmp-dev
-      # For building documentation.
-      - mkdocs
       # Package manager for typechecking Python code.
       - python3
       - python3-pip
+
+# The test runner requires Python >= 3.6.
+python: 3.6
 
 before_install:
   - mkdir -p ~/.local/bin
@@ -32,8 +33,8 @@ install:
   - cd $TRAVIS_BUILD_DIR/client/haskell
   - stack setup
 
-  # Install the Python typechecker.
-  - python3 -m pip install -U mypy
+  # Install the Python typechecker, and Mkdocs.
+  - python3 -m pip install --upgrade mypy mkdocs
 
 script:
   # Build Noblit itself, and associated binaries, and run unit tests.
