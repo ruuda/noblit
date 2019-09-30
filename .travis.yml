@@ -34,7 +34,7 @@ install:
   - stack setup
 
   # Install the Python typechecker, and Mkdocs.
-  - python3 -m pip install --upgrade mypy mkdocs
+  - python3 -m pip install --upgrade setuptools mypy mkdocs
 
 script:
   # Build Noblit itself, and associated binaries, and run unit tests.
