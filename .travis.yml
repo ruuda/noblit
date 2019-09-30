@@ -9,6 +9,7 @@ cache:
   - $HOME/.stack
   - $HOME/.cargo
 
+# TODO: Nix-ify this entire thing, so we can pin all the dependencies.
 addons:
   apt:
     packages:
@@ -16,6 +17,9 @@ addons:
       - libgmp-dev
       # For building documentation.
       - mkdocs
+      # Package manager for typechecking Python code.
+      - python3
+      - python3-pip
 
 before_install:
   - mkdir -p ~/.local/bin
@@ -24,18 +28,28 @@ before_install:
   - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$PATH
 
 install:
+  # Set up the Haskell toolchain.
   - cd $TRAVIS_BUILD_DIR/client/haskell
   - stack setup
 
+  # Install the Python typechecker.
+  - python3 -m pip install -U mypy
+
 script:
-  # Noblit itself.
+  # Build Noblit itself, and associated binaries, and run unit tests.
   - cargo build
   - cargo test
 
-  # Haskell client library.
+  # Build and test the Haskell client library.
   - cd $TRAVIS_BUILD_DIR/client/haskell
   - stack --no-terminal build
   - stack --no-terminal test
 
-  # Documentation.
+  # Typecheck the Python code.
+  - mypy --strict golden/run.py
+
+  # Check the goldens.
+  - prove --exec golden/run.py golden
+
+  # Build the documentation. This checks for dead links etc.
   - mkdocs build
