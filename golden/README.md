@@ -1,0 +1,1 @@
+docs/golden-tests.md

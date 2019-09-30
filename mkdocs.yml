@@ -12,6 +12,7 @@ nav:
     - Bug tracker: examples/bug-tracker.md
   - Internals:
     - Building: building.md
+    - Golden tests: golden-tests.md
     - Files: files.md
     - Trees: htree.md
     - Query: query.md
