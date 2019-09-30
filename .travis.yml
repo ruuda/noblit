@@ -44,6 +44,12 @@ script:
   - cd $TRAVIS_BUILD_DIR/client/haskell
   - stack --no-terminal build
   - stack --no-terminal test
+  - cd $TRAVIS_BUILD_DIR
+
+  # Build the Haskell example.
+  - cd $TRAVIS_BUILD_DIR/examples
+  - stack --no-terminal build
+  - cd $TRAVIS_BUILD_DIR
 
   # Typecheck the Python code.
   - mypy --strict golden/run.py
