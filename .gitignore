@@ -1,9 +1,16 @@
-# Build files
+# Rust build files.
 /target
 
-# Editor files
+# Editor files.
 *.swo
 *.swp
 
 # Haskell build files.
-/client/haskell/.stack-work
+.stack-work
+
+# Python and Python typechecker cache.
+/.mypy_cache
+__pycache__
+
+# Built documentation.
+/site
