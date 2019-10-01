@@ -151,7 +151,9 @@ latest two Ubuntu LTSes as well as Debian Testing shipped at the time of its
 inception.
 
     $ cargo build --release
-    $ target/release/noblit
+    $ target/release/main
+
+See also the [building chapter](docs/building.md) of the docs.
 
 ## Disclaimer
 
