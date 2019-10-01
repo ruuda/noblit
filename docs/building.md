@@ -6,6 +6,25 @@ libraries for Haskell, Python, and Rust.
 _The Haskell client is under construction; the Rust and Python clients do not
 yet exist._
 
+## Build tools
+
+A build environment in which all required build tools are available can be
+created with [Nix][nix]. The repository contains a `default.nix` file that
+defines the environment. All build tools are pinned for reproducibility. The
+Nix environment is used for <abbr>CI</abbr>, so it is actively tested.
+
+There are three ways to use the build environment:
+
+ * Enter a shell in which all build tools are available with `nix run`.
+ * Prefix all commands with `nix run -c`.
+ * Bring the binaries into your <abbr>PATH</abbr> with
+    `export PATH=$(nix-build --no-out-link)/bin:$PATH`.
+
+Using Nix is convenient, but not a requirement. You can source your build tools
+elsewhere if you like.
+
+[nix]: https://nixos.org/nix/
+
 ## Noblit
 
 Noblit builds with Rust’s build tool Cargo. Noblit is developed and tested
