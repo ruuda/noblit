@@ -2,41 +2,26 @@
 notifications:
   email: false
 
-language: generic
+language: nix
 
 cache:
   directories:
-  - $HOME/.stack
   - $HOME/.cargo
-
-# TODO: Nix-ify this entire thing, so we can pin all the dependencies.
-addons:
-  apt:
-    packages:
-      # Required for GHC.
-      - libgmp-dev
-      # Package manager for typechecking Python code.
-      - python3
-      - python3-pip
-      - python3-setuptools
-
-# The test runner requires Python >= 3.6.
-python: 3.6
+  - $HOME/.stack
+  - $TRAVIS_BUILD_DIR/client/haskell/.stack-work
+  - $TRAVIS_BUILD_DIR/examples/.stack-work
 
 before_install:
-  - mkdir -p ~/.local/bin
-  - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-  - travis_retry curl -sSf https://build.travis-ci.org/files/rustup-init.sh | sh -s -- --default-toolchain=1.28.0 -y
-  - export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$PATH
+  # Bring all the tools from the pinned build environment into the PATH.
+  - export PATH=$(nix-build --no-out-link)/bin:$PATH
 
 install:
+  # Trigger Rustup to download and install the Rust toolchain.
+  - cargo --version
+
   # Set up the Haskell toolchain.
   - cd $TRAVIS_BUILD_DIR/client/haskell
   - stack setup
-
-  # Install the Python typechecker, and Mkdocs.
-  - python3 -m pip install --upgrade pip
-  - python3 -m pip install --upgrade mypy mkdocs
 
 script:
   # Build Noblit itself, and associated binaries, and run unit tests.
