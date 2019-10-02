@@ -1,0 +1,15 @@
+.nf
+.de at
+  \\$1 db.attribute.name \\$2
+  \\$1 db.attribute.type \\$3
+  \\$1 db.attribute.unique \\$4
+  \\$1 db.attribute.many \\$5
+..
+
+where
+  uint64 db.type.name "db.type.uint64"
+  string db.type.name "db.type.string"
+assert
+.at level "level" uint64 false false
+.at name  "name"  string true  false
+
