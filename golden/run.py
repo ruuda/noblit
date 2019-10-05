@@ -12,7 +12,7 @@ Output is TAP (Test Anything Protocol) compliant, so you can run all of the
 golden tests with Prove while using this script as interpreter (with --exec).
 
 Standalone usage:
-  golden/run.py [--verbose] file.t
+  golden/run.py file.t
 
 Interpreter usage:
   prove --exec golden/run.py golden
@@ -67,7 +67,7 @@ def split_expectations(lines: Iterable[str]) -> Iterator[List[str]]:
         yield block
 
 
-def main(fname: str, verbose: bool) -> None:
+def main(fname: str) -> None:
     with open(fname, 'r', encoding='utf-8') as f:
         blocks = list(split_expectations(f))
 
@@ -83,10 +83,9 @@ def main(fname: str, verbose: bool) -> None:
     # in accordance with the TAP v12 protocol.
     print('1..1')
 
-    if verbose:
-        # Print the input query, prefixed with #.
-        for line in query_lines:
-            print('#', line, end='')
+    # Print the input query, prefixed with #.
+    for line in query_lines:
+        print('#', line, end='')
 
     query = parse.parse_query(query_lines)
     query_binary: bytes = b''.join(query.serialize())
@@ -103,14 +102,12 @@ def main(fname: str, verbose: bool) -> None:
     is_good = True
     for actual_line, expected_line in zip(actual_lines, expected_lines):
         if actual_line == expected_line:
-            if verbose:
-                print('#', actual_line, end='')
+            print('#', actual_line, end='')
         else:
             is_good = False
-            if verbose:
-                # Print a diff of expected vs actual. +/- are ignored by TAP.
-                print('-', expected_line, end='')
-                print('+', actual_line, end='')
+            # Print a diff of expected vs actual. +/- are ignored by TAP.
+            print('-', expected_line, end='')
+            print('+', actual_line, end='')
 
     if is_good:
         print('ok 1 - run query')
@@ -119,18 +116,10 @@ def main(fname: str, verbose: bool) -> None:
 
 
 if __name__ == '__main__':
-    is_verbose = False
     fname = None
 
-    for arg in sys.argv[1:]:
-        if arg == '--verbose':
-            is_verbose = True
-        else:
-            assert fname is None, 'Already have a file to run.'
-            fname = arg
-
-    if fname is None:
+    if len(sys.argv) != 2:
         print(__doc__.strip())
         sys.exit(1)
 
-    main(fname, verbose=is_verbose)
+    main(sys.argv[1])
