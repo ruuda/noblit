@@ -13,6 +13,11 @@ class Block(NamedTuple):
 
 
 def segment(lines: Iterable[str]) -> Iterator[Block]:
+    """
+    Split the input lines in alternating sections of query and expecations.
+    Expectations can be recognized because they form a table with box-drawing
+    characters.
+    """
     is_query = True
     query: List[str] = []
     output: List[str] = []
