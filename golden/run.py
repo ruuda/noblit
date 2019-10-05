@@ -64,9 +64,9 @@ def main(fname: str) -> None:
                 print('+', actual_line, end='')
 
         if is_good:
-            print(f'ok {i+1} - run query')
+            print('ok', i + 1)
         else:
-            print(f'not ok {i+1} - run query')
+            print('not ok', i + 1)
 
 
 if __name__ == '__main__':
