@@ -209,9 +209,15 @@ def parse_statement(variables: VarMap, line: str) -> Statement:
         parsed = ast.literal_eval(value_str)
         assert isinstance(parsed, str), 'Expected to parse string literal.'
         value = parsed
+
     elif value_str.isdigit():
         # We are dealing with an integer literal.
         value = int(value_str)
+
+    elif value_str in ('true', 'false'):
+        # A boolean literal, but booleans are uint64 internally.
+        value = 1 if value_str == 'true' else 0
+
     else:
         # If it is not a literal, then we treat it as a variable.
         assert ' ' not in value_str, f'Variable "{value_str}" contains space.'
