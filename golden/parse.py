@@ -93,20 +93,37 @@ class Statement(NamedTuple):
 class Query(NamedTuple):
     variable_names: List[str]
     where_statements: List[Statement]
+    assertions: List[Statement]
     select: List[Var]
 
     def __str__(self) -> str:
         """
         Pretty-print the query in a format similar to what we parsed.
         """
-        return '\n'.join((
+        lines = []
+
+        lines.extend([
           'variables',
           *(f'  ${i}: {name}' for i, name in enumerate(self.variable_names)),
+        ])
+
+        lines.extend([
           'where',
           *(str(statement) for statement in self.where_statements),
+        ])
+
+        if len(self.assertions) > 0:
+            lines.extend([
+              'assert',
+              *(str(statement) for statement in self.assertions),
+            ])
+
+        lines.extend([
           'select',
-          '  ' + ', '.join(str(var) for var in self.select)
-        ))
+          '  ' + ', '.join(str(var) for var in self.select),
+        ])
+
+        return '\n'.join(lines)
 
     def serialize(self) -> Iterator[bytes]:
         """
@@ -156,15 +173,17 @@ class State(Enum):
     """
     State for the parser to track what we are currently parsing.
     """
-    init = 0
-    where = 1
-    select = 2
+    INIT = 0
+    WHERE = 1
+    SELECT = 2
+    ASSERT = 3
 
 
 def parse_state(line: str) -> State:
     keywords = {
-        'where\n': State.where,
-        'select\n': State.select,
+        'where\n': State.WHERE,
+        'select\n': State.SELECT,
+        'assert\n': State.ASSERT,
     }
     state = keywords.get(line)
 
@@ -209,26 +228,31 @@ def parse_query(lines: Iterable[str]) -> Query:
     """
     Parse a query that contains a where and a select clause.
     """
-    state = State.init
+    state = State.INIT
     variables = VarMap()
     statements: List[Statement] = []
+    assertions: List[Statement] = []
     select: List[Var] = []
 
     for line in lines:
-        if state == state.where and line.startswith('  '):
+        if line.strip() == '' or line.strip().startswith('--'):
+            # Skip blank lines and allow comments with --.
+            continue
+
+        elif state == State.WHERE and line.startswith('  '):
             # We are parsing a statement in a where block.
             statements.append(parse_statement(variables, line))
 
-        elif state == state.select and line.startswith('  '):
+        elif state == State.ASSERT and line.startswith('  '):
+            # We are parsing a statement in an assert block.
+            assertions.append(parse_statement(variables, line))
+
+        elif state == State.SELECT and line.startswith('  '):
             # We are parsing comma-separated variables in a select block.
             vs = (v.strip() for v in line.split(','))
             vs = (v for v in vs if len(v) > 0)
             for v in vs:
                 select.append(variables.get(v))
-
-        elif line.strip() == '' or line.startswith('--'):
-            # Skip blank lines and allow comments with --.
-            continue
 
         else:
             # Interpret anything else as a state change.
@@ -237,6 +261,7 @@ def parse_query(lines: Iterable[str]) -> Query:
     return Query(
         variable_names=variables.names(),
         where_statements=statements,
+        assertions=assertions,
         select=select,
     )
 
