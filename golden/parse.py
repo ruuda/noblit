@@ -273,13 +273,17 @@ def parse_query(lines: Iterable[str]) -> Query:
 
 
 if __name__ == '__main__':
-    q = parse_query(sys.stdin)
+    import segment
 
-    if sys.stdout.isatty():
-        # Pretty-print the query when printing to a tty.
-        print(str(q))
+    for i, block in enumerate(segment.segment(sys.stdin)):
+        q = parse_query(block.query)
 
-    else:
-        # When stdout is not a tty, write the binary query there.
-        for bs in q.serialize():
-            sys.stdout.buffer.write(bs)
+        if sys.stdout.isatty():
+            # Pretty-print the query when printing to a tty.
+            sep = '\n' if i > 0 else ''
+            print(f'{sep}{q}')
+
+        else:
+            # When stdout is not a tty, write the binary query there.
+            for bs in q.serialize():
+                sys.stdout.buffer.write(bs)
