@@ -71,48 +71,50 @@ def main(fname: str) -> None:
     with open(fname, 'r', encoding='utf-8') as f:
         blocks = list(split_expectations(f))
 
-        if len(blocks) != 2:
-            # TODO: In the future we could accept more than one query-output pair.
+        if len(blocks) % 2 != 0:
             print(f'Invalid test file {fname}.')
-            print('Expected query block and output block.')
+            print('Expected even number of query blocks and output blocks.')
             sys.exit(1)
 
-        query_lines, expected_lines = blocks
+    # Zip every query block with its output block as one "test".
+    tests = list(zip(blocks[0::2], blocks[1::2]))
 
     # Print the number of tests we are going to run,
     # in accordance with the TAP v12 protocol.
-    print('1..1')
+    print(f'1..{len(tests)}')
 
-    # Print the input query, prefixed with #.
-    for line in query_lines:
-        print('#', line, end='')
+    for i, (query_lines, expected_lines) in enumerate(tests):
 
-    query = parse.parse_query(query_lines)
-    query_binary: bytes = b''.join(query.serialize())
+        # Print the input query, prefixed with #.
+        for line in query_lines:
+            print('#', line, end='')
 
-    result = subprocess.run(
-        'target/debug/execute',
-        input=query_binary,
-        capture_output=True,
-    )
+        query = parse.parse_query(query_lines)
+        query_binary: bytes = b''.join(query.serialize())
 
-    assert result.returncode == 0
-    actual_lines = result.stdout.decode('utf-8').splitlines(keepends=True)
+        result = subprocess.run(
+            'target/debug/execute',
+            input=query_binary,
+            capture_output=True,
+        )
 
-    is_good = True
-    for actual_line, expected_line in zip(actual_lines, expected_lines):
-        if actual_line == expected_line:
-            print('#', actual_line, end='')
+        assert result.returncode == 0
+        actual_lines = result.stdout.decode('utf-8').splitlines(keepends=True)
+
+        is_good = True
+        for actual_line, expected_line in zip(actual_lines, expected_lines):
+            if actual_line == expected_line:
+                print('#', actual_line, end='')
+            else:
+                is_good = False
+                # Print a diff of expected vs actual. +/- are ignored by TAP.
+                print('-', expected_line, end='')
+                print('+', actual_line, end='')
+
+        if is_good:
+            print(f'ok {i+1} - run query')
         else:
-            is_good = False
-            # Print a diff of expected vs actual. +/- are ignored by TAP.
-            print('-', expected_line, end='')
-            print('+', actual_line, end='')
-
-    if is_good:
-        print('ok 1 - run query')
-    else:
-        print('not ok 1 - run query')
+            print(f'not ok {i+1} - run query')
 
 
 if __name__ == '__main__':
