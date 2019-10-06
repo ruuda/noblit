@@ -34,11 +34,11 @@ fn main() {
 
         let mut datoms = Vec::new();
         let t0 = db.create_transaction(&mut datoms);
-        let eid_level = db.create_entity(&mut datoms, db_attr_name, Value::from_str("level"), t0);
+        let eid_level = db.create_entity(&mut datoms, db_attr_name, Value::from_str_inline("level"), t0);
         db.assert(&mut datoms, eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0);
         db.assert(&mut datoms, eid_level, db_attr_unique, Value::from_bool(false), t0);
         db.assert(&mut datoms, eid_level, db_attr_many, Value::from_bool(false), t0);
-        let eid_name = db.create_entity(&mut datoms, db_attr_name, Value::from_str("name"), t0);
+        let eid_name = db.create_entity(&mut datoms, db_attr_name, Value::from_str_inline("name"), t0);
         db.assert(&mut datoms, eid_name, db_attr_type, Value::from_eid(db_type_string), t0);
         db.assert(&mut datoms, eid_name, db_attr_unique, Value::from_bool(true), t0);
         db.assert(&mut datoms, eid_name, db_attr_many, Value::from_bool(false), t0);
@@ -51,10 +51,10 @@ fn main() {
         // Note: the insertion order is deliberately not sorted in advance to
         // expose ordering bugs.
         // TODO: Turn this into a test case.
-        let e1 = db.create_entity(&mut datoms, attr_level, Value::from_u64(11), t1);
-        let e2 = db.create_entity(&mut datoms, attr_level, Value::from_u64(13), t1);
-        let e3 = db.create_entity(&mut datoms, attr_level, Value::from_u64(5), t1);
-        let e4 = db.create_entity(&mut datoms, attr_level, Value::from_u64(97), t1);
+        let e1 = db.create_entity(&mut datoms, attr_level, Value::from_u64_inline(11), t1);
+        let e2 = db.create_entity(&mut datoms, attr_level, Value::from_u64_inline(13), t1);
+        let e3 = db.create_entity(&mut datoms, attr_level, Value::from_u64_inline(5), t1);
+        let e4 = db.create_entity(&mut datoms, attr_level, Value::from_u64_inline(97), t1);
         let v1 = db.persist_value_bytes("Henk de Steen".as_bytes()).unwrap();
         let v2 = db.persist_value_bytes("Klaas de Rots".as_bytes()).unwrap();
         let v3 = db.persist_value_bytes("Sjaak de Kei".as_bytes()).unwrap();

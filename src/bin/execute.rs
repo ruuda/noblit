@@ -22,7 +22,7 @@ type MemoryStore4096 = MemoryStore<PageSize4096>;
 type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryPool>;
 
 fn run_query(mut cursor: &mut Cursor, mut engine: &mut QueryEngine) {
-    let mut query = Query::parse(&mut cursor).expect("Failed to parse query.");
+    let mut query = Query::parse(&mut cursor, engine.pool_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the query.
     query.fix_attributes(&mut engine);
@@ -42,7 +42,7 @@ fn run_query(mut cursor: &mut Cursor, mut engine: &mut QueryEngine) {
 }
 
 fn run_query_mut(mut cursor: &mut Cursor, engine: &mut QueryEngine) {
-    let mut query_mut = QueryMut::parse(&mut cursor).expect("Failed to parse query.");
+    let mut query_mut = QueryMut::parse(&mut cursor, engine.pool_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the query.
     // query.fix_attributes(&mut engine);

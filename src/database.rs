@@ -205,7 +205,7 @@ impl Builtins {
 
         tuples.push(Datom::new(
             Eid(id_transaction),
-            Aid(id_db_transaction_time), Value::from_u64(0),
+            Aid(id_db_transaction_time), Value::from_u64_inline(0),
             Tid(id_transaction), Operation::Assert,
         ));
 
@@ -325,7 +325,7 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
         let datom_timestamp = Datom {
             entity: Eid(tid.0),
             attribute: self.builtins.attribute_db_transaction_time,
-            value: Value::from_u64(0), // TODO: actually record an epoch number value.
+            value: Value::from_u64_inline(0), // TODO: actually record an epoch number value.
             transaction_operation: TidOp::new(tid, Operation::Assert),
         };
         datoms.push(datom_timestamp);
@@ -365,11 +365,12 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
     pub fn persist_value_bytes(&mut self, bytes: &[u8]) -> io::Result<Value>
     where Pool: pool::PoolMut
     {
-        if bytes.len() <= 7 {
-            Ok(Value::from_bytes(bytes))
-        } else {
-            let cid = self.pool.append_bytes(bytes)?;
-            Ok(Value::from_const_bytes(cid))
+        match Value::from_bytes(bytes) {
+            Some(v) => Ok(v),
+            None => {
+                let cid = self.pool.append_bytes(bytes)?;
+                Ok(Value::from_const_bytes(cid))
+            }
         }
     }
 
@@ -400,6 +401,13 @@ impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store,
         &self.stack_pool
     }
 
+    /// Return the pool that should be used to resolve values.
+    ///
+    /// TODO: is there a better way to do this, can we avoid making it public?
+    pub fn pool_mut(&mut self) -> &mut StackPool<&'a Pool> {
+        &mut self.stack_pool
+    }
+
     /// Return the (entity, attribute, value, transaction) index.
     pub fn eavt(&self) -> HTree<Eavt, &Store, &StackPool<&'a Pool>> {
         HTree::new(self.database.eavt_root, Eavt, &self.database.store, &self.stack_pool)
@@ -414,7 +422,6 @@ impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store,
     pub fn avet(&self) -> HTree<Avet, &Store, &StackPool<&'a Pool>> {
         HTree::new(self.database.avet_root, Avet, &self.database.store, &self.stack_pool)
     }
-
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
         // TODO: This function should return an iterator of values, from newer

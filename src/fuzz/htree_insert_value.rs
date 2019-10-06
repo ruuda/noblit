@@ -39,12 +39,12 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                 let len = n;
                 let value_slice = cursor.take_slice(len as usize)?;
 
-                let value = match len {
-                    0..=7 => {
+                let value = match Value::from_bytes(value_slice) {
+                    Some(v) => {
                         dprintln!("  inline, len {}: {:?}", len, value_slice);
-                        Value::from_bytes(value_slice)
+                        v
                     }
-                    _ => {
+                    None => {
                         let cid = tree.pool.append_bytes(value_slice).unwrap();
                         dprintln!("  at pool offset {}, len {}: {:?}", cid.0, len, value_slice);
                         pool::check_invariants(&tree.pool);

@@ -150,9 +150,24 @@ impl Value {
         self.0 & Value::TAG_EXTERNAL != 0
     }
 
-    pub fn from_u64(value: u64) -> Value {
-        assert_eq!(value & Value::TAG_MASK, 0, "TODO: Implement spilling.");
+    /// Construct an integer value from a 62-bit unsigned integer.
+    ///
+    /// Panics if the value is too large. Use `from_u64` to handle large values.
+    pub fn from_u64_inline(value: u64) -> Value {
+        assert_eq!(value & Value::TAG_MASK, 0, "Value is too large to be inlined.");
         Value(value)
+    }
+
+    /// Construct an integer value from an unsigned integer.
+    ///
+    /// Returns `None` if the value is too large to be stored inline. In that
+    /// case, store the value in a pool and use `from_const_u64`.
+    pub fn from_u64(value: u64) -> Option<Value> {
+        if value < Value::TAG_MASK {
+            Some(Value::from_u64_inline(value))
+        } else {
+            None
+        }
     }
 
     pub fn from_bool(value: bool) -> Value {
@@ -163,11 +178,15 @@ impl Value {
     }
 
     pub fn from_eid(value: Eid) -> Value {
-        Value::from_u64(value.0)
+        // TODO: Do not assume that entity ids fit in 62 bits, handle spilling.
+        Value::from_u64_inline(value.0)
     }
 
-    pub fn from_bytes(value: &[u8]) -> Value {
-        assert!(value.len() < 8);
+    /// Construct a byte string value from a 7-byte slice or shorter.
+    ///
+    /// Panics if the value is too large. Use `from_bytes` to handle large values.
+    pub fn from_bytes_inline(value: &[u8]) -> Value {
+        assert!(value.len() < 8, "Byte string is too long to be inlined.");
         let mut bytes = [0_u8; 7];
         bytes[..value.len()].copy_from_slice(value);
         let bits = 0_u64
@@ -184,7 +203,25 @@ impl Value {
         Value(bits)
     }
 
-    pub fn from_str(value: &str) -> Value {
+    /// Construct a byte string value from a byte slice.
+    ///
+    /// Returns `None` if the value is too large to be stored inline. In that
+    /// case, store the value in a pool and use `from_const_bytes`.
+    pub fn from_bytes(value: &[u8]) -> Option<Value> {
+        if value.len() < 8 {
+            Some(Value::from_bytes_inline(value))
+        } else {
+            None
+        }
+    }
+
+    /// Construct a byte string value from a 7-byte string slice or shorter.
+    pub fn from_str_inline(value: &str) -> Value {
+        Value::from_bytes_inline(value.as_bytes())
+    }
+
+    /// Construct a byte string value from string slice.
+    pub fn from_str(value: &str) -> Option<Value> {
         Value::from_bytes(value.as_bytes())
     }
 

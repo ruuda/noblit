@@ -14,6 +14,7 @@ use binary::{Cursor, CursorError};
 use database::QueryEngine;
 use datom::{Aid, Value};
 use pool;
+use stack_pool::StackPool;
 use store;
 use types::Type;
 
@@ -97,7 +98,10 @@ impl Query {
     }
 
     /// Deserialize statements from binary format.
-    fn parse_statements(cursor: &mut Cursor) -> Result<Vec<Statement>, CursorError> {
+    fn parse_statements<Pool: pool::Pool>(
+        cursor: &mut Cursor,
+        pool: &mut StackPool<Pool>
+    ) -> Result<Vec<Statement>, CursorError> {
         let num_statements = cursor.take_u16_le()?;
         let mut statements = Vec::with_capacity(num_statements as usize);
         for _ in 0..num_statements {
@@ -111,17 +115,29 @@ impl Query {
                     QueryValue::Var(Var(value_var))
                 }
                 1 => {
-                    // TODO: Deal with pooling large values.
                     let value_u64 = cursor.take_u64_le()?;
-                    QueryValue::Const(Value::from_u64(value_u64))
+                    let value = match Value::from_u64(value_u64) {
+                        Some(v) => v,
+                        None => Value::from_const_u64(pool.push_u64(value_u64)),
+                    };
+                    QueryValue::Const(value)
                 }
                 2 => {
-                    // TODO: Deal with pooling large values.
                     let value_len = cursor.take_u16_le()?;
                     let value_str = cursor.take_utf8(value_len as usize)?;
-                    QueryValue::Const(Value::from_str(value_str))
+                    let value = match Value::from_str(value_str) {
+                        Some(v) => v,
+                        None => {
+                            let bytes = value_str
+                                .to_string()
+                                .into_boxed_str()
+                                .into_boxed_bytes();
+                            Value::from_const_bytes(pool.push_bytes(bytes))
+                        }
+                    };
+                    QueryValue::Const(value)
                 }
-                _ => unimplemented!("TODO: Proper error handling."),
+                _ => unimplemented!("Unsupported value. TODO: Proper error handling."),
             };
 
             let statement = Statement {
@@ -147,12 +163,15 @@ impl Query {
     }
 
     /// Deserialize a query in binary format.
-    pub fn parse(cursor: &mut Cursor) -> Result<Query, CursorError> {
+    pub fn parse<Pool: pool::Pool>(
+        cursor: &mut Cursor,
+        pool: &mut StackPool<Pool>
+    ) -> Result<Query, CursorError> {
         let kind = cursor.take_u8()?;
         assert_eq!(kind, 0, "Expected kind 0 for Query::parse.");
 
         let variable_names = Query::parse_strings(cursor)?;
-        let where_statements = Query::parse_statements(cursor)?;
+        let where_statements = Query::parse_statements(cursor, pool)?;
         let selects = Query::parse_variables(cursor)?;
 
         let query = Query {
@@ -268,19 +287,22 @@ pub struct QueryMut {
 
 impl QueryMut {
     /// Deserialize a transaction request in binary format.
-    pub fn parse(cursor: &mut Cursor) -> Result<QueryMut, CursorError> {
+    pub fn parse<Pool: pool::Pool>(
+        cursor: &mut Cursor,
+        pool: &mut StackPool<Pool>
+    ) -> Result<QueryMut, CursorError> {
         use std::iter;
 
         let kind = cursor.take_u8()?;
-        assert_eq!(kind, 1, "Expected kind 0 for QueryMut::parse.");
+        assert_eq!(kind, 1, "Expected kind 1 for QueryMut::parse.");
 
         // The first part is the same as for a regular query.
         let variable_names = Query::parse_strings(cursor)?;
-        let where_statements = Query::parse_statements(cursor)?;
+        let where_statements = Query::parse_statements(cursor, pool)?;
         let selects = Query::parse_variables(cursor)?;
 
         // Then we get the assertions.
-        let assertions = Query::parse_statements(cursor)?;
+        let assertions = Query::parse_statements(cursor, pool)?;
 
         // Determine which variables are bound, by marking all variables that
         // occur in the "where" part as bound.
