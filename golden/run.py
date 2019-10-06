@@ -21,6 +21,7 @@ Interpreter usage:
 import sys
 import subprocess
 
+from itertools import zip_longest
 from typing import Iterable, List, Iterator
 
 import parse
@@ -60,14 +61,14 @@ def main(fname: str) -> None:
         actual_lines = result.stdout.decode('utf-8').splitlines(keepends=True)
 
         is_good = True
-        for actual_line, expected_line in zip(actual_lines, expected_lines):
+        for actual_line, expected_line in zip_longest(actual_lines, expected_lines):
             if actual_line == expected_line:
                 print('#', actual_line, end='')
             else:
                 is_good = False
                 # Print a diff of expected vs actual. +/- are ignored by TAP.
-                print('-', expected_line, end='')
-                print('+', actual_line, end='')
+                print('-', expected_line or '\n', end='')
+                print('+', actual_line or '\n', end='')
 
         if is_good:
             print('ok', i + 1)
