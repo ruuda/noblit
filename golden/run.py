@@ -50,7 +50,13 @@ def main(fname: str) -> None:
             capture_output=True,
         )
 
-        assert result.returncode == 0
+        if result.returncode != 0:
+            for line in result.stderr.decode('utf-8').splitlines(keepends=True):
+                print('>', line, end='')
+
+            print('not ok', i + 1)
+            continue
+
         actual_lines = result.stdout.decode('utf-8').splitlines(keepends=True)
 
         is_good = True
