@@ -183,14 +183,14 @@ impl Query {
         Ok(query)
     }
 
-    pub fn fix_attributes<
+    fn fix_attributes_in_statements<
         Store: store::Store,
         Pool: pool::Pool,
     > (
-        &mut self,
         engine: &mut QueryEngine<Store, Pool>,
+        statements: &mut [Statement],
     ) {
-        for stmt in self.where_statements.iter_mut() {
+        for stmt in statements.iter_mut() {
             let aid = match stmt.attribute {
                 QueryAttribute::Fixed(aid) => aid,
                 QueryAttribute::Named(ref name) => match engine.lookup_attribute_id(&name[..]) {
@@ -204,6 +204,16 @@ impl Query {
 
             stmt.attribute = QueryAttribute::Fixed(aid);
         }
+    }
+
+    pub fn fix_attributes<
+        Store: store::Store,
+        Pool: pool::Pool,
+    > (
+        &mut self,
+        engine: &mut QueryEngine<Store, Pool>,
+    ) {
+        Query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
     }
 
     /// Infer the type of every variable.
@@ -347,6 +357,17 @@ impl QueryMut {
         Ok(query_mut)
     }
 
+    pub fn fix_attributes<
+        Store: store::Store,
+        Pool: pool::Pool,
+    > (
+        &mut self,
+        engine: &mut QueryEngine<Store, Pool>,
+    ) {
+        Query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
+        Query::fix_attributes_in_statements(engine, &mut self.assertions[..]);
+    }
+
     /// Return the read-only part of the query.
     ///
     /// For every tuple in the result of this read-only query, the assertions
@@ -354,7 +375,7 @@ impl QueryMut {
     pub fn read_only_part(&self) -> Query {
         Query {
             // TODO: Avoid the clones.
-            variable_names: self.variable_names.clone(),
+            variable_names: self.variable_names[..self.bound_variables.len()].to_vec(),
             where_statements: self.where_statements.clone(),
             select: self.bound_variables.clone(),
         }

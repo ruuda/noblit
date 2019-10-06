@@ -21,15 +21,15 @@ use query::{Query, QueryMut};
 type MemoryStore4096 = MemoryStore<PageSize4096>;
 type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryPool>;
 
-fn run_query(mut cursor: &mut Cursor, mut engine: &mut QueryEngine) {
-    let mut query = Query::parse(&mut cursor, engine.pool_mut()).expect("Failed to parse query.");
+fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
+    let mut query = Query::parse(cursor, engine.pool_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the query.
-    query.fix_attributes(&mut engine);
-    let plan = QueryPlan::new(query, &engine);
+    query.fix_attributes(engine);
+    let plan = QueryPlan::new(query, engine);
 
     // Evaluate the query, and pretty-print the results in a table.
-    let eval = Evaluator::new(&plan, &engine);
+    let eval = Evaluator::new(&plan, engine);
     let rows: Vec<_> = eval.collect();
     let stdout = io::stdout();
     types::draw_table(
@@ -41,13 +41,21 @@ fn run_query(mut cursor: &mut Cursor, mut engine: &mut QueryEngine) {
     ).unwrap();
 }
 
-fn run_query_mut(mut cursor: &mut Cursor, engine: &mut QueryEngine) {
-    let mut query_mut = QueryMut::parse(&mut cursor, engine.pool_mut()).expect("Failed to parse query.");
+fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) {
+    let mut query_mut = QueryMut::parse(cursor, engine.pool_mut()).expect("Failed to parse query.");
 
-    // Resolve named attributes to id-based attributes, and plan the query.
-    // query.fix_attributes(&mut engine);
-    // let plan = QueryPlan::new(query, &engine);
-    // TODO.
+    // Resolve named attributes to id-based attributes, and plan the read-only
+    // part of the query.
+    query_mut.fix_attributes(engine);
+    let plan = QueryPlan::new(query_mut.read_only_part(), engine);
+
+    // For each assignment of values to the bound variables, run the assertions.
+    for result in Evaluator::new(&plan, engine) {
+        println!("Result: {:?}", result);
+        for assertion in &query_mut.assertions[..] {
+            println!("Would assert {:?}.", assertion);
+        }
+    }
 }
 
 fn main() {
