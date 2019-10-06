@@ -37,6 +37,15 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    pub fn peek_u8(&mut self) -> Option<u8> {
+        if self.offset + 1 <= self.data.len() {
+            let v = self.data[self.offset];
+            Some(v)
+        } else {
+            None
+        }
+    }
+
     pub fn take_u8(&mut self) -> Result<u8, CursorError> {
         if self.offset + 1 <= self.data.len() {
             let v = self.data[self.offset];

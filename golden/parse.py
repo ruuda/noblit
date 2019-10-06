@@ -129,6 +129,10 @@ class Query(NamedTuple):
         """
         Serialize the query to a binary format that Noblit can read.
         """
+        # 1-byte query type, 0 for a read, 1 for a write.
+        type_ = 0 if len(self.assertions) == 0 else 1
+        yield u8(type_)
+
         # 2-byte number of variables, followed by length-prefixed names.
         yield u16_le(len(self.variable_names))
         for variable in self.variable_names:
@@ -145,6 +149,13 @@ class Query(NamedTuple):
         yield u16_le(len(self.select))
         for var in self.select:
             yield u16_le(var.number)
+
+        # If there are assertions, the 2-byte number of them,
+        # followed by their encodings.
+        if len(self.assertions) > 0:
+            yield u16_le(len(self.assertions))
+            for statement in self.assertions:
+                yield from statement.serialize()
 
 
 class VarMap:

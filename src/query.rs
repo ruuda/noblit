@@ -148,6 +148,9 @@ impl Query {
 
     /// Deserialize a query in binary format.
     pub fn parse(cursor: &mut Cursor) -> Result<Query, CursorError> {
+        let kind = cursor.take_u8()?;
+        assert_eq!(kind, 0, "Expected kind 0 for Query::parse.");
+
         let variable_names = Query::parse_strings(cursor)?;
         let where_statements = Query::parse_statements(cursor)?;
         let selects = Query::parse_variables(cursor)?;
@@ -267,6 +270,9 @@ impl QueryMut {
     /// Deserialize a transaction request in binary format.
     pub fn parse(cursor: &mut Cursor) -> Result<QueryMut, CursorError> {
         use std::iter;
+
+        let kind = cursor.take_u8()?;
+        assert_eq!(kind, 1, "Expected kind 0 for QueryMut::parse.");
 
         // The first part is the same as for a regular query.
         let variable_names = Query::parse_strings(cursor)?;
