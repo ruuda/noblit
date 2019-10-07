@@ -10,13 +10,13 @@ extern crate noblit;
 use std::io::{Read, self};
 
 use noblit::binary::Cursor;
+use noblit::datom::{Datom, Eid, Tid, Value};
 use noblit::database::{Database, self};
 use noblit::memory_store::{MemoryStore, MemoryPool};
-use noblit::query;
+use noblit::query::{Query, QueryMut, QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
 use noblit::types;
-use query::{Query, QueryMut};
 
 type MemoryStore4096 = MemoryStore<PageSize4096>;
 type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryPool>;
@@ -49,11 +49,38 @@ fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) {
     query_mut.fix_attributes(engine);
     let plan = QueryPlan::new(query_mut.read_only_part(), engine);
 
+    // TODO: Allocate real entity ids and transaction ids from the database.
+    let mut eid = 200;
+    let transaction = Tid(50);
+
     // For each assignment of values to the bound variables, run the assertions.
     for result in Evaluator::new(&plan, engine) {
-        println!("Result: {:?}", result);
+        // To generate the asserted datoms, we need a value for every variable.
+        // For the bound variables, we get them from the query results. For the
+        // free variables, we need to generate new entities.
+        let mut bound_values = Vec::with_capacity(query_mut.variable_names.len());
+        bound_values.extend_from_slice(&result[..]);
+
+        for _ in query_mut.free_variables.iter() {
+            // TODO: Allocate real entity ids from the database.
+            eid += 2;
+            bound_values.push(Value::from_eid(Eid(eid)));
+        }
+
         for assertion in &query_mut.assertions[..] {
-            println!("Would assert {:?}.", assertion);
+            let entity = bound_values[assertion.entity.0 as usize].as_eid(engine.pool());
+            let attribute = match assertion.attribute {
+                QueryAttribute::Fixed(aid) => aid,
+                QueryAttribute::Named(..) => {
+                    panic!("Should have resolved attribute name to id already.");
+                }
+            };
+            let value = match assertion.value {
+                QueryValue::Const(v) => v,
+                QueryValue::Var(var) => bound_values[var.0 as usize],
+            };
+            let datom = Datom::assert(entity, attribute, value, transaction);
+            println!("  {:?}", datom);
         }
     }
 }
