@@ -21,11 +21,11 @@ assert
 select
   level, name
 
-┌───────┬──────┐
-│ level │ name │
-├───────┼──────┤
-│ # 4   │ # 5  |
-└───────┴──────┘
+┌───────┬───────┐
+│ level │ name  │
+├───────┼───────┤
+│ # 204 │ # 202 │
+└───────┴───────┘
 
 -- Step 2: Now that we have these new attributes, we can create a few entities
 -- that use them. We return the entity ids of the new entities.
@@ -66,7 +66,7 @@ select
 ┌───────┐
 │ model │
 ├───────┤
-│ # 4   |
+│ # 202 │
 └───────┘
 
 -- Step 4: Set the "model" attribute for every entity "r" that has a "name"
