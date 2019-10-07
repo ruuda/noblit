@@ -275,6 +275,21 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
         }
     }
 
+    /// Return the (entity, attribute, value, transaction) index, immutable.
+    pub fn eavt(&self) -> HTree<Eavt, &Store, &Pool> where Store: store::StoreMut {
+        HTree::new(self.eavt_root, Eavt, &self.store, &self.pool)
+    }
+
+    /// Return the (entity, attribute, value, transaction) index, immutable.
+    pub fn aevt(&self) -> HTree<Aevt, &Store, &Pool> where Store: store::StoreMut {
+        HTree::new(self.aevt_root, Aevt, &self.store, &self.pool)
+    }
+
+    /// Return the (attribute, value, entity, transaction) index, immutable.
+    pub fn avet(&self) -> HTree<Avet, &Store, &Pool> where Store: store::StoreMut {
+        HTree::new(self.avet_root, Avet, &self.store, &self.pool)
+    }
+
     /// Return the (entity, attribute, value, transaction) index, writable.
     pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store, &Pool> where Store: store::StoreMut {
         HTree::new(self.eavt_root, Eavt, &mut self.store, &self.pool)

@@ -65,11 +65,9 @@ fn main() {
         db.insert(datoms).expect("Failed to commit transaction.");
     }
 
-    // TODO: These could actually use the non-mut variants, if we promise to not
-    // introduce temporary values.
-    db.eavt_mut().check_invariants().unwrap();
-    db.aevt_mut().check_invariants().unwrap();
-    db.avet_mut().check_invariants().unwrap();
+    db.eavt().check_invariants().unwrap();
+    db.aevt().check_invariants().unwrap();
+    db.avet().check_invariants().unwrap();
 
     {
         // where

@@ -155,5 +155,12 @@ fn main() {
             Some(n) => panic!("Unsupported operation: {}", n),
             None => break,
         }
+
+        // This "execute" program is used in the golden tests, so perform a
+        // consistency check after every mutation, so we can use the goldens to
+        // detect/reproduce consistency issues in the indexes, if any come up.
+        db.eavt().check_invariants().unwrap();
+        db.aevt().check_invariants().unwrap();
+        db.avet().check_invariants().unwrap();
     }
 }
