@@ -8,7 +8,7 @@
 extern crate noblit;
 
 use noblit::database::Database;
-use noblit::datom;
+use noblit::datom::{Aid, Datom, Value};
 use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::types;
@@ -24,7 +24,6 @@ fn main() {
     {
         // Insert a bit of test data: a new attribute "level" in transaction 0,
         // and a few entities with different levels in transaction 1.
-        use datom::{Aid, Value};
         let db_attr_name = db.builtins.attribute_db_attribute_name;
         let db_attr_type = db.builtins.attribute_db_attribute_type;
         let db_attr_unique = db.builtins.attribute_db_attribute_unique;
@@ -35,13 +34,13 @@ fn main() {
         let mut datoms = Vec::new();
         let t0 = db.create_transaction(&mut datoms);
         let eid_level = db.create_entity(&mut datoms, db_attr_name, Value::from_str_inline("level"), t0);
-        db.assert(&mut datoms, eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0);
-        db.assert(&mut datoms, eid_level, db_attr_unique, Value::from_bool(false), t0);
-        db.assert(&mut datoms, eid_level, db_attr_many, Value::from_bool(false), t0);
+        datoms.push(Datom::assert(eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0));
+        datoms.push(Datom::assert(eid_level, db_attr_unique, Value::from_bool(false), t0));
+        datoms.push(Datom::assert(eid_level, db_attr_many, Value::from_bool(false), t0));
         let eid_name = db.create_entity(&mut datoms, db_attr_name, Value::from_str_inline("name"), t0);
-        db.assert(&mut datoms, eid_name, db_attr_type, Value::from_eid(db_type_string), t0);
-        db.assert(&mut datoms, eid_name, db_attr_unique, Value::from_bool(true), t0);
-        db.assert(&mut datoms, eid_name, db_attr_many, Value::from_bool(false), t0);
+        datoms.push(Datom::assert(eid_name, db_attr_type, Value::from_eid(db_type_string), t0));
+        datoms.push(Datom::assert(eid_name, db_attr_unique, Value::from_bool(true), t0));
+        datoms.push(Datom::assert(eid_name, db_attr_many, Value::from_bool(false), t0));
         db.insert(datoms).expect("Failed to commit transaction.");
 
         let mut datoms = Vec::new();
@@ -59,10 +58,10 @@ fn main() {
         let v2 = db.persist_value_bytes("Klaas de Rots".as_bytes()).unwrap();
         let v3 = db.persist_value_bytes("Sjaak de Kei".as_bytes()).unwrap();
         let v4 = db.persist_value_bytes("Aart".as_bytes()).unwrap();
-        db.assert(&mut datoms, e1, attr_name, v1, t1);
-        db.assert(&mut datoms, e2, attr_name, v2, t1);
-        db.assert(&mut datoms, e3, attr_name, v3, t1);
-        db.assert(&mut datoms, e4, attr_name, v4, t1);
+        datoms.push(Datom::assert(e1, attr_name, v1, t1));
+        datoms.push(Datom::assert(e2, attr_name, v2, t1));
+        datoms.push(Datom::assert(e3, attr_name, v3, t1));
+        datoms.push(Datom::assert(e4, attr_name, v4, t1));
         db.insert(datoms).expect("Failed to commit transaction.");
     }
 

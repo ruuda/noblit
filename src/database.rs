@@ -373,24 +373,6 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
             }
         }
     }
-
-    pub fn assert(
-        &mut self,
-        datoms: &mut Vec<Datom>,
-        entity: Eid,
-        attribute: Aid,
-        value: Value,
-        transaction: Tid
-    ) {
-        let datom = Datom {
-            entity: entity,
-            attribute: attribute,
-            value: value,
-            transaction_operation: TidOp::new(transaction, Operation::Assert),
-        };
-
-        datoms.push(datom);
-    }
 }
 
 impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store, Pool> {
