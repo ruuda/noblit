@@ -16,7 +16,7 @@ use noblit::memory_store::{MemoryStore, MemoryPool};
 use noblit::query::{Query, QueryMut, QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
-use noblit::types;
+use noblit::types::{Type, self};
 
 type MemoryStore4096 = MemoryStore<PageSize4096>;
 type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryPool>;
@@ -53,11 +53,16 @@ fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) {
     let mut eid = 200;
     let transaction = Tid(50);
 
+    let mut datoms_to_insert = Vec::new();
+    let mut rows_to_return = Vec::new();
+
     // For each assignment of values to the bound variables, run the assertions.
     for result in Evaluator::new(&plan, engine) {
         // To generate the asserted datoms, we need a value for every variable.
         // For the bound variables, we get them from the query results. For the
-        // free variables, we need to generate new entities.
+        // free variables, we need to generate new entities. The read-only part
+        // of the query selects all bound variables in their order of
+        // occurrence, so we can map the result onto the bound values directly.
         let mut bound_values = Vec::with_capacity(query_mut.variable_names.len());
         bound_values.extend_from_slice(&result[..]);
 
@@ -80,9 +85,41 @@ fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) {
                 QueryValue::Var(var) => bound_values[var.0 as usize],
             };
             let datom = Datom::assert(entity, attribute, value, transaction);
-            println!("  {:?}", datom);
+            datoms_to_insert.push(datom);
+        }
+
+        // Collect the values to return from the query; those listed in the
+        // select clause.
+        let mut row = Vec::with_capacity(query_mut.select.len());
+        for &v in query_mut.select.iter() {
+            row.push(bound_values[v.0 as usize]);
+        }
+        rows_to_return.push(row.into_boxed_slice());
+    }
+
+    // Before we can print the results, we need to know the types of the
+    // selected variables. For bound variables, we can get them from the plan.
+    // For free variables, the type is always ref, because we create entities.
+    let mut select_types = Vec::with_capacity(query_mut.select.len());
+    for &v in query_mut.select.iter() {
+        let is_bound = (v.0 as usize) < query_mut.bound_variables.len();
+        if is_bound {
+            let index = plan.mapping[v.0 as usize];
+            select_types.push(plan.variable_types[index.0 as usize]);
+        } else {
+            // Free variables are entities.
+            select_types.push(Type::Ref);
         }
     }
+
+    let stdout = io::stdout();
+    types::draw_table(
+        &mut stdout.lock(),
+        engine.pool(),
+        query_mut.select.iter().map(|&v| &query_mut.variable_names[v.0 as usize][..]),
+        rows_to_return.iter().map(|ref row| &row[..]),
+        &select_types[..],
+    ).unwrap();
 }
 
 fn main() {

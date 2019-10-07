@@ -90,8 +90,16 @@ pub struct QueryPlan {
     /// The variables to return in the result, and in which order.
     pub select: Vec<Var>,
 
-    /// The types of the selectde variables only.
+    /// The types of the selected variables only.
     pub select_types: Vec<Type>,
+
+    /// A mapping from variable in the query to variable in the plan.
+    ///
+    /// The results returned by the evaluator are rows with query plan
+    /// variables. Although the names are carried over, finding out which index
+    /// in the results corresponds to a given variable in the query by string
+    /// matching the names is silly. This mapping can be used instead.
+    pub mapping: Vec<Var>,
 }
 
 /// Maps numbered variables in the query to variables in the plan.
@@ -127,6 +135,20 @@ impl Mapping {
 
     pub fn unget(&self, var: Var) -> query::Var {
         self.unmapping[var.0 as usize]
+    }
+
+    /// Return the final mapping from query variable to plan variable.
+    ///
+    /// This assumes that every variable has been mapped.
+    fn finalize(self) -> Vec<Var> {
+        let mut mapping = Vec::with_capacity(self.mapping.len());
+        for (i, &opt_var) in self.mapping.iter().enumerate() {
+            match opt_var {
+                Some(v) => mapping.push(v),
+                None => panic!("Mapping::finalize() called, but variable {} is not mapped.", i),
+            }
+        }
+        mapping
     }
 }
 
@@ -257,6 +279,7 @@ impl QueryPlan {
             variable_names: names,
             select: select,
             select_types: select_types,
+            mapping: mapping.finalize(),
         };
 
         plan
@@ -384,6 +407,7 @@ impl QueryPlan {
                 Type::Bool,
                 Type::Bool
             ],
+            mapping: vec![Var(0), Var(1), Var(2), Var(3), Var(4), Var(5)],
         }
     }
 
@@ -425,6 +449,7 @@ impl QueryPlan {
             ],
             select: vec![Var(0), Var(1)],
             select_types: vec![Type::Ref, Type::String],
+            mapping: vec![Var(0), Var(1)],
         }
     }
 }
