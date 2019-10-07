@@ -41,7 +41,7 @@ fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
     ).unwrap();
 }
 
-fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) {
+fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) -> Vec<Datom> {
     let mut query_mut = QueryMut::parse(cursor, engine.pool_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the read-only
@@ -120,6 +120,8 @@ fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) {
         rows_to_return.iter().map(|ref row| &row[..]),
         &select_types[..],
     ).unwrap();
+
+    datoms_to_insert
 }
 
 fn main() {
@@ -127,8 +129,7 @@ fn main() {
     let store: MemoryStore4096 = MemoryStore::new();
     let pool = MemoryPool::new();
 
-    let db = Database::new(store, pool).unwrap();
-    let mut engine = db.query();
+    let mut db = Database::new(store, pool).unwrap();
 
     // Read stdin until EOF so we can parse it later.
     let mut query_bytes = Vec::new();
@@ -138,8 +139,19 @@ fn main() {
 
     loop {
         match cursor.peek_u8() {
-            Some(0) => run_query(&mut cursor, &mut engine),
-            Some(1) => run_query_mut(&mut cursor, &mut engine),
+            Some(0) => {
+                let mut engine = db.query();
+                run_query(&mut cursor, &mut engine);
+            }
+            Some(1) => {
+                let datoms = {
+                    let mut engine = db.query();
+                    let datoms = run_query_mut(&mut cursor, &mut engine);
+                    // TODO: Persist temporarily pooled values.
+                    datoms
+                };
+                db.insert(datoms).expect("Failed to insert datoms.");
+            }
             Some(n) => panic!("Unsupported operation: {}", n),
             None => break,
         }
