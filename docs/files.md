@@ -35,7 +35,11 @@ The indexes in Noblit store datoms in sorted order. There are three indexes:
  * **Avet**: sorted by attribute, value, entity, and transaction.
 
 See also [Datomic's index documentation][datomic-indexes], which formed the
-inspiration for Noblit.
+inspiration for Noblit. Note that unlike Datomic, Noblit does not have a Vaet
+(value, attribute, entity, transaction) index. This is because attributes in
+Noblit are strongly typed. A query such as “list all attributes that this entity
+has” is impossible to express in Noblit, because the values associated with the
+attribute may not have the same type.
 
 Each index stores all datoms in full. A datom is 32 bytes. Small values are
 stored inline in the datom, large values (integers larger than 62 bits and byte

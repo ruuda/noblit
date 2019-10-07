@@ -46,6 +46,10 @@ In comparison to other databases such as [SQLite][sqlite] and
 Noblit combines the low operational overhead of an embedded database with the
 simplicity of an append-only database with value semantics.
 
+In comparison to Datomic, Noblit puts more focus on static type safety. This
+makes schemas more rigid. On the one hand this impedes iterating quickly, but on
+the other hand it helps to provide data consistency in the long term.
+
 Another attempt at an embedded database inspired by Datomic was [Mentat][mentat].
 Both Noblit and Mentat happen to be written in Rust. Mentat is a layer on top of
 SQLite, whereas Noblit has its own storage backend. Mentat exists but is
