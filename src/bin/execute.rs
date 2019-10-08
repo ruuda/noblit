@@ -41,17 +41,18 @@ fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
     ).unwrap();
 }
 
-fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) -> Vec<Datom> {
+fn run_query_mut(
+    cursor: &mut Cursor,
+    engine: &mut QueryEngine,
+    transaction: Tid,
+    next_id: &mut u64,
+) -> Vec<Datom> {
     let mut query_mut = QueryMut::parse(cursor, engine.pool_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the read-only
     // part of the query.
     query_mut.fix_attributes(engine);
     let plan = QueryPlan::new(query_mut.read_only_part(), engine);
-
-    // TODO: Allocate real entity ids and transaction ids from the database.
-    let mut eid = 200;
-    let transaction = Tid(50);
 
     let mut datoms_to_insert = Vec::new();
     let mut rows_to_return = Vec::new();
@@ -67,9 +68,11 @@ fn run_query_mut(cursor: &mut Cursor, engine: &mut QueryEngine) -> Vec<Datom> {
         bound_values.extend_from_slice(&result[..]);
 
         for _ in query_mut.free_variables.iter() {
-            // TODO: Allocate real entity ids from the database.
-            eid += 2;
-            bound_values.push(Value::from_eid(Eid(eid)));
+            // Generate a fresh entity id for every new entity. Increment by 2
+            // because transaction ids claim the even ones (for now).
+            // TODO: Encapsulate id generation better.
+            bound_values.push(Value::from_eid(Eid(*next_id)));
+            *next_id += 2;
         }
 
         for assertion in &query_mut.assertions[..] {
@@ -139,13 +142,19 @@ fn main() {
                 run_query(&mut cursor, &mut engine);
             }
             Ok(1) => {
+                let transaction = Tid(db.next_transaction_id);
+                db.next_transaction_id += 2;
+
+                let mut next_id = db.next_id;
+
                 let datoms = {
                     let mut engine = db.query();
-                    let datoms = run_query_mut(&mut cursor, &mut engine);
+                    let datoms = run_query_mut(&mut cursor, &mut engine, transaction, &mut next_id);
                     // TODO: Persist temporarily pooled values.
                     datoms
                 };
                 db.insert(datoms).expect("Failed to insert datoms.");
+                db.next_id = next_id;
             }
             Ok(n) => panic!("Unsupported operation: {}", n),
             // EOF is actually expected. At EOF, we are done.

@@ -215,10 +215,11 @@ impl Builtins {
 
 pub struct Database<Store, Pool> {
     pub builtins: Builtins,
+    // TODO: Make ids privat, expose methods to allocate them.
+    pub next_id: u64,
+    pub next_transaction_id: u64,
     store: Store,
     pool: Pool,
-    next_id: u64,
-    next_transaction_id: u64,
     eavt_root: PageId,
     aevt_root: PageId,
     avet_root: PageId,
