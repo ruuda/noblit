@@ -25,7 +25,7 @@ select
 ┌───────┬───────┐
 │ level │ name  │
 ├───────┼───────┤
-│ # 204 │ # 202 │
+│ # 103 │ # 101 │
 └───────┴───────┘
 
 -- Step 2: Now that we have these new attributes, we can create a few entities
@@ -38,13 +38,14 @@ where
   _ db.type.name "db.type.uint64"
 
 assert
-  leon name "Leon Kowalski"
+  -- TODO: Full names once we support persisting long strings.
+  leon name "Leon K."
   leon year 2017
 
-  pris name "Pris Stratton"
+  pris name "Pris S."
   pris year 2016
 
-  roy name "Roy Batty"
+  roy name "Roy B."
   roy year 2016
 
 select
@@ -53,7 +54,7 @@ select
 ┌───────┬───────┬───────┐
 │ leon  │ pris  │ roy   │
 ├───────┼───────┼───────┤
-│ # 202 │ # 204 │ # 206 │
+│ # 105 │ # 107 │ # 109 │
 └───────┴───────┴───────┘
 
 -- Step 3: Update the schema: add a "model" attribute. The query returns its id.
@@ -73,7 +74,7 @@ select
 ┌───────┐
 │ model │
 ├───────┤
-│ # 202 │
+│ # 111 │
 └───────┘
 
 -- Step 4: Set the "model" attribute for every entity "r" that has a "name"
@@ -89,13 +90,13 @@ assert
 select
   r
 
-┌─────┐
-│ r   │
-├─────┤
-│ # 4 |
-│ # 5 |
-│ # 6 |
-└─────┘
+┌───────┐
+│ r     │
+├───────┤
+│ # 105 │
+│ # 107 │
+│ # 109 │
+└───────┘
 
 -- Step 5: Double check that we now have all the data.
 
@@ -107,10 +108,10 @@ where
 select
   name, model, activation_year
 
-┌─────────────────┬───────────┬─────────────────┐
-│ name            │ model     │ activation_year │
-├─────────────────┼───────────┼─────────────────┤
-│ "Leon Kowalski" │ "Nexus 6" │            2017 │
-│ "Roy Batty"     │ "Nexus 6" │            2016 │
-│ "Pris Stratton" │ "Nexus 6" │            2016 │
-└─────────────────┴───────────┴─────────────────┘
+┌───────────┬───────────┬─────────────────┐
+│ name      │ model     │ activation_year │
+├───────────┼───────────┼─────────────────┤
+│ "Leon K." │ "Nexus 6" │ 2017            │
+│ "Pris S." │ "Nexus 6" │ 2016            │
+│ "Roy B."  │ "Nexus 6" │ 2016            │
+└───────────┴───────────┴─────────────────┘
