@@ -36,44 +36,65 @@ def main(fname: str) -> None:
     # in accordance with the TAP v12 protocol.
     print(f'1..{len(blocks)}')
 
-    for i, (query_lines, expected_lines) in enumerate(blocks):
+    # Keep one executor process open for the entire test, so assertions made in
+    # one transaction are still present for the next query.
+    with subprocess.Popen(
+        ['target/debug/execute'],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    ) as executor:
 
-        # Print the input query, prefixed with #.
-        for line in query_lines:
-            print('#', line, end='')
+        # Run every query (read or write), one by one.
+        for i, (query_lines, expected_lines) in enumerate(blocks):
 
-        query = parse.parse_query(query_lines)
-        query_binary: bytes = b''.join(query.serialize())
+            # Print the input query, prefixed with #.
+            for line in query_lines:
+                print('#', line, end='')
 
-        result = subprocess.run(
-            'target/debug/execute',
-            input=query_binary,
-            capture_output=True,
-        )
+            # Feed the query (in binary format) into the executor.
+            query = parse.parse_query(query_lines)
+            for query_bytes in query.serialize():
+                executor.stdin.write(query_bytes)
 
-        if result.returncode != 0:
-            for line in result.stderr.decode('utf-8').splitlines(keepends=True):
-                print('>', line, end='')
+            # Read executor output, either until we read the last line of the
+            # table (indicated by a bottom-left corner), or until EOF (in case
+            # the process printed something unexpected). TODO: We should put a
+            # timeout on this, in case the executor prints nothing at all.
+            result_lines: List[str] = []
+            for line_bytes in executor.stdout:
+                line_str = line_bytes.decode('utf-8')
+                result_lines.append(line_str)
+                if line_str.startswith('└'):
+                    break
 
-            print('not ok', i + 1)
-            continue
+            # We should only interpret the output lines as meaningful output if
+            # the executor is still behaving according to protocol. When it
+            # exited early, it probably printed a panic message, so we echo that.
+            if executor.poll() is not None:
+                for line in result_lines:
+                    print('>', line, end='')
+                print('not ok', i + 1, 'Executor exited unexpectedly.')
 
-        actual_lines = result.stdout.decode('utf-8').splitlines(keepends=True)
+            is_good = True
+            for actual_line, expected_line in zip_longest(result_lines, expected_lines):
+                if actual_line == expected_line:
+                    print('#', actual_line, end='')
+                else:
+                    is_good = False
+                    # Print a diff of expected vs actual. +/- are ignored by TAP.
+                    print('-', expected_line or '\n', end='')
+                    print('+', actual_line or '\n', end='')
 
-        is_good = True
-        for actual_line, expected_line in zip_longest(actual_lines, expected_lines):
-            if actual_line == expected_line:
-                print('#', actual_line, end='')
+            if is_good:
+                print('ok', i + 1)
             else:
-                is_good = False
-                # Print a diff of expected vs actual. +/- are ignored by TAP.
-                print('-', expected_line or '\n', end='')
-                print('+', actual_line or '\n', end='')
+                print('not ok', i + 1)
 
-        if is_good:
-            print('ok', i + 1)
-        else:
-            print('not ok', i + 1)
+        # Shut down the executor, now that we have run all tests.
+        timeout_seconds = 0.1
+        executor.stdin.close()
+        executor.wait(timeout_seconds)
 
 
 if __name__ == '__main__':
