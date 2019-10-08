@@ -168,13 +168,9 @@ impl Query {
         cursor: &mut Cursor,
         pool: &mut StackPool<Pool>
     ) -> io::Result<Query> {
-        println!("vars:");
         let variable_names = Query::parse_strings(cursor)?;
-        println!("where:");
         let where_statements = Query::parse_statements(cursor, pool)?;
-        println!("selects:");
         let selects = Query::parse_variables(cursor)?;
-        println!("done");
 
         let query = Query {
             variable_names: variable_names,
