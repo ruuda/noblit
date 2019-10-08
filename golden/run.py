@@ -35,7 +35,7 @@ def main(fname: str) -> None:
 
     # Print the number of tests we are going to run,
     # in accordance with the TAP v12 protocol.
-    print(f'1..{len(blocks)}')
+    print(f'1..{len(blocks)}', flush=True)
 
     # Keep one executor process open for the entire test, so assertions
     # made in one transaction are still present for the next query. Run with
@@ -78,7 +78,7 @@ def main(fname: str) -> None:
             # the executor is still behaving according to protocol. When it
             # exited early, it probably printed a panic message.
             if executor.poll() is not None:
-                print('not ok', i + 1, 'Executor exited unexpectedly.')
+                print('not ok', i + 1, 'Executor exited unexpectedly.', flush=True)
                 break
 
             is_good = True
@@ -89,9 +89,9 @@ def main(fname: str) -> None:
                     print('?', expected_line or '\n', end='')
 
             if is_good:
-                print('ok', i + 1)
+                print('ok', i + 1, flush=True)
             else:
-                print('not ok', i + 1)
+                print('not ok', i + 1, flush=True)
 
         # Shut down the executor, now that we have run all tests.
         timeout_seconds = 0.1
