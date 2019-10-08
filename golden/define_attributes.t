@@ -31,6 +31,12 @@ select
 -- Step 2: Now that we have these new attributes, we can create a few entities
 -- that use them. We return the entity ids of the new entities.
 
+where
+  -- For now, we need a dummy in the where clause that produces exactly one
+  -- value, because the assertions are executed once for every output of the
+  -- where clause.
+  _ db.type.name "db.type.uint64"
+
 assert
   leon name "Leon Kowalski"
   leon year 2017
@@ -44,11 +50,11 @@ assert
 select
   leon, pris, roy
 
-┌───────┬──────┐
-│ leon  │ pris │
-├───────┼──────┤
-│ # 4   │ # 5  |
-└───────┴──────┘
+┌───────┬───────┬───────┐
+│ leon  │ pris  │ roy   │
+├───────┼───────┼───────┤
+│ # 202 │ # 204 │ # 206 │
+└───────┴───────┴───────┘
 
 -- Step 3: Update the schema: add a "model" attribute. The query returns its id.
 

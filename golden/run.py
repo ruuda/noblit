@@ -69,6 +69,7 @@ def main(fname: str) -> None:
             for line_bytes in executor.stdout:
                 line_str = line_bytes.decode('utf-8')
                 result_lines.append(line_str)
+                # Echo the lines; '>' is ignored by TAP.
                 print('>', line_str, end='')
                 if line_str.startswith('└'):
                     break
@@ -84,9 +85,8 @@ def main(fname: str) -> None:
             for actual_line, expected_line in zip_longest(result_lines, expected_lines):
                 if actual_line != expected_line:
                     is_good = False
-                    # Print a diff of expected vs actual. +/- are ignored by TAP.
-                    print('-', expected_line or '\n', end='')
-                    print('+', actual_line or '\n', end='')
+                    # Print a diff of expected vs actual. ? is ignored by TAP.
+                    print('?', expected_line or '\n', end='')
 
             if is_good:
                 print('ok', i + 1)
