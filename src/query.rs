@@ -10,7 +10,9 @@
 //! Queries need to be translated into a query plan before they can be
 //! evaluated.
 
-use binary::{Cursor, CursorError};
+use std::io;
+
+use binary::Cursor;
 use database::QueryEngine;
 use datom::{Aid, Value};
 use pool;
@@ -85,7 +87,7 @@ impl Query {
     // TODO: Move binary format parsing into its own module.
 
     /// Deserialize variable names from binary format.
-    fn parse_strings(cursor: &mut Cursor) -> Result<Vec<String>, CursorError> {
+    fn parse_strings(cursor: &mut Cursor) -> io::Result<Vec<String>> {
         let num_variables = cursor.take_u16_le()?;
         let mut variable_names = Vec::with_capacity(num_variables as usize);
         for _ in 0..num_variables {
@@ -101,7 +103,7 @@ impl Query {
     fn parse_statements<Pool: pool::Pool>(
         cursor: &mut Cursor,
         pool: &mut StackPool<Pool>
-    ) -> Result<Vec<Statement>, CursorError> {
+    ) -> io::Result<Vec<Statement>> {
         let num_statements = cursor.take_u16_le()?;
         let mut statements = Vec::with_capacity(num_statements as usize);
         for _ in 0..num_statements {
@@ -125,11 +127,10 @@ impl Query {
                 2 => {
                     let value_len = cursor.take_u16_le()?;
                     let value_str = cursor.take_utf8(value_len as usize)?;
-                    let value = match Value::from_str(value_str) {
+                    let value = match Value::from_str(&value_str[..]) {
                         Some(v) => v,
                         None => {
                             let bytes = value_str
-                                .to_string()
                                 .into_boxed_str()
                                 .into_boxed_bytes();
                             Value::from_const_bytes(pool.push_bytes(bytes))
@@ -151,7 +152,7 @@ impl Query {
         Ok(statements)
     }
 
-    fn parse_variables(cursor: &mut Cursor) -> Result<Vec<Var>, CursorError> {
+    fn parse_variables(cursor: &mut Cursor) -> io::Result<Vec<Var>> {
         let num_variables = cursor.take_u16_le()?;
         let mut variables = Vec::with_capacity(num_variables as usize);
         for _ in 0..num_variables {
@@ -166,13 +167,14 @@ impl Query {
     pub fn parse<Pool: pool::Pool>(
         cursor: &mut Cursor,
         pool: &mut StackPool<Pool>
-    ) -> Result<Query, CursorError> {
-        let kind = cursor.take_u8()?;
-        assert_eq!(kind, 0, "Expected kind 0 for Query::parse.");
-
+    ) -> io::Result<Query> {
+        println!("vars:");
         let variable_names = Query::parse_strings(cursor)?;
+        println!("where:");
         let where_statements = Query::parse_statements(cursor, pool)?;
+        println!("selects:");
         let selects = Query::parse_variables(cursor)?;
+        println!("done");
 
         let query = Query {
             variable_names: variable_names,
@@ -300,11 +302,8 @@ impl QueryMut {
     pub fn parse<Pool: pool::Pool>(
         cursor: &mut Cursor,
         pool: &mut StackPool<Pool>
-    ) -> Result<QueryMut, CursorError> {
+    ) -> io::Result<QueryMut> {
         use std::iter;
-
-        let kind = cursor.take_u8()?;
-        assert_eq!(kind, 1, "Expected kind 1 for QueryMut::parse.");
 
         // The first part is the same as for a regular query.
         let variable_names = Query::parse_strings(cursor)?;

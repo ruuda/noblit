@@ -12,8 +12,9 @@ assert
   name db.attribute.unique true
   name db.attribute.many false
 
-  -- Define an attribute named "activation_year" of type uint64.
-  level db.attribute.name "activation_year"
+  -- TODO: Rename back to "activation_year" once large value persistence works.
+  -- Define an attribute named "year" of type uint64.
+  level db.attribute.name "year"
   level db.attribute.type uint64_t
   level db.attribute.unique false
   level db.attribute.many false
@@ -32,13 +33,13 @@ select
 
 assert
   leon name "Leon Kowalski"
-  leon activation_year 2017
+  leon year 2017
 
   pris name "Pris Stratton"
-  pris activation_year 2016
+  pris year 2016
 
   roy name "Roy Batty"
-  roy activation_year 2016
+  roy year 2016
 
 select
   leon, pris, roy
@@ -95,7 +96,7 @@ select
 where
   r name name
   r model model
-  r activation_year activation_year
+  r year activation_year
 
 select
   name, model, activation_year

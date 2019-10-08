@@ -18,8 +18,9 @@ Interpreter usage:
   prove --exec golden/run.py golden
 """
 
-import sys
+import os
 import subprocess
+import sys
 
 from itertools import zip_longest
 from typing import Iterable, List, Iterator
@@ -36,8 +37,10 @@ def main(fname: str) -> None:
     # in accordance with the TAP v12 protocol.
     print(f'1..{len(blocks)}')
 
-    # Keep one executor process open for the entire test, so assertions made in
-    # one transaction are still present for the next query.
+    # Keep one executor process open for the entire test, so assertions
+    # made in one transaction are still present for the next query. Run with
+    # RUST_BACKTRACE=1 so we get a backtrace if the executor panics.
+    os.putenv('RUST_BACKTRACE', '1')
     with subprocess.Popen(
         ['target/debug/execute'],
         stdin=subprocess.PIPE,
@@ -56,6 +59,7 @@ def main(fname: str) -> None:
             query = parse.parse_query(query_lines)
             for query_bytes in query.serialize():
                 executor.stdin.write(query_bytes)
+            executor.stdin.flush()
 
             # Read executor output, either until we read the last line of the
             # table (indicated by a bottom-left corner), or until EOF (in case
@@ -65,22 +69,20 @@ def main(fname: str) -> None:
             for line_bytes in executor.stdout:
                 line_str = line_bytes.decode('utf-8')
                 result_lines.append(line_str)
+                print('>', line_str, end='')
                 if line_str.startswith('└'):
                     break
 
             # We should only interpret the output lines as meaningful output if
             # the executor is still behaving according to protocol. When it
-            # exited early, it probably printed a panic message, so we echo that.
+            # exited early, it probably printed a panic message.
             if executor.poll() is not None:
-                for line in result_lines:
-                    print('>', line, end='')
                 print('not ok', i + 1, 'Executor exited unexpectedly.')
+                break
 
             is_good = True
             for actual_line, expected_line in zip_longest(result_lines, expected_lines):
-                if actual_line == expected_line:
-                    print('#', actual_line, end='')
-                else:
+                if actual_line != expected_line:
                     is_good = False
                     # Print a diff of expected vs actual. +/- are ignored by TAP.
                     print('-', expected_line or '\n', end='')

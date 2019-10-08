@@ -7,7 +7,7 @@
 
 extern crate noblit;
 
-use std::io::{Read, self};
+use std::io;
 
 use noblit::binary::Cursor;
 use noblit::datom::{Datom, Eid, Tid, Value};
@@ -130,20 +130,15 @@ fn main() {
     let pool = MemoryPool::new();
 
     let mut db = Database::new(store, pool).unwrap();
-
-    // Read stdin until EOF so we can parse it later.
-    let mut query_bytes = Vec::new();
-    io::stdin().read_to_end(&mut query_bytes).unwrap();
-
-    let mut cursor = Cursor::new(&query_bytes[..]);
+    let mut cursor = Cursor::new(io::stdin());
 
     loop {
-        match cursor.peek_u8() {
-            Some(0) => {
+        match cursor.take_u8() {
+            Ok(0) => {
                 let mut engine = db.query();
                 run_query(&mut cursor, &mut engine);
             }
-            Some(1) => {
+            Ok(1) => {
                 let datoms = {
                     let mut engine = db.query();
                     let datoms = run_query_mut(&mut cursor, &mut engine);
@@ -152,8 +147,10 @@ fn main() {
                 };
                 db.insert(datoms).expect("Failed to insert datoms.");
             }
-            Some(n) => panic!("Unsupported operation: {}", n),
-            None => break,
+            Ok(n) => panic!("Unsupported operation: {}", n),
+            // EOF is actually expected. At EOF, we are done.
+            Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(e) => panic!("{}", e),
         }
 
         // This "execute" program is used in the golden tests, so perform a
