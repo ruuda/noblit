@@ -31,6 +31,22 @@ pub struct StackPool<P: Pool> {
     stack_bytes: Vec<Box<[u8]>>,
 }
 
+/// A stack of transient constants that used to live on the stack pool.
+///
+/// The stack pool is used to track temporaries during queries. At the end of a
+/// mutation, when it is known which datoms to insert, the temporaries need to
+/// be persisted to the pool as persistent values. This struct eases that
+/// transition: it allows the values to escape, while releasing the read-only
+/// borrow of the underlying pool, so it can be mutated again in order to
+/// persist the values.
+pub struct Temporaries {
+    /// The stack of temporary 64-bit unsigned integer constants.
+    stack_u64: Vec<u64>,
+
+    /// The stack of temporary byte string constants.
+    stack_bytes: Vec<Box<[u8]>>,
+}
+
 impl<P: Pool> StackPool<P> {
     pub fn new(inner: P) -> StackPool<P> {
         StackPool {
@@ -76,6 +92,13 @@ impl<P: Pool> StackPool<P> {
             "Value to be popped must be the value on top of the byte string stack.",
         );
     }
+
+    pub fn into_temporaries(self) -> Temporaries {
+        Temporaries {
+            stack_u64: self.stack_u64,
+            stack_bytes: self.stack_bytes,
+        }
+    }
 }
 
 impl<P: Pool> Pool for StackPool<P> {
@@ -98,6 +121,22 @@ impl<P: Pool> Pool for StackPool<P> {
             1 => (offset.0 - 1) / 8,
             _ => unreachable!("Invalid byte string constant id: 0x{:x}", offset.0),
         };
+        &self.stack_bytes[index as usize]
+    }
+}
+
+impl Temporaries {
+    /// Resolve a temporary constant id to the `u64` value.
+    pub fn get_u64(&self, cid: CidInt) -> u64 {
+        debug_assert_eq!(cid.0 & 7, 1, "Expected temporary id to be 1 mod 8.");
+        let index = (cid.0 - 1) / 8;
+        self.stack_u64[index as usize]
+    }
+
+    /// Resolve a temporary constant id to the byte string value.
+    pub fn get_bytes(&self, cid: CidBytes) -> &[u8] {
+        debug_assert_eq!(cid.0 & 7, 1, "Expected temporary id to be 1 mod 8.");
+        let index = (cid.0 - 1) / 8;
         &self.stack_bytes[index as usize]
     }
 }
