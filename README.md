@@ -27,7 +27,7 @@ Below is a demonstration through a film database. Let's first insert some films:
       b film.director s
       b film.year 1982
 
-      p film.title "Pulp fiction"
+      p film.title "Pulp Fiction"
       p film.director t
       p film.year 1994
 

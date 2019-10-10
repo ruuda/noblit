@@ -6,7 +6,7 @@ where
   string_t db.type.name "db.type.string"
 
 assert
-  -- Define an attribute named "name" of type uint64.
+  -- Define an attribute named "name" of type string.
   name db.attribute.name "name"
   name db.attribute.type string_t
   name db.attribute.unique true
