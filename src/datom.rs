@@ -295,7 +295,7 @@ impl Value {
     }
 
     pub fn as_const_bytes(&self) -> CidBytes {
-        debug_assert!(self.is_u64(), "Value must be int for as_const_bytes.");
+        debug_assert!(self.is_bytes(), "Value must be int for as_const_bytes.");
         debug_assert!(self.is_external(), "Value must be external for as_const_bytes.");
         CidBytes(self.0 & !Value::TAG_MASK)
     }

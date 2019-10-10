@@ -147,12 +147,12 @@ fn main() {
 
                 let mut next_id = db.next_id;
 
-                let datoms = {
+                let (mut datoms, temporaries) = {
                     let mut engine = db.query();
                     let datoms = run_query_mut(&mut cursor, &mut engine, transaction, &mut next_id);
-                    // TODO: Persist temporarily pooled values.
-                    datoms
+                    (datoms, engine.into_temporaries())
                 };
+                db.persist_temporaries(&temporaries, &mut datoms[..]).unwrap();
                 db.insert(datoms).expect("Failed to insert datoms.");
                 db.next_id = next_id;
             }

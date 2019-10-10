@@ -327,14 +327,12 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
                         let cid_tmp = value.as_const_u64();
                         let data = temporaries.get_u64(cid_tmp);
                         let cid_fin = self.pool.append_u64(data)?;
-                        println!("Persisted one u64. (TODO: Remove print.)");
                         Value::from_const_u64(cid_fin)
                     }
                     _ if value.is_bytes() => {
                         let cid_tmp = value.as_const_bytes();
                         let data = temporaries.get_bytes(cid_tmp);
                         let cid_fin = self.pool.append_bytes(data)?;
-                        println!("Persisted one bytes. (TODO: Remove print.)");
                         Value::from_const_bytes(cid_fin)
                     }
                     _ => unreachable!("Value is either u64 or bytes."),
@@ -443,6 +441,15 @@ impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store,
     /// TODO: is there a better way to do this, can we avoid making it public?
     pub fn pool_mut(&mut self) -> &mut StackPool<&'a Pool> {
         &mut self.stack_pool
+    }
+
+    /// Destroy the engine, free up the underlying database, exfiltrate temporaries.
+    ///
+    /// This allows the temporaries that may have been created for a query, to
+    /// be persisted to the underlying pool (which will be available for writes
+    /// again after the engine no longer borrows it read-only).
+    pub fn into_temporaries(self) -> Temporaries {
+        self.stack_pool.into_temporaries()
     }
 
     /// Return the (entity, attribute, value, transaction) index.
