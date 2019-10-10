@@ -12,9 +12,8 @@ assert
   name db.attribute.unique true
   name db.attribute.many false
 
-  -- TODO: Rename back to "activation_year" once large value persistence works.
-  -- Define an attribute named "year" of type uint64.
-  level db.attribute.name "year"
+  -- Define an attribute named "activation_year" of type uint64.
+  level db.attribute.name "activation_year"
   level db.attribute.type uint64_t
   level db.attribute.unique false
   level db.attribute.many false
@@ -38,15 +37,14 @@ where
   _ db.type.name "db.type.uint64"
 
 assert
-  -- TODO: Full names once we support persisting long strings.
-  leon name "Leon K."
-  leon year 2017
+  leon name "Leon Kowalski"
+  leon activation_year 2017
 
-  pris name "Pris S."
-  pris year 2016
+  pris name "Pris Stratton"
+  pris activation_year 2016
 
-  roy name "Roy B."
-  roy year 2016
+  roy name "Roy Batty"
+  roy activation_year 2016
 
 select
   leon, pris, roy
@@ -103,15 +101,15 @@ select
 where
   r name name
   r model model
-  r year activation_year
+  r activation_year activation_year
 
 select
   name, model, activation_year
 
-┌───────────┬───────────┬─────────────────┐
-│ name      │ model     │ activation_year │
-├───────────┼───────────┼─────────────────┤
-│ "Leon K." │ "Nexus 6" │ 2017            │
-│ "Pris S." │ "Nexus 6" │ 2016            │
-│ "Roy B."  │ "Nexus 6" │ 2016            │
-└───────────┴───────────┴─────────────────┘
+┌─────────────────┬───────────┬─────────────────┐
+│ name            │ model     │ activation_year │
+├─────────────────┼───────────┼─────────────────┤
+│ "Leon Kowalski" │ "Nexus 6" │ 2017            │
+│ "Pris Stratton" │ "Nexus 6" │ 2016            │
+│ "Roy Batty"     │ "Nexus 6" │ 2016            │
+└─────────────────┴───────────┴─────────────────┘
