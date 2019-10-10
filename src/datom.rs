@@ -129,25 +129,36 @@ impl Value {
     const TAG_MASK: u64 = Value::TAG_EXTERNAL | Value::TAG_BYTES;
 
     /// Return whether this value is the sentinel max value.
-    fn is_max(&self) -> bool {
+    pub fn is_max(&self) -> bool {
         self.0 == 0xffff_ffff_ffff_ffff
     }
 
     /// Return whether the value type is u64, as opposed to a byte string.
-    fn is_u64(&self) -> bool {
+    pub fn is_u64(&self) -> bool {
         self.0 & Value::TAG_BYTES == 0
     }
 
     /// Return whether the value type is a byte string, as opposed to u64.
-    fn is_bytes(&self) -> bool {
+    pub fn is_bytes(&self) -> bool {
         debug_assert!(!self.is_max(), "Should test for max before testing type.");
         self.0 & Value::TAG_BYTES != 0
     }
 
     /// Return whether the value is the offset of an externally stored value.
-    fn is_external(&self) -> bool {
+    pub fn is_external(&self) -> bool {
         debug_assert!(!self.is_max(), "Should test for max before testing external.");
         self.0 & Value::TAG_EXTERNAL != 0
+    }
+
+    /// Return whether the value is the index of an external temporary.
+    ///
+    /// Temporaries are used to refer to large values that occur in queries, but
+    /// which are not necessarily in the database already. They are stored on
+    /// the `StackPool`.
+    pub fn is_temporary(&self) -> bool {
+        // External values are aligned to 8 bytes. Non-aligned values indicate
+        // temporaries.
+        self.is_external() && (self.0 & 7 != 0)
     }
 
     /// Construct an integer value from a 62-bit unsigned integer.
@@ -241,8 +252,7 @@ impl Value {
         use std::mem;
         debug_assert!(self.is_bytes(), "Value must be byte string for as_bytes.");
         if self.is_external() {
-            debug_assert!(!self.is_max(), "Value::max() is a sentinel value, it is not a byte string.");
-            pool.get_bytes(CidBytes(self.0 & !Value::TAG_MASK))
+            pool.get_bytes(self.as_const_bytes())
         } else {
             let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
             let len = (bytes[7] & 0x3f) as usize;
@@ -258,7 +268,7 @@ impl Value {
     pub fn as_u64<P: Pool + ?Sized>(&self, pool: &P) -> u64 {
         debug_assert!(self.is_u64(), "Value must be int for as_u64.");
         if self.is_external() {
-            pool.get_u64(CidInt(self.0 & !Value::TAG_MASK))
+            pool.get_u64(self.as_const_u64())
         } else {
             self.0
         }
@@ -276,6 +286,18 @@ impl Value {
             1 => true,
             _ => unreachable!("Bool values should be either 0 or 1."),
         }
+    }
+
+    pub fn as_const_u64(&self) -> CidInt {
+        debug_assert!(self.is_u64(), "Value must be int for as_const_u64.");
+        debug_assert!(self.is_external(), "Value must be external for as_const_u64.");
+        CidInt(self.0 & !Value::TAG_MASK)
+    }
+
+    pub fn as_const_bytes(&self) -> CidBytes {
+        debug_assert!(self.is_u64(), "Value must be int for as_const_bytes.");
+        debug_assert!(self.is_external(), "Value must be external for as_const_bytes.");
+        CidBytes(self.0 & !Value::TAG_MASK)
     }
 
     pub fn min() -> Value {

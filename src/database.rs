@@ -15,7 +15,7 @@ use htree::HTree;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
 use pool::{CidBytes, self};
-use stack_pool::StackPool;
+use stack_pool::{StackPool, Temporaries};
 use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
@@ -304,6 +304,45 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
     /// Return the (attribute, value, entity, transaction) index, writable.
     pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store, &Pool> where Store: store::StoreMut {
         HTree::new(self.avet_root, Avet, &mut self.store, &self.pool)
+    }
+
+    /// Persist temporary values that the datoms may reference to the pool.
+    ///
+    /// Values that come from the input query (whether read-only or write) are
+    /// stored as temporaries. When an assertion produces datoms that have
+    /// tempoaries as values, these datoms cannot be inserted directly. The
+    /// temporaries must first be persisted on the pool, and the values in the
+    /// datoms must be updated to reference the new stable offsets.
+    pub fn persist_temporaries(
+        &mut self,
+        temporaries: &Temporaries,
+        datoms: &mut [Datom],
+    ) -> io::Result<()>
+    where Pool: pool::PoolMut {
+        for datom in datoms.iter_mut() {
+            let value = datom.value;
+            if value.is_temporary() {
+                let value_fin = match () {
+                    _ if value.is_u64() => {
+                        let cid_tmp = value.as_const_u64();
+                        let data = temporaries.get_u64(cid_tmp);
+                        let cid_fin = self.pool.append_u64(data)?;
+                        println!("Persisted one u64. (TODO: Remove print.)");
+                        Value::from_const_u64(cid_fin)
+                    }
+                    _ if value.is_bytes() => {
+                        let cid_tmp = value.as_const_bytes();
+                        let data = temporaries.get_bytes(cid_tmp);
+                        let cid_fin = self.pool.append_bytes(data)?;
+                        println!("Persisted one bytes. (TODO: Remove print.)");
+                        Value::from_const_bytes(cid_fin)
+                    }
+                    _ => unreachable!("Value is either u64 or bytes."),
+                };
+                datom.value = value_fin;
+            }
+        }
+        Ok(())
     }
 
     /// Insert datoms into the database.
