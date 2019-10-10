@@ -391,9 +391,9 @@ mod test {
         let numbers = [0, 1, 2, 3, 5, 7, 128, 4096, u64::MAX >> 2];
         let pool = MemoryPool::new();
         for &i in &numbers {
-            let v_i = Value::from_u64(i);
+            let v_i = Value::from_u64_inline(i);
             for &j in &numbers {
-                let v_j = Value::from_u64(j);
+                let v_j = Value::from_u64_inline(j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
 
@@ -426,12 +426,14 @@ mod test {
         let mut pool = MemoryPool::new();
         for &i in &numbers {
             let v_i = match i {
-                0...0x3fff_ffff_ffff_ffff => Value::from_u64(i),
+                // TODO: Just match on the option.
+                0...0x3fff_ffff_ffff_ffff => Value::from_u64_inline(i),
                 _ => Value::from_const_u64(pool.append_u64(i).unwrap()),
             };
             for &j in &numbers {
                 let v_j = match j {
-                    0...0x3fff_ffff_ffff_ffff => Value::from_u64(j),
+                    // TODO: Just match on the option.
+                    0...0x3fff_ffff_ffff_ffff => Value::from_u64_inline(j),
                     _ => Value::from_const_u64(pool.append_u64(j).unwrap()),
                 };
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
@@ -450,9 +452,9 @@ mod test {
         ];
         let pool = MemoryPool::new();
         for &i in &values {
-            let v_i = Value::from_str(i);
+            let v_i = Value::from_str_inline(i);
             for &j in &values {
-                let v_j = Value::from_str(j);
+                let v_j = Value::from_str_inline(j);
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
             }
 
@@ -495,12 +497,14 @@ mod test {
         let mut pool = MemoryPool::new();
         for &i in &values {
             let v_i = match i.len() {
-                0...7 => Value::from_str(i),
+                // TODO: Just match on the option.
+                0...7 => Value::from_str_inline(i),
                 _ => Value::from_const_bytes(pool.append_bytes(i.as_bytes()).unwrap()),
             };
             for &j in &values {
                 let v_j = match j.len() {
-                    0...7 => Value::from_str(j),
+                    // TODO: Just match on the option.
+                    0...7 => Value::from_str_inline(j),
                     _ => Value::from_const_bytes(pool.append_bytes(j.as_bytes()).unwrap()),
                 };
                 assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
