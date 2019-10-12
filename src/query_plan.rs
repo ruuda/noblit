@@ -492,7 +492,9 @@ impl<'a, Store: store::Store, Pool: pool::Pool> Evaluator<'a, Store, Pool> {
 
         // Set only the first iterator: this is the one that we won't reset when
         // it is exhausted. The others we'll reset during iteration.
-        eval.iters[0] = eval.make_iter(&eval.plan.definitions[0]);
+        if eval.plan.definitions.len() > 0 {
+            eval.iters[0] = eval.make_iter(&eval.plan.definitions[0]);
+        }
 
         eval
     }
@@ -580,6 +582,11 @@ impl<'a, Store: store::Store, Pool: pool::Pool> Iterator for Evaluator<'a, Store
     type Item = Box<[Value]>;
 
     fn next(&mut self) -> Option<Box<[Value]>> {
+        // If there is nothing to select, the evaluator is exhausted immediately.
+        if self.plan.definitions.len() == 0 {
+            return None
+        }
+
         let i = self.plan.definitions.len() - 1;
         match self.increment(i) {
             false => None,
