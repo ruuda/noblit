@@ -14,6 +14,7 @@ debug-prints the parsed query.
 """
 
 import ast
+import re
 import sys
 
 from enum import Enum
@@ -206,7 +207,7 @@ def parse_state(line: str) -> State:
 
 
 def parse_statement(variables: VarMap, line: str) -> Statement:
-    statement = line.strip().split(' ', maxsplit=2)
+    statement = re.split('\\s+', line.strip(), maxsplit=2)
 
     if len(statement) != 3:
         print(f'Invalid statement: {line.strip()}')
