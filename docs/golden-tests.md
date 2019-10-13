@@ -59,7 +59,6 @@ Checking a golden consists of several stages:
 The parser and executor can also be used standalone. For example, to run the
 builtin types query:
 
-    $ head -4 golden/builtin_types.t | golden/parse.py | target/debug/execute
+    $ cat golden/builtin_types.t | golden/parse.py | target/debug/execute
 
-We take the first 4 lines with `head` to get only the query, and not the
-reference output.
+In this mode, the parser discards the reference output in the file.
