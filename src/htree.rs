@@ -14,7 +14,7 @@ use std::ops::Range;
 
 use datom::Datom;
 use index::DatomOrd;
-use pool;
+use heap;
 use store::{PageId, PageSize, self};
 
 /// A tree node.
@@ -234,18 +234,18 @@ impl<'a> Node<'a> {
     #[cfg(debug_assertions)]
     fn check_datoms_increasing<
         Cmp: DatomOrd,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         &self,
         comparator: &Cmp,
-        pool: &Pool,
+        heap: &Heap,
         datoms: &[Datom]
     ) {
         let mut minimum = None;
         for (i, datom) in datoms.iter().enumerate() {
             if let Some(inf) = minimum {
                 assert_eq!(
-                    comparator.cmp(inf, datom, pool), Ordering::Less,
+                    comparator.cmp(inf, datom, heap), Ordering::Less,
                     "Monotonicity violation at index {}: datom ({:?}) >= ({:?}).", i, inf, datom
                 );
             }
@@ -259,16 +259,16 @@ impl<'a> Node<'a> {
     /// node, and additionally all of `datoms` as pending datoms.
     fn insert<
         Cmp: DatomOrd,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         &self,
         comparator: &Cmp,
-        pool: &Pool,
+        heap: &Heap,
         datoms: &[Datom]
     ) -> VecNode
     {
         #[cfg(debug_assertions)]
-        self.check_datoms_increasing(comparator, pool, datoms);
+        self.check_datoms_increasing(comparator, heap, datoms);
 
         let other_datoms = datoms;
         let new_len = self.datoms.len() + other_datoms.len();
@@ -307,7 +307,7 @@ impl<'a> Node<'a> {
             // Neither slice is exhausted, compare the two candidates.
             let datom_i = self.datoms[i];
             let datom_j = other_datoms[j];
-            match comparator.cmp(&datom_i, &datom_j, pool) {
+            match comparator.cmp(&datom_i, &datom_j, heap) {
                 Ordering::Equal => panic!("Encountered duplicate datom in htree."),
                 Ordering::Less => {
                     new_datoms.push(datom_i);
@@ -391,7 +391,7 @@ impl VecNode {
 /// The `HTree` struct is a thin wrapper around the `Store`, which provides
 /// storage for its tree nodes. A tree node is stored in exactly one page in
 /// the store.
-pub struct HTree<Cmp, Store, Pool> {
+pub struct HTree<Cmp, Store, Heap> {
     /// The page that contains the root node.
     // TODO: Remove this member and pass it in externally?
     pub root_page: PageId,
@@ -402,8 +402,8 @@ pub struct HTree<Cmp, Store, Pool> {
     /// The backing store to read pages from and append to.
     pub store: Store,
 
-    /// The backing store to read large values from.
-    pub pool: Pool,
+    /// The backing large value heap to read large values from.
+    pub heap: Heap,
 }
 
 /// Read the node with the given page id from the store.
@@ -411,14 +411,14 @@ fn get_node<Store: store::Store>(store: &Store, page: PageId) -> Node {
     Node::from_bytes::<Store::Size>(store.get(page))
 }
 
-impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Pool> {
+impl<Cmp: DatomOrd, Store: store::Store, Heap: heap::Heap> HTree<Cmp, Store, Heap> {
     /// Create a new view into an existing index in the store.
-    pub fn new(root_page: PageId, comparator: Cmp, store: Store, pool: Pool) -> HTree<Cmp, Store, Pool> {
+    pub fn new(root_page: PageId, comparator: Cmp, store: Store, heap: Heap) -> HTree<Cmp, Store, Heap> {
         HTree {
             root_page: root_page,
             comparator: comparator,
             store: store,
-            pool: pool,
+            heap: heap,
         }
     }
 
@@ -426,29 +426,29 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
     ///
     /// The datoms need not be sorted, so the same slice can be used to
     /// construct multiple trees with different orderings. Large values
-    /// do need to be stored in the pool already though.
+    /// do need to be stored on the heap already though.
     pub fn initialize(
         comparator: Cmp,
         store: Store,
-        pool: Pool,
+        heap: Heap,
         datoms: &[Datom]
-    ) -> io::Result<HTree<Cmp, Store, Pool>>
+    ) -> io::Result<HTree<Cmp, Store, Heap>>
     where Store: store::StoreMut
     {
         let mut node = VecNode::from_slice(datoms);
 
-        // TODO: Debug-assert that large values are in the pool.
+        // TODO: Debug-assert that large values are on the heap.
 
         // Inserting datoms into the tree requires that they are sorted. Now
         // that we made a copy of the datoms slice anyway, we can sort it in
         // place before we insert it.
-        node.datoms.sort_by(|x, y| comparator.cmp(x, y, &pool));
+        node.datoms.sort_by(|x, y| comparator.cmp(x, y, &heap));
 
         let mut tree = HTree {
             root_page: PageId::max(), // Will be overwritten immediately.
             comparator: comparator,
             store: store,
-            pool: pool,
+            heap: heap,
         };
 
         tree.root_page = tree.write_root(node)?;
@@ -593,7 +593,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
     {
         // Make a heap-allocated copy of the node to insert into, and merge-sort
         // insert the datoms into it.
-        let mut new_node = get_node(&self.store, page).insert(&self.comparator, &self.pool, datoms);
+        let mut new_node = get_node(&self.store, page).insert(&self.comparator, &self.heap, datoms);
 
         // If the new node does not fit in a page, try flushing pending datoms
         // until it fits.
@@ -697,7 +697,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
         for (i, datom) in node.datoms.iter().enumerate() {
             if let Some(inf) = all_infimum {
                 assert_eq!(
-                    self.comparator.cmp(inf, datom, &self.pool), Ordering::Less,
+                    self.comparator.cmp(inf, datom, &self.heap), Ordering::Less,
                     "Violation at page {:?}: infimum ({:?}) >= datom {} ({:?}).", page, inf, i, datom
                 );
             }
@@ -720,7 +720,7 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
 
         if let (Some(inf), Some(sup)) = (all_infimum, supremum) {
             assert_eq!(
-                self.comparator.cmp(inf, sup, &self.pool), Ordering::Less,
+                self.comparator.cmp(inf, sup, &self.heap), Ordering::Less,
                 "Violation at page {:?}, final infimum >= supremum.", page,
             );
         }
@@ -744,14 +744,14 @@ impl<Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, Store, Poo
 
     /// Assert that the tree is well-formed, that all invariants hold.
     ///
-    /// This is used in tests and during fuzzing. The pool is not checked; it
-    /// can be checked separately with `pool::check_invariants`.
+    /// This is used in tests and during fuzzing. The heap is not checked; it
+    /// can be checked separately with `heap::check_invariants`.
     pub fn check_invariants(&self) -> io::Result<()> {
         self.check_invariants_at(self.root_page, None, None, None)
     }
 }
 
-impl<'a, Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, &'a Store, &'a Pool> {
+impl<'a, Cmp: DatomOrd, Store: store::Store, Heap: heap::Heap> HTree<Cmp, &'a Store, &'a Heap> {
     /// Locate the first datom that is greater than or equal to the queried one.
     ///
     /// Returns a cursor that points to the datom, which can be used as the
@@ -772,7 +772,7 @@ impl<'a, Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, &'a St
             let mut index = node.datoms.len();
 
             for (i, datom_i) in node.datoms.iter().enumerate() {
-                match self.comparator.cmp(datom_i, datom, &self.pool) {
+                match self.comparator.cmp(datom_i, datom, &self.heap) {
                     Ordering::Less => continue,
                     Ordering::Equal | Ordering::Greater => {
                         index = i;
@@ -806,12 +806,12 @@ impl<'a, Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> HTree<Cmp, &'a St
     }
 
     /// Return an iterator over the range `[begin..end)`.
-    pub fn into_iter(self, begin: &Datom, end: &Datom) -> Iter<'a, Cmp, Store, Pool> {
+    pub fn into_iter(self, begin: &Datom, end: &Datom) -> Iter<'a, Cmp, Store, Heap> {
         let (cursor_begin, nodes) = self.find(begin);
         let (cursor_end, _) = self.find(end);
         Iter {
             store: self.store,
-            pool: self.pool,
+            heap: self.heap,
             comparator: self.comparator,
             nodes: nodes,
             begin: cursor_begin,
@@ -848,12 +848,12 @@ pub struct Cursor {
 /// An iterator over a range of a tree.
 ///
 /// The iterator yields datoms in ascending order.
-pub struct Iter<'a, Cmp: 'a, Store: 'a, Pool: 'a> {
+pub struct Iter<'a, Cmp: 'a, Store: 'a, Heap: 'a> {
     /// The store that contains the tree to iterate.
     store: &'a Store,
 
-    /// The backing store for large values.
-    pool: &'a Pool,
+    /// The backing heap for large values.
+    heap: &'a Heap,
 
     /// Datom ordering used by the tree.
     comparator: Cmp,
@@ -868,7 +868,7 @@ pub struct Iter<'a, Cmp: 'a, Store: 'a, Pool: 'a> {
     end: Cursor,
 }
 
-impl<'a, Cmp: DatomOrd, Store: store::Store, Pool> Iter<'a, Cmp, Store, Pool> {
+impl<'a, Cmp: DatomOrd, Store: store::Store, Heap> Iter<'a, Cmp, Store, Heap> {
     /// Advance the begin pointer after yielding a datom.
     ///
     /// `level` is the index into the `nodes` and `indices` stacks
@@ -904,7 +904,7 @@ impl<'a, Cmp: DatomOrd, Store: store::Store, Pool> Iter<'a, Cmp, Store, Pool> {
     }
 }
 
-impl<'a, Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> Iterator for Iter<'a, Cmp, Store, Pool> {
+impl<'a, Cmp: DatomOrd, Store: store::Store, Heap: heap::Heap> Iterator for Iter<'a, Cmp, Store, Heap> {
     type Item = &'a Datom;
 
     fn next(&mut self) -> Option<&'a Datom> {
@@ -934,7 +934,7 @@ impl<'a, Cmp: DatomOrd, Store: store::Store, Pool: pool::Pool> Iterator for Iter
             match candidate {
                 None => candidate = Some((k, datom)),
                 Some((_level, least_datom)) => {
-                    match self.comparator.cmp(least_datom, datom, self.pool) {
+                    match self.comparator.cmp(least_datom, datom, self.heap) {
                         Ordering::Less => continue,
                         Ordering::Equal => panic!("Encountered duplicate datom in htree."),
                         Ordering::Greater => candidate = Some((k, datom)),
@@ -959,7 +959,7 @@ mod test {
 
     use datom::{Aid, Datom, Eid, Tid, Value};
     use store::{PageId, PageSize, PageSize256, PageSize563, PageSize4096, StoreMut};
-    use memory_store::{MemoryStore, MemoryPool};
+    use memory_store::{MemoryStore, MemoryHeap};
     use super::{HTree, Iter, Node, Cursor};
     use index::Eavt;
 
@@ -1006,9 +1006,9 @@ mod test {
         let mut store1 = MemoryStore::<Size>::new();
         store1.write_page(&node.write::<Size>()).unwrap();
 
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         let mut store2 = MemoryStore::<Size>::new();
-        HTree::initialize(Eavt, &mut store2, &pool, &node.datoms).unwrap();
+        HTree::initialize(Eavt, &mut store2, &heap, &node.datoms).unwrap();
 
         assert_eq!(store1.as_bytes(), store2.as_bytes());
     }
@@ -1032,13 +1032,13 @@ mod test {
         };
 
         type Size = PageSize563;
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         store.write_page(&node.write::<Size>()).unwrap();
 
         let iter = Iter {
             store: &store,
-            pool: &pool,
+            heap: &heap,
             comparator: Eavt,
             nodes: vec![node],
             begin: Cursor {
@@ -1087,7 +1087,7 @@ mod test {
         };
 
         type Size = PageSize563;
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let p0 = store.write_page(&node0.write::<Size>()).unwrap();
         let p1 = store.write_page(&node1.write::<Size>()).unwrap();
@@ -1101,7 +1101,7 @@ mod test {
             root_page: PageId(2),
             comparator: Eavt,
             store: &store,
-            pool: &pool,
+            heap: &heap,
         };
 
         let iter = tree.into_iter(&make_datom(&0), &make_datom(&10));
@@ -1146,7 +1146,7 @@ mod test {
         };
 
         type Size = PageSize563;
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let p0 = store.write_page(&node0.write::<Size>()).unwrap();
         let p1 = store.write_page(&node1.write::<Size>()).unwrap();
@@ -1160,7 +1160,7 @@ mod test {
             root_page: PageId(2),
             comparator: Eavt,
             store: &store,
-            pool: &pool,
+            heap: &heap,
         };
 
         let iter = tree.into_iter(&make_datom(&0), &make_datom(&10));
@@ -1175,11 +1175,11 @@ mod test {
         let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
 
         type Size = PageSize563;
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let mut tree = HTree::new(root, Eavt, store, pool);
+        let mut tree = HTree::new(root, Eavt, store, heap);
 
         for i in 0..500 {
             let datoms = &[
@@ -1203,11 +1203,11 @@ mod test {
 
         type Size = PageSize256;
         let capacity = <Size as PageSize>::CAPACITY as u64;
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);
         let root = store.write_page(&node.write::<Size>()).unwrap();
-        let mut tree = HTree::new(root, Eavt, store, pool);
+        let mut tree = HTree::new(root, Eavt, store, heap);
 
         // One node in the tree can hold `capacity` datoms. A two-layer tree can
         // hold `capacity^2` datoms, plus `capacity` for the midpoints. If we

@@ -12,7 +12,7 @@
 
 use database::{Builtins, QueryEngine};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
-use pool;
+use heap;
 use query::{Query, self};
 use store;
 use types::Type;
@@ -159,10 +159,10 @@ impl QueryPlan {
     /// all variables in the order that they appear.
     pub fn new<
         Store: store::Store,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         query: Query,
-        engine: &QueryEngine<Store, Pool>,
+        engine: &QueryEngine<Store, Heap>,
     ) -> QueryPlan {
         // Map variables in the query to variables in the plan. They may have
         // different indices.
@@ -293,10 +293,10 @@ impl QueryPlan {
     /// Assert that all invariants are respected.
     pub fn assert_valid<
         Store: store::Store,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         &self,
-        engine: &QueryEngine<Store, Pool>,
+        engine: &QueryEngine<Store, Heap>,
     ) {
         for (i, ref def) in self.definitions.iter().enumerate() {
             let v = Var(i as u16);
@@ -457,9 +457,9 @@ impl QueryPlan {
 type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 
 /// Iterator that yields results from a given query plan.
-pub struct Evaluator<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> {
+pub struct Evaluator<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     /// The database to query.
-    engine: &'a QueryEngine<'a, Store, Pool>,
+    engine: &'a QueryEngine<'a, Store, Heap>,
 
     /// The query plan.
     plan: &'a QueryPlan,
@@ -471,8 +471,8 @@ pub struct Evaluator<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> {
     values: Vec<Value>,
 }
 
-impl<'a, Store: store::Store, Pool: pool::Pool> Evaluator<'a, Store, Pool> {
-    pub fn new(plan: &'a QueryPlan, engine: &'a QueryEngine<'a, Store, Pool>) -> Evaluator<'a, Store, Pool> {
+impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
+    pub fn new(plan: &'a QueryPlan, engine: &'a QueryEngine<'a, Store, Heap>) -> Evaluator<'a, Store, Heap> {
         use std::iter;
 
         plan.assert_valid(engine);
@@ -538,7 +538,7 @@ impl<'a, Store: store::Store, Pool: pool::Pool> Evaluator<'a, Store, Pool> {
                 Box::new(iter)
             }
             Retrieval::LookupEavt { entity, attribute } => {
-                let e = self.get_value(entity).as_eid(&self.engine.pool());
+                let e = self.get_value(entity).as_eid(&self.engine.heap());
                 let min = Datom::new(e, attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
@@ -578,7 +578,7 @@ impl<'a, Store: store::Store, Pool: pool::Pool> Evaluator<'a, Store, Pool> {
     }
 }
 
-impl<'a, Store: store::Store, Pool: pool::Pool> Iterator for Evaluator<'a, Store, Pool> {
+impl<'a, Store: store::Store, Heap: heap::Heap> Iterator for Evaluator<'a, Store, Heap> {
     type Item = Box<[Value]>;
 
     fn next(&mut self) -> Option<Box<[Value]>> {

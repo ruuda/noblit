@@ -11,7 +11,7 @@ use std::io;
 use std::fmt;
 
 use datom::Value;
-use pool;
+use heap;
 
 /// The supported value types for entity values.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -23,9 +23,9 @@ pub enum Type {
     String,
 }
 
-pub fn write_value<W, P: pool::Pool>(
+pub fn write_value<W, H: heap::Heap>(
     writer: &mut W,
-    pool: &P,
+    heap: &H,
     value: Value,
     value_type: Type,
     ) -> Result<(), fmt::Error>
@@ -35,10 +35,10 @@ where
     match value_type {
         Type::Bool if value.as_bool() => write!(writer, "true"),
         Type::Bool => write!(writer, "false"),
-        Type::Ref => write!(writer, "# {}", value.as_u64(pool)),
-        Type::Uint64 => write!(writer, "{}", value.as_u64(pool)),
+        Type::Ref => write!(writer, "# {}", value.as_u64(heap)),
+        Type::Uint64 => write!(writer, "{}", value.as_u64(heap)),
         Type::Bytes => unimplemented!("TODO: Bytes formatting."),
-        Type::String => write!(writer, "{:?}", value.as_str(pool)),
+        Type::String => write!(writer, "{:?}", value.as_str(heap)),
     }
 }
 
@@ -76,16 +76,16 @@ where
 }
 
 /// Format values into a table using box drawing characters.
-pub fn draw_table<'a, W, HeaderIter, RowIter, Pool>(
+pub fn draw_table<'a, W, HeaderIter, RowIter, Heap>(
     writer: &'a mut W,
-    pool: &Pool,
+    heap: &Heap,
     headers: HeaderIter,
     rows: RowIter,
     value_types: &'a [Type],
     ) -> io::Result<()>
 where
     W: io::Write,
-    Pool: pool::Pool,
+    Heap: heap::Heap,
     HeaderIter: Clone + IntoIterator<Item = &'a str>,
     RowIter: IntoIterator<Item = &'a [Value]>,
 {
@@ -96,7 +96,7 @@ where
         let mut fmt_row = Vec::with_capacity(value_types.len());
         for ((&value, &value_type), w) in row.iter().zip(value_types).zip(widths.iter_mut()) {
             let mut fmt_value = String::new();
-            write_value(&mut fmt_value, pool, value, value_type).unwrap();
+            write_value(&mut fmt_value, heap, value, value_type).unwrap();
             *w = fmt_value.chars().count().max(*w);
             fmt_row.push(fmt_value);
         }

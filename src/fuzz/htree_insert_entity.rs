@@ -13,15 +13,15 @@ use datom::{Datom, Aid, Eid, Value, Tid};
 use fuzz::util::for_slices_u16;
 use htree::{HTree, Node};
 use index::{DatomOrd, Eavt};
-use memory_store::{MemoryStore, MemoryPool};
+use memory_store::{MemoryStore, MemoryHeap};
 use store::{PageSize, StoreMut};
 
 fn run<Size: PageSize>(full_data: &[u8]) {
     let mut store = MemoryStore::<Size>::new();
-    let pool = MemoryPool::new();
+    let heap = MemoryHeap::new();
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
-    let mut tree = HTree::new(root, Eavt, store, &pool);
+    let mut tree = HTree::new(root, Eavt, store, &heap);
     let mut unique_values = HashSet::new();
     let mut datoms = Vec::new();
 
@@ -55,7 +55,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         // chance. Sorting here is slower and adds more distracting branches as
         // interesting cases, but it also helps to discover interesting inputs
         // faster.
-        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, &pool));
+        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, &heap));
 
         dprintln!("Inserting {} datoms:", datoms.len());
         for &datom in &datoms {

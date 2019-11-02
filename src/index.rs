@@ -10,11 +10,11 @@
 use std::cmp::{Ord, Ordering};
 
 use datom::Datom;
-use pool::Pool;
+use heap::Heap;
 
 /// An ordering on datoms.
 pub trait DatomOrd {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering;
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering;
 }
 
 /// An (attribute, entity, value, transaction) ordering.
@@ -37,8 +37,8 @@ macro_rules! compare_by {
             Ordering::Equal => {}
         }
     };
-    ($lhs:expr, $rhs:expr, $pool:expr) => {
-        match $lhs.cmp(&$rhs, $pool) {
+    ($lhs:expr, $rhs:expr, $heap:expr) => {
+        match $lhs.cmp(&$rhs, $heap) {
             Ordering::Less => return Ordering::Less,
             Ordering::Greater => return Ordering::Greater,
             Ordering::Equal => {}
@@ -47,19 +47,19 @@ macro_rules! compare_by {
 }
 
 impl DatomOrd for Aevt {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.entity, rhs.entity);
-        compare_by!(lhs.value, rhs.value, pool);
+        compare_by!(lhs.value, rhs.value, heap);
         compare_by!(lhs.transaction_operation, rhs.transaction_operation);
         Ordering::Equal
     }
 }
 
 impl DatomOrd for Avet {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
-        compare_by!(lhs.value, rhs.value, pool);
+        compare_by!(lhs.value, rhs.value, heap);
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.transaction_operation, rhs.transaction_operation);
         Ordering::Equal
@@ -67,10 +67,10 @@ impl DatomOrd for Avet {
 }
 
 impl DatomOrd for Eavt {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, pool: &Pool) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering {
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.attribute, rhs.attribute);
-        compare_by!(lhs.value, rhs.value, pool);
+        compare_by!(lhs.value, rhs.value, heap);
         compare_by!(lhs.transaction_operation, rhs.transaction_operation);
         Ordering::Equal
     }

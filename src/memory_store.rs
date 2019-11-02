@@ -9,7 +9,7 @@
 
 use std::io;
 
-use pool::{CidBytes, CidInt, Pool, PoolMut, SizedPool};
+use heap::{CidBytes, CidInt, Heap, HeapMut, SizedHeap};
 use store::{PageId, PageSize, Store, StoreMut};
 
 /// An in-memory page store, not backed by a file.
@@ -63,21 +63,21 @@ impl<Size: PageSize> StoreMut for MemoryStore<Size> {
     }
 }
 
-/// An in-memory constant pool, not backed by a file.
-pub struct MemoryPool {
+/// An in-memory constant heap, not backed by a file.
+pub struct MemoryHeap {
     /// The backing buffer.
     buffer: Vec<u8>,
 }
 
-impl MemoryPool {
-    pub fn new() -> MemoryPool {
-        MemoryPool {
+impl MemoryHeap {
+    pub fn new() -> MemoryHeap {
+        MemoryHeap {
             buffer: Vec::new(),
         }
     }
 }
 
-impl Pool for MemoryPool {
+impl Heap for MemoryHeap {
     fn get_u64(&self, offset: CidInt) -> u64 {
         debug_assert_eq!(offset.0 % 8, 0, "Constant ids must be 8-byte aligned.");
         assert!(offset.0 + 8 <= self.buffer.len() as u64, "Constant id out of bounds.");
@@ -101,15 +101,15 @@ impl Pool for MemoryPool {
 
         // We must fit an 8-byte length, and at least 8 bytes of data (otherwise
         // the data could be stored inline in a value; it would not need to be
-        // in the pool).
-        debug_assert!(len >= 8, "Encountered small value in the pool.");
+        // on the heap).
+        debug_assert!(len >= 8, "Encountered small value on the heap.");
 
         assert!(offset.0 + 8 + len <= self.buffer.len() as u64, "Constant bytestring out of bounds.");
         &self.buffer[offset.0 as usize + 8..offset.0 as usize + 8 + len as usize]
     }
 }
 
-impl PoolMut for MemoryPool {
+impl HeapMut for MemoryHeap {
     fn append_u64(&mut self, value: u64) -> io::Result<CidInt> {
         debug_assert_eq!(self.buffer.len() % 8, 0, "Buffer should remain 8-byte aligned.");
         let offset = self.buffer.len();
@@ -132,7 +132,7 @@ impl PoolMut for MemoryPool {
 
     /// Retrieve a byte string constant.
     fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes> {
-        debug_assert!(value.len() >= 8, "Store small values inline, not in the pool.");
+        debug_assert!(value.len() >= 8, "Store small values inline, not on the heap.");
 
         // Reserve enough space for the length prefix and value.
         // Mostly to not fool the fuzzer by making some insert sizes special.
@@ -150,7 +150,7 @@ impl PoolMut for MemoryPool {
     }
 }
 
-impl SizedPool for MemoryPool {
+impl SizedHeap for MemoryHeap {
     fn len(&self) -> u64 {
         self.buffer.len() as u64
     }
@@ -158,24 +158,24 @@ impl SizedPool for MemoryPool {
 
 #[cfg(test)]
 mod test {
-    use pool::{Pool, PoolMut};
-    use super::{MemoryPool};
+    use heap::{Heap, HeapMut};
+    use super::{MemoryHeap};
 
     #[test]
-    fn pool_append_get_u64_roundtrips() {
+    fn heap_append_get_u64_roundtrips() {
         use std::u64;
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         let mut ids = Vec::new();
 
         // First store some integers.
         for i in 0..523 {
             let p = i << 32;
             let q = u64::MAX - p * 17;
-            ids.push(pool.append_u64(p).unwrap());
-            ids.push(pool.append_u64(q).unwrap());
+            ids.push(heap.append_u64(p).unwrap());
+            ids.push(heap.append_u64(q).unwrap());
         }
 
-        assert_eq!(pool.buffer.len(), 523 * 2  * 8);
+        assert_eq!(heap.buffer.len(), 523 * 2  * 8);
 
         // Then read them back.
         for i in (0..523).rev() {
@@ -183,52 +183,52 @@ mod test {
             let q = u64::MAX - p * 17;
             let q_id = ids.pop().unwrap();
             let p_id = ids.pop().unwrap();
-            assert_eq!(pool.get_u64(p_id), p);
-            assert_eq!(pool.get_u64(q_id), q);
+            assert_eq!(heap.get_u64(p_id), p);
+            assert_eq!(heap.get_u64(q_id), q);
         }
     }
 
     #[test]
-    fn pool_append_get_bytes_roundtrips() {
+    fn heap_append_get_bytes_roundtrips() {
         let messages = [
             &b"Roy Batty"[..],
             &b"Alden Tyrell"[..],
             &b"Rick Deckard"[..],
         ];
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         let mut ids = Vec::new();
 
         // First store the messages.
         for m in messages.iter() {
-            ids.push(pool.append_bytes(m).unwrap());
+            ids.push(heap.append_bytes(m).unwrap());
         }
 
         // Then read them back.
         for (&m_id, &m) in ids.iter().zip(messages.iter()) {
-            assert_eq!(pool.get_bytes(m_id), m);
+            assert_eq!(heap.get_bytes(m_id), m);
         }
     }
 
     #[test]
-    fn pool_append_get_interleaved_roundtrips() {
+    fn heap_append_get_interleaved_roundtrips() {
         use std::iter;
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         let mut ids_u64 = Vec::new();
         let mut ids_bytes = Vec::new();
 
         // Interleave some integers and variable-length strings.
         for i in 8..256 {
             let message: Vec<u8> = iter::repeat(1).take(i as usize).collect();
-            ids_u64.push(pool.append_u64(i).unwrap());
-            ids_bytes.push(pool.append_bytes(&message[..]).unwrap());
+            ids_u64.push(heap.append_u64(i).unwrap());
+            ids_bytes.push(heap.append_bytes(&message[..]).unwrap());
         }
 
         // Then read them back.
         while ids_u64.len() > 0 {
             let id_bytes = ids_bytes.pop().unwrap();
             let id_u64 = ids_u64.pop().unwrap();
-            let len = pool.get_u64(id_u64);
-            let message = pool.get_bytes(id_bytes);
+            let len = heap.get_u64(id_u64);
+            let message = heap.get_bytes(id_bytes);
             assert_eq!(message.len() as u64, len);
             assert_eq!(message[0], 1);
         }

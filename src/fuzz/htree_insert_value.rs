@@ -12,19 +12,19 @@ use std::io;
 
 use datom::{Datom, Aid, Eid, Value, Tid};
 use fuzz::util::Cursor;
+use heap::{HeapMut, self};
 use htree::{HTree, Node};
 use index::{DatomOrd, Eavt};
-use memory_store::{MemoryStore, MemoryPool};
-use pool::{PoolMut, self};
+use memory_store::{MemoryStore, MemoryHeap};
 use store::{PageSize, StoreMut};
 
 fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
     let mut store = MemoryStore::<Size>::new();
-    let mut pool = MemoryPool::new();
+    let mut heap = MemoryHeap::new();
 
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
-    let mut tree = HTree::new(root, Eavt, store, &mut pool);
+    let mut tree = HTree::new(root, Eavt, store, &mut heap);
 
     // Reserve capacity for a large-ish number of datoms, to prevent most
     // reallocations during fuzzing, thereby reducing distracting control flow.
@@ -45,9 +45,9 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                         v
                     }
                     None => {
-                        let cid = tree.pool.append_bytes(value_slice).unwrap();
-                        dprintln!("  at pool offset {}, len {}: {:?}", cid.0, len, value_slice);
-                        pool::check_invariants(&tree.pool);
+                        let cid = tree.heap.append_bytes(value_slice).unwrap();
+                        dprintln!("  at heap offset {}, len {}: {:?}", cid.0, len, value_slice);
+                        heap::check_invariants(&tree.heap);
                         Value::from_const_bytes(cid)
                     }
                 };
@@ -68,7 +68,7 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                 //   inserting useless zeros everywhere.
                 let mut insert_index = datoms.len();
                 for i in 0..datoms.len() {
-                    match (&tree.comparator as &DatomOrd).cmp(&datom, &datoms[i], &tree.pool) {
+                    match (&tree.comparator as &DatomOrd).cmp(&datom, &datoms[i], &tree.heap) {
                         Ordering::Less => { insert_index = i; break }
                         Ordering::Equal => return None,
                         Ordering::Greater => continue,

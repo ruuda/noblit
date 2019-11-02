@@ -11,14 +11,14 @@
 pub mod binary;
 pub mod database;
 pub mod datom;
+pub mod heap;
 pub mod htree;
 pub mod index;
 pub mod memory_store;
-pub mod pool;
 pub mod query;
 pub mod query_plan;
-pub mod stack_pool;
 pub mod store;
+pub mod temp_heap;
 pub mod types;
 
 // TODO: I can guard this with #[cfg(fuzzing)] and #[cfg(test)] to keep it

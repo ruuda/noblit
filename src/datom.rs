@@ -10,7 +10,7 @@
 use std;
 use std::cmp::Ordering;
 
-use pool::{CidInt, CidBytes, Pool};
+use heap::{CidInt, CidBytes, Heap};
 
 /// Entity id.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -154,7 +154,7 @@ impl Value {
     ///
     /// Temporaries are used to refer to large values that occur in queries, but
     /// which are not necessarily in the database already. They are stored on
-    /// the `StackPool`.
+    /// the `TempHeap`.
     pub fn is_temporary(&self) -> bool {
         // External values are aligned to 8 bytes. Non-aligned values indicate
         // temporaries.
@@ -172,7 +172,7 @@ impl Value {
     /// Construct an integer value from an unsigned integer.
     ///
     /// Returns `None` if the value is too large to be stored inline. In that
-    /// case, store the value in a pool and use `from_const_u64`.
+    /// case, store the value in on the heap and use `from_const_u64`.
     pub fn from_u64(value: u64) -> Option<Value> {
         if value < Value::TAG_MASK {
             Some(Value::from_u64_inline(value))
@@ -217,7 +217,7 @@ impl Value {
     /// Construct a byte string value from a byte slice.
     ///
     /// Returns `None` if the value is too large to be stored inline. In that
-    /// case, store the value in a pool and use `from_const_bytes`.
+    /// case, store the value on the heap and use `from_const_bytes`.
     pub fn from_bytes(value: &[u8]) -> Option<Value> {
         if value.len() < 8 {
             Some(Value::from_bytes_inline(value))
@@ -248,11 +248,11 @@ impl Value {
         Value(offset | Value::TAG_EXTERNAL | Value::TAG_BYTES)
     }
 
-    pub fn as_bytes<'a, P: Pool + ?Sized>(&'a self, pool: &'a P) -> &'a [u8] {
+    pub fn as_bytes<'a, H: Heap + ?Sized>(&'a self, heap: &'a H) -> &'a [u8] {
         use std::mem;
         debug_assert!(self.is_bytes(), "Value must be byte string for as_bytes.");
         if self.is_external() {
-            pool.get_bytes(self.as_const_bytes())
+            heap.get_bytes(self.as_const_bytes())
         } else {
             let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
             let len = (bytes[7] & 0x3f) as usize;
@@ -261,21 +261,21 @@ impl Value {
         }
     }
 
-    pub fn as_str<'a, P: Pool + ?Sized>(&'a self, pool: &'a P) -> &'a str {
-        std::str::from_utf8(self.as_bytes(pool)).expect("Should only store UTF-8 strings.")
+    pub fn as_str<'a, H: Heap + ?Sized>(&'a self, heap: &'a H) -> &'a str {
+        std::str::from_utf8(self.as_bytes(heap)).expect("Should only store UTF-8 strings.")
     }
 
-    pub fn as_u64<P: Pool + ?Sized>(&self, pool: &P) -> u64 {
+    pub fn as_u64<H: Heap + ?Sized>(&self, heap: &H) -> u64 {
         debug_assert!(self.is_u64(), "Value must be int for as_u64.");
         if self.is_external() {
-            pool.get_u64(self.as_const_u64())
+            heap.get_u64(self.as_const_u64())
         } else {
             self.0
         }
     }
 
-    pub fn as_eid<P: Pool + ?Sized>(&self, pool: &P) -> Eid {
-        Eid(self.as_u64(pool))
+    pub fn as_eid<H: Heap + ?Sized>(&self, heap: &H) -> Eid {
+        Eid(self.as_u64(heap))
     }
 
     pub fn as_bool(&self) -> bool {
@@ -308,11 +308,11 @@ impl Value {
         Value(0xffff_ffff_ffff_ffff)
     }
 
-    pub fn cmp<P: Pool + ?Sized>(&self, other: &Value, pool: &P) -> Ordering {
+    pub fn cmp<H: Heap + ?Sized>(&self, other: &Value, heap: &H) -> Ordering {
         // Integers sort before byte strings, so if the types differ, we are
         // done. If the types match, then do a type-based comparison.
         match (self.is_u64(), other.is_u64()) {
-            (true, true) => self.as_u64(pool).cmp(&other.as_u64(pool)),
+            (true, true) => self.as_u64(heap).cmp(&other.as_u64(heap)),
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             // If the value is not an int, it could be bytes (internal or
@@ -321,7 +321,7 @@ impl Value {
                 (false, true) => Ordering::Less,
                 (true, true) => Ordering::Equal,
                 (true, false) => Ordering::Greater,
-                (false, false) => self.as_bytes(pool).cmp(other.as_bytes(pool)),
+                (false, false) => self.as_bytes(heap).cmp(other.as_bytes(heap)),
             }
         }
     }
@@ -382,61 +382,61 @@ mod test {
     use std::cmp::Ordering;
     use std::u64;
 
-    use memory_store::MemoryPool;
-    use pool::PoolMut;
+    use heap::HeapMut;
+    use memory_store::MemoryHeap;
     use super::Value;
 
     #[test]
     fn cmp_works_on_small_uint64s() {
         let numbers = [0, 1, 2, 3, 5, 7, 128, 4096, u64::MAX >> 2];
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         for &i in &numbers {
             let v_i = Value::from_u64_inline(i);
             for &j in &numbers {
                 let v_j = Value::from_u64_inline(j);
-                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+                assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
             }
 
             // Also abuse this test to enforce that no value is greater than max.
-            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
+            assert_eq!(v_i.cmp(&Value::max(), &heap), Ordering::Less);
         }
     }
 
     #[test]
     fn cmp_works_on_large_uint64s() {
         let numbers = [u64::MAX, u64::MAX - 2, u64::MAX / 2, u64::MAX - 7];
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         for &i in &numbers {
-            let cid_i = pool.append_u64(i).unwrap();
+            let cid_i = heap.append_u64(i).unwrap();
             let v_i = Value::from_const_u64(cid_i);
             for &j in &numbers {
-                let cid_j = pool.append_u64(j).unwrap();
+                let cid_j = heap.append_u64(j).unwrap();
                 let v_j = Value::from_const_u64(cid_j);
-                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+                assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
             }
 
             // Also abuse this test to enforce that no value is greater than max.
-            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
+            assert_eq!(v_i.cmp(&Value::max(), &heap), Ordering::Less);
         }
     }
 
     #[test]
     fn cmp_works_on_mixed_uint64s() {
         let numbers = [0, u64::MAX >> 2, 5, u64::MAX >> 1, 7, u64::MAX];
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         for &i in &numbers {
             let v_i = match i {
                 // TODO: Just match on the option.
                 0...0x3fff_ffff_ffff_ffff => Value::from_u64_inline(i),
-                _ => Value::from_const_u64(pool.append_u64(i).unwrap()),
+                _ => Value::from_const_u64(heap.append_u64(i).unwrap()),
             };
             for &j in &numbers {
                 let v_j = match j {
                     // TODO: Just match on the option.
                     0...0x3fff_ffff_ffff_ffff => Value::from_u64_inline(j),
-                    _ => Value::from_const_u64(pool.append_u64(j).unwrap()),
+                    _ => Value::from_const_u64(heap.append_u64(j).unwrap()),
                 };
-                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+                assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
             }
         }
     }
@@ -450,16 +450,16 @@ mod test {
             "abcdef",
             "zzz",
         ];
-        let pool = MemoryPool::new();
+        let heap = MemoryHeap::new();
         for &i in &values {
             let v_i = Value::from_str_inline(i);
             for &j in &values {
                 let v_j = Value::from_str_inline(j);
-                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+                assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
             }
 
             // Also abuse this test to enforce that no value is greater than max.
-            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
+            assert_eq!(v_i.cmp(&Value::max(), &heap), Ordering::Less);
         }
     }
 
@@ -470,18 +470,18 @@ mod test {
             "01234567",
             "zzzzzzzz",
         ];
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         for &i in &values {
-            let cid_i = pool.append_bytes(i.as_bytes()).unwrap();
+            let cid_i = heap.append_bytes(i.as_bytes()).unwrap();
             let v_i = Value::from_const_bytes(cid_i);
             for &j in &values {
-                let cid_j = pool.append_bytes(j.as_bytes()).unwrap();
+                let cid_j = heap.append_bytes(j.as_bytes()).unwrap();
                 let v_j = Value::from_const_bytes(cid_j);
-                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+                assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
             }
 
             // Also abuse this test to enforce that no value is greater than max.
-            assert_eq!(v_i.cmp(&Value::max(), &pool), Ordering::Less);
+            assert_eq!(v_i.cmp(&Value::max(), &heap), Ordering::Less);
         }
     }
 
@@ -494,20 +494,20 @@ mod test {
             "pqr",
             "zzzzzzzz",
         ];
-        let mut pool = MemoryPool::new();
+        let mut heap = MemoryHeap::new();
         for &i in &values {
             let v_i = match i.len() {
                 // TODO: Just match on the option.
                 0...7 => Value::from_str_inline(i),
-                _ => Value::from_const_bytes(pool.append_bytes(i.as_bytes()).unwrap()),
+                _ => Value::from_const_bytes(heap.append_bytes(i.as_bytes()).unwrap()),
             };
             for &j in &values {
                 let v_j = match j.len() {
                     // TODO: Just match on the option.
                     0...7 => Value::from_str_inline(j),
-                    _ => Value::from_const_bytes(pool.append_bytes(j.as_bytes()).unwrap()),
+                    _ => Value::from_const_bytes(heap.append_bytes(j.as_bytes()).unwrap()),
                 };
-                assert_eq!(v_i.cmp(&v_j, &pool), i.cmp(&j), "{} cmp {}", i, j);
+                assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
             }
         }
     }

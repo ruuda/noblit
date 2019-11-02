@@ -12,17 +12,17 @@ use std::io;
 use noblit::binary::Cursor;
 use noblit::datom::{Datom, Eid, Tid, Value};
 use noblit::database::{Database, self};
-use noblit::memory_store::{MemoryStore, MemoryPool};
+use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::query::{Query, QueryMut, QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
 use noblit::types::{Type, self};
 
 type MemoryStore4096 = MemoryStore<PageSize4096>;
-type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryPool>;
+type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryHeap>;
 
 fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
-    let mut query = Query::parse(cursor, engine.pool_mut()).expect("Failed to parse query.");
+    let mut query = Query::parse(cursor, engine.heap_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the query.
     query.fix_attributes(engine);
@@ -34,7 +34,7 @@ fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
     let stdout = io::stdout();
     types::draw_table(
         &mut stdout.lock(),
-        engine.pool(),
+        engine.heap(),
         plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
         rows.iter().map(|ref row| &row[..]),
         &plan.select_types[..],
@@ -47,7 +47,7 @@ fn run_query_mut(
     transaction: Tid,
     next_id: &mut u64,
 ) -> Vec<Datom> {
-    let mut query_mut = QueryMut::parse(cursor, engine.pool_mut()).expect("Failed to parse query.");
+    let mut query_mut = QueryMut::parse(cursor, engine.heap_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the read-only
     // part of the query.
@@ -76,7 +76,7 @@ fn run_query_mut(
         }
 
         for assertion in &query_mut.assertions[..] {
-            let entity = bound_values[assertion.entity.0 as usize].as_eid(engine.pool());
+            let entity = bound_values[assertion.entity.0 as usize].as_eid(engine.heap());
             let attribute = match assertion.attribute {
                 QueryAttribute::Fixed(aid) => aid,
                 QueryAttribute::Named(..) => {
@@ -118,7 +118,7 @@ fn run_query_mut(
     let stdout = io::stdout();
     types::draw_table(
         &mut stdout.lock(),
-        engine.pool(),
+        engine.heap(),
         query_mut.select.iter().map(|&v| &query_mut.variable_names[v.0 as usize][..]),
         rows_to_return.iter().map(|ref row| &row[..]),
         &select_types[..],
@@ -130,9 +130,9 @@ fn run_query_mut(
 fn main() {
     // Construct an empty in-ememory database, and query engine on top.
     let store: MemoryStore4096 = MemoryStore::new();
-    let pool = MemoryPool::new();
+    let heap = MemoryHeap::new();
 
-    let mut db = Database::new(store, pool).unwrap();
+    let mut db = Database::new(store, heap).unwrap();
     let mut cursor = Cursor::new(io::stdin());
 
     loop {

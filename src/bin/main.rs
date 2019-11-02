@@ -13,13 +13,13 @@ use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::types;
 use noblit::store::{PageSize4096};
-use noblit::memory_store::{MemoryStore, MemoryPool};
+use noblit::memory_store::{MemoryStore, MemoryHeap};
 
 fn main() {
     let store: MemoryStore<PageSize4096> = MemoryStore::new();
-    let pool = MemoryPool::new();
+    let heap = MemoryHeap::new();
 
-    let mut db = Database::new(store, pool).unwrap();
+    let mut db = Database::new(store, heap).unwrap();
 
     {
         // Insert a bit of test data: a new attribute "level" in transaction 0,
@@ -110,7 +110,7 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            engine.pool(),
+            engine.heap(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],
@@ -146,7 +146,7 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            engine.pool(),
+            engine.heap(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],
@@ -185,7 +185,7 @@ fn main() {
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            engine.pool(),
+            engine.heap(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],

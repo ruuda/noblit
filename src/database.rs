@@ -11,11 +11,11 @@ use std::collections::HashSet;
 use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
+use heap::{CidBytes, self};
 use htree::HTree;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
-use pool::{CidBytes, self};
-use stack_pool::{StackPool, Temporaries};
+use temp_heap::{TempHeap, Temporaries};
 use types::Type;
 
 /// The genisis transaction adds all built-in attributes.
@@ -213,46 +213,46 @@ impl Builtins {
     }
 }
 
-pub struct Database<Store, Pool> {
+pub struct Database<Store, Heap> {
     pub builtins: Builtins,
     // TODO: Make ids privat, expose methods to allocate them.
     pub next_id: u64,
     pub next_transaction_id: u64,
     store: Store,
-    pool: Pool,
+    heap: Heap,
     eavt_root: PageId,
     aevt_root: PageId,
     avet_root: PageId,
 }
 
-pub struct QueryEngine<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> {
+pub struct QueryEngine<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     /// The database, which is immutable while we query it.
-    database: &'a Database<Store, Pool>,
+    database: &'a Database<Store, Heap>,
 
     /// The stack of temporary constants that are needed for a query.
     ///
-    /// The temporary values live on top of the base pool from the database.
-    stack_pool: StackPool<&'a Pool>,
+    /// The temporary values live on top of the base heap from the database.
+    temp_heap: TempHeap<&'a Heap>,
 }
 
-impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
-    pub fn new(mut store: Store, mut pool: Pool) -> io::Result<Database<Store, Pool>>
-    where Store: store::StoreMut, Pool: pool::PoolMut
+impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
+    pub fn new(mut store: Store, mut heap: Heap) -> io::Result<Database<Store, Heap>>
+    where Store: store::StoreMut, Heap: heap::HeapMut
     {
         let (builtins, genisis_datoms, genisis_consts) = Builtins::new();
 
         for const_str in genisis_consts {
-            pool.append_bytes(const_str.as_bytes())?;
+            heap.append_bytes(const_str.as_bytes())?;
         }
 
-        let eavt_root = HTree::initialize(Eavt, &mut store, &pool, &genisis_datoms)?.root_page;
-        let aevt_root = HTree::initialize(Aevt, &mut store, &pool, &genisis_datoms)?.root_page;
-        let avet_root = HTree::initialize(Avet, &mut store, &pool, &genisis_datoms)?.root_page;
+        let eavt_root = HTree::initialize(Eavt, &mut store, &heap, &genisis_datoms)?.root_page;
+        let aevt_root = HTree::initialize(Aevt, &mut store, &heap, &genisis_datoms)?.root_page;
+        let avet_root = HTree::initialize(Avet, &mut store, &heap, &genisis_datoms)?.root_page;
 
         let db = Database {
             builtins: builtins,
             store: store,
-            pool: pool,
+            heap: heap,
             // Transaction ids must be even. For now we do that by just tracking
             // separate counters and incrementing both by 2. Perhaps this is a
             // very bad idea and we want to have the entities created in a
@@ -269,56 +269,56 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
         Ok(db)
     }
 
-    pub fn query(&self) -> QueryEngine<Store, Pool> {
+    pub fn query(&self) -> QueryEngine<Store, Heap> {
         QueryEngine {
             database: self,
-            stack_pool: StackPool::new(&self.pool),
+            temp_heap: TempHeap::new(&self.heap),
         }
     }
 
     /// Return the (entity, attribute, value, transaction) index, immutable.
-    pub fn eavt(&self) -> HTree<Eavt, &Store, &Pool> where Store: store::StoreMut {
-        HTree::new(self.eavt_root, Eavt, &self.store, &self.pool)
+    pub fn eavt(&self) -> HTree<Eavt, &Store, &Heap> where Store: store::StoreMut {
+        HTree::new(self.eavt_root, Eavt, &self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, immutable.
-    pub fn aevt(&self) -> HTree<Aevt, &Store, &Pool> where Store: store::StoreMut {
-        HTree::new(self.aevt_root, Aevt, &self.store, &self.pool)
+    pub fn aevt(&self) -> HTree<Aevt, &Store, &Heap> where Store: store::StoreMut {
+        HTree::new(self.aevt_root, Aevt, &self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, immutable.
-    pub fn avet(&self) -> HTree<Avet, &Store, &Pool> where Store: store::StoreMut {
-        HTree::new(self.avet_root, Avet, &self.store, &self.pool)
+    pub fn avet(&self) -> HTree<Avet, &Store, &Heap> where Store: store::StoreMut {
+        HTree::new(self.avet_root, Avet, &self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store, &Pool> where Store: store::StoreMut {
-        HTree::new(self.eavt_root, Eavt, &mut self.store, &self.pool)
+    pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
+        HTree::new(self.eavt_root, Eavt, &mut self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store, &Pool> where Store: store::StoreMut {
-        HTree::new(self.aevt_root, Aevt, &mut self.store, &self.pool)
+    pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
+        HTree::new(self.aevt_root, Aevt, &mut self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
-    pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store, &Pool> where Store: store::StoreMut {
-        HTree::new(self.avet_root, Avet, &mut self.store, &self.pool)
+    pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
+        HTree::new(self.avet_root, Avet, &mut self.store, &self.heap)
     }
 
-    /// Persist temporary values that the datoms may reference to the pool.
+    /// Persist temporary values that the datoms may reference the heap.
     ///
     /// Values that come from the input query (whether read-only or write) are
     /// stored as temporaries. When an assertion produces datoms that have
     /// tempoaries as values, these datoms cannot be inserted directly. The
-    /// temporaries must first be persisted on the pool, and the values in the
+    /// temporaries must first be persisted on the heap, and the values in the
     /// datoms must be updated to reference the new stable offsets.
     pub fn persist_temporaries(
         &mut self,
         temporaries: &Temporaries,
         datoms: &mut [Datom],
     ) -> io::Result<()>
-    where Pool: pool::PoolMut {
+    where Heap: heap::HeapMut {
         for datom in datoms.iter_mut() {
             let value = datom.value;
             if value.is_temporary() {
@@ -326,13 +326,13 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
                     _ if value.is_u64() => {
                         let cid_tmp = value.as_const_u64();
                         let data = temporaries.get_u64(cid_tmp);
-                        let cid_fin = self.pool.append_u64(data)?;
+                        let cid_fin = self.heap.append_u64(data)?;
                         Value::from_const_u64(cid_fin)
                     }
                     _ if value.is_bytes() => {
                         let cid_tmp = value.as_const_bytes();
                         let data = temporaries.get_bytes(cid_tmp);
-                        let cid_fin = self.pool.append_bytes(data)?;
+                        let cid_fin = self.heap.append_bytes(data)?;
                         Value::from_const_bytes(cid_fin)
                     }
                     _ => unreachable!("Value is either u64 or bytes."),
@@ -350,21 +350,21 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
     /// are not going to be used afterwards anyway.
     pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
     where Store: store::StoreMut {
-        // TODO: Enforce that large values have all been stored in the pool at
+        // TODO: Enforce that large values have all been stored on the heap at
         // this point. For now we just assume it without check.
         self.eavt_root = {
             let mut index = self.eavt_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.pool));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
         self.aevt_root = {
             let mut index = self.aevt_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.pool));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
         self.avet_root = {
             let mut index = self.avet_mut();
-            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.pool));
+            datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
         Ok(())
@@ -413,58 +413,58 @@ impl<Store: store::Store, Pool: pool::Pool> Database<Store, Pool> {
     ///
     /// If the value is large and needs to be stored on the large value heap, it
     /// is persisted there, and a reference value is returned. Therefore, this
-    /// method should not be used for temporary values (use `StackPool` instead
+    /// method should not be used for temporary values (use `TempHeap` instead
     /// in that case).
     pub fn persist_value_bytes(&mut self, bytes: &[u8]) -> io::Result<Value>
-    where Pool: pool::PoolMut
+    where Heap: heap::HeapMut
     {
         match Value::from_bytes(bytes) {
             Some(v) => Ok(v),
             None => {
-                let cid = self.pool.append_bytes(bytes)?;
+                let cid = self.heap.append_bytes(bytes)?;
                 Ok(Value::from_const_bytes(cid))
             }
         }
     }
 }
 
-impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store, Pool> {
-    /// Return the pool that should be used to resolve values.
+impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> QueryEngine<'a, Store, Heap> {
+    /// Return the heap that should be used to resolve values.
     ///
     /// TODO: is there a better way to do this, can we avoid making it public?
-    pub fn pool(&self) -> &StackPool<&'a Pool> {
-        &self.stack_pool
+    pub fn heap(&self) -> &TempHeap<&'a Heap> {
+        &self.temp_heap
     }
 
-    /// Return the pool that should be used to resolve values.
+    /// Return the heap that should be used to resolve values.
     ///
     /// TODO: is there a better way to do this, can we avoid making it public?
-    pub fn pool_mut(&mut self) -> &mut StackPool<&'a Pool> {
-        &mut self.stack_pool
+    pub fn heap_mut(&mut self) -> &mut TempHeap<&'a Heap> {
+        &mut self.temp_heap
     }
 
     /// Destroy the engine, free up the underlying database, exfiltrate temporaries.
     ///
     /// This allows the temporaries that may have been created for a query, to
-    /// be persisted to the underlying pool (which will be available for writes
+    /// be persisted to the underlying heap (which will be available for writes
     /// again after the engine no longer borrows it read-only).
     pub fn into_temporaries(self) -> Temporaries {
-        self.stack_pool.into_temporaries()
+        self.temp_heap.into_temporaries()
     }
 
     /// Return the (entity, attribute, value, transaction) index.
-    pub fn eavt(&self) -> HTree<Eavt, &Store, &StackPool<&'a Pool>> {
-        HTree::new(self.database.eavt_root, Eavt, &self.database.store, &self.stack_pool)
+    pub fn eavt(&self) -> HTree<Eavt, &Store, &TempHeap<&'a Heap>> {
+        HTree::new(self.database.eavt_root, Eavt, &self.database.store, &self.temp_heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index.
-    pub fn aevt(&self) -> HTree<Aevt, &Store, &StackPool<&'a Pool>> {
-        HTree::new(self.database.aevt_root, Aevt, &self.database.store, &self.stack_pool)
+    pub fn aevt(&self) -> HTree<Aevt, &Store, &TempHeap<&'a Heap>> {
+        HTree::new(self.database.aevt_root, Aevt, &self.database.store, &self.temp_heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index.
-    pub fn avet(&self) -> HTree<Avet, &Store, &StackPool<&'a Pool>> {
-        HTree::new(self.database.avet_root, Avet, &self.database.store, &self.stack_pool)
+    pub fn avet(&self) -> HTree<Avet, &Store, &TempHeap<&'a Heap>> {
+        HTree::new(self.database.avet_root, Avet, &self.database.store, &self.temp_heap)
     }
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
@@ -489,16 +489,16 @@ impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store,
     }
 
     pub fn lookup_attribute_id(&mut self, name: &str) -> Option<Aid> {
-        // TODO: Can we avoid the copy here? We could parametrize the stack pool
+        // TODO: Can we avoid the copy here? We could parametrize the temp heap
         // over the lifetime of the values it stores.
         let name_bytes = name.to_string().into_boxed_str().into_boxed_bytes();
         // TODO: Encapsulate this push/pop with RAII.
-        let cid = self.stack_pool.push_bytes(name_bytes);
+        let cid = self.temp_heap.push_bytes(name_bytes);
         let value = Value::from_const_bytes(cid);
         let result = self
             .lookup_entity(self.database.builtins.attribute_db_attribute_name, value)
             .map(|Eid(id)| Aid(id));
-        self.stack_pool.pop_bytes(cid);
+        self.temp_heap.pop_bytes(cid);
         result
     }
 
@@ -520,7 +520,7 @@ impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store,
             .expect("All attributes must have a value type.");
 
         // TODO: I can make these numbers constants rather than variables.
-        match value.as_u64(&self.stack_pool) {
+        match value.as_u64(&self.temp_heap) {
             k if k == self.database.builtins.entity_db_type_bool.0 => Type::Bool,
             k if k == self.database.builtins.entity_db_type_ref.0 => Type::Ref,
             k if k == self.database.builtins.entity_db_type_uint64.0 => Type::Uint64,
@@ -556,22 +556,22 @@ impl<'a, Store: 'a + store::Store, Pool: 'a + pool::Pool> QueryEngine<'a, Store,
         // TODO: Add support for open-ended ranges.
         let min = Datom::new(Eid::min(), Aid::min(), Value::min(), Tid(0), Operation::Assert);
         let max = Datom::new(Eid::max(), Aid::max(), Value::max(), Tid(0), Operation::Retract);
-        let pool = &self.stack_pool;
+        let heap = &self.temp_heap;
         for &tuple in self.eavt().into_iter(&min, &max) {
             let attribute_name = self.lookup_attribute_name(tuple.attribute);
             let attribute_type = self.lookup_attribute_type(tuple.attribute);
 
-            let attribute = format!("{} ({})", attribute_name.as_str(pool), tuple.attribute.0);
+            let attribute = format!("{} ({})", attribute_name.as_str(heap), tuple.attribute.0);
             print!("{:6}  {:12}  ", tuple.entity.0, attribute);
 
 
             match attribute_type {
                 Type::Bool if tuple.value.as_bool() => print!("true        bool  "),
                 Type::Bool   => print!("false       bool  "),
-                Type::Ref    => print!("{:>10}  ref   ", tuple.value.as_u64(pool)),
-                Type::Uint64 => print!("{:>10}  uint64", tuple.value.as_u64(pool)),
+                Type::Ref    => print!("{:>10}  ref   ", tuple.value.as_u64(heap)),
+                Type::Uint64 => print!("{:>10}  uint64", tuple.value.as_u64(heap)),
                 Type::Bytes  => unimplemented!("TODO"),
-                Type::String => print!("{:<10}  string", tuple.value.as_str(pool)),
+                Type::String => print!("{:<10}  string", tuple.value.as_str(heap)),
             }
 
             println!("  {:11}  {:>9}",

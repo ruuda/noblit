@@ -15,9 +15,9 @@ use std::io;
 use binary::Cursor;
 use database::QueryEngine;
 use datom::{Aid, Value};
-use pool;
-use stack_pool::StackPool;
+use heap;
 use store;
+use temp_heap::TempHeap;
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -100,9 +100,9 @@ impl Query {
     }
 
     /// Deserialize statements from binary format.
-    fn parse_statements<Pool: pool::Pool>(
+    fn parse_statements<Heap: heap::Heap>(
         cursor: &mut Cursor,
-        pool: &mut StackPool<Pool>
+        heap: &mut TempHeap<Heap>
     ) -> io::Result<Vec<Statement>> {
         let num_statements = cursor.take_u16_le()?;
         let mut statements = Vec::with_capacity(num_statements as usize);
@@ -120,7 +120,7 @@ impl Query {
                     let value_u64 = cursor.take_u64_le()?;
                     let value = match Value::from_u64(value_u64) {
                         Some(v) => v,
-                        None => Value::from_const_u64(pool.push_u64(value_u64)),
+                        None => Value::from_const_u64(heap.push_u64(value_u64)),
                     };
                     QueryValue::Const(value)
                 }
@@ -133,7 +133,7 @@ impl Query {
                             let bytes = value_str
                                 .into_boxed_str()
                                 .into_boxed_bytes();
-                            Value::from_const_bytes(pool.push_bytes(bytes))
+                            Value::from_const_bytes(heap.push_bytes(bytes))
                         }
                     };
                     QueryValue::Const(value)
@@ -164,12 +164,12 @@ impl Query {
     }
 
     /// Deserialize a query in binary format.
-    pub fn parse<Pool: pool::Pool>(
+    pub fn parse<Heap: heap::Heap>(
         cursor: &mut Cursor,
-        pool: &mut StackPool<Pool>
+        heap: &mut TempHeap<Heap>
     ) -> io::Result<Query> {
         let variable_names = Query::parse_strings(cursor)?;
-        let where_statements = Query::parse_statements(cursor, pool)?;
+        let where_statements = Query::parse_statements(cursor, heap)?;
         let selects = Query::parse_variables(cursor)?;
 
         let query = Query {
@@ -183,9 +183,9 @@ impl Query {
 
     fn fix_attributes_in_statements<
         Store: store::Store,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
-        engine: &mut QueryEngine<Store, Pool>,
+        engine: &mut QueryEngine<Store, Heap>,
         statements: &mut [Statement],
     ) {
         for stmt in statements.iter_mut() {
@@ -206,10 +206,10 @@ impl Query {
 
     pub fn fix_attributes<
         Store: store::Store,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         &mut self,
-        engine: &mut QueryEngine<Store, Pool>,
+        engine: &mut QueryEngine<Store, Heap>,
     ) {
         Query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
     }
@@ -217,10 +217,10 @@ impl Query {
     /// Infer the type of every variable.
     pub fn infer_types<
         Store: store::Store,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         &self,
-        engine: &QueryEngine<Store, Pool>,
+        engine: &QueryEngine<Store, Heap>,
     ) -> Result<Vec<Type>, String>
     {
         let mut types: Vec<Option<Type>> = self.variable_names.iter().map(|_| None).collect();
@@ -295,19 +295,19 @@ pub struct QueryMut {
 
 impl QueryMut {
     /// Deserialize a transaction request in binary format.
-    pub fn parse<Pool: pool::Pool>(
+    pub fn parse<Heap: heap::Heap>(
         cursor: &mut Cursor,
-        pool: &mut StackPool<Pool>
+        heap: &mut TempHeap<Heap>
     ) -> io::Result<QueryMut> {
         use std::iter;
 
         // The first part is the same as for a regular query.
         let variable_names = Query::parse_strings(cursor)?;
-        let where_statements = Query::parse_statements(cursor, pool)?;
+        let where_statements = Query::parse_statements(cursor, heap)?;
         let selects = Query::parse_variables(cursor)?;
 
         // Then we get the assertions.
-        let assertions = Query::parse_statements(cursor, pool)?;
+        let assertions = Query::parse_statements(cursor, heap)?;
 
         // Determine which variables are bound, by marking all variables that
         // occur in the "where" part as bound.
@@ -354,10 +354,10 @@ impl QueryMut {
 
     pub fn fix_attributes<
         Store: store::Store,
-        Pool: pool::Pool,
+        Heap: heap::Heap,
     > (
         &mut self,
-        engine: &mut QueryEngine<Store, Pool>,
+        engine: &mut QueryEngine<Store, Heap>,
     ) {
         Query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
         Query::fix_attributes_in_statements(engine, &mut self.assertions[..]);
