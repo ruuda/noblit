@@ -145,7 +145,7 @@ pub fn generate_seed() -> io::Result<()> {
     }
 
     // Next, we need to do one more value of length 2.
-    write_val_u16(&mut file, 0);
+    write_val_u16(&mut file, 0)?;
 
     // Finally, commit the datoms with those value. (Action 0xff.)
     file.write_all(&[0xff])?;
@@ -157,7 +157,7 @@ pub fn generate_seed() -> io::Result<()> {
     // 4 at 264 values.
 
     for k in 0..8 {
-        write_val_u16(&mut file, k * 257);
+        write_val_u16(&mut file, k * 257)?;
     }
     file.write_all(&[0xff])?;
 
