@@ -68,7 +68,7 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                 //   inserting useless zeros everywhere.
                 let mut insert_index = datoms.len();
                 for i in 0..datoms.len() {
-                    match (&tree.comparator as &DatomOrd).cmp(&datom, &datoms[i], &tree.heap) {
+                    match (&tree.comparator as &dyn DatomOrd).cmp(&datom, &datoms[i], &tree.heap) {
                         Ordering::Less => { insert_index = i; break }
                         Ordering::Equal => return None,
                         Ordering::Greater => continue,

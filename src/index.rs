@@ -14,7 +14,7 @@ use heap::Heap;
 
 /// An ordering on datoms.
 pub trait DatomOrd {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering;
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &dyn Heap) -> Ordering;
 }
 
 /// An (attribute, entity, value, transaction) ordering.
@@ -47,7 +47,7 @@ macro_rules! compare_by {
 }
 
 impl DatomOrd for Aevt {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &dyn Heap) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.value, rhs.value, heap);
@@ -57,7 +57,7 @@ impl DatomOrd for Aevt {
 }
 
 impl DatomOrd for Avet {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &dyn Heap) -> Ordering {
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.value, rhs.value, heap);
         compare_by!(lhs.entity, rhs.entity);
@@ -67,7 +67,7 @@ impl DatomOrd for Avet {
 }
 
 impl DatomOrd for Eavt {
-    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &Heap) -> Ordering {
+    fn cmp(&self, lhs: &Datom, rhs: &Datom, heap: &dyn Heap) -> Ordering {
         compare_by!(lhs.entity, rhs.entity);
         compare_by!(lhs.attribute, rhs.attribute);
         compare_by!(lhs.value, rhs.value, heap);

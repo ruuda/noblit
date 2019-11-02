@@ -427,13 +427,13 @@ mod test {
         for &i in &numbers {
             let v_i = match i {
                 // TODO: Just match on the option.
-                0...0x3fff_ffff_ffff_ffff => Value::from_u64_inline(i),
+                0..=0x3fff_ffff_ffff_ffff => Value::from_u64_inline(i),
                 _ => Value::from_const_u64(heap.append_u64(i).unwrap()),
             };
             for &j in &numbers {
                 let v_j = match j {
                     // TODO: Just match on the option.
-                    0...0x3fff_ffff_ffff_ffff => Value::from_u64_inline(j),
+                    0..=0x3fff_ffff_ffff_ffff => Value::from_u64_inline(j),
                     _ => Value::from_const_u64(heap.append_u64(j).unwrap()),
                 };
                 assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);
@@ -498,13 +498,13 @@ mod test {
         for &i in &values {
             let v_i = match i.len() {
                 // TODO: Just match on the option.
-                0...7 => Value::from_str_inline(i),
+                0..=7 => Value::from_str_inline(i),
                 _ => Value::from_const_bytes(heap.append_bytes(i.as_bytes()).unwrap()),
             };
             for &j in &values {
                 let v_j = match j.len() {
                     // TODO: Just match on the option.
-                    0...7 => Value::from_str_inline(j),
+                    0..=7 => Value::from_str_inline(j),
                     _ => Value::from_const_bytes(heap.append_bytes(j.as_bytes()).unwrap()),
                 };
                 assert_eq!(v_i.cmp(&v_j, &heap), i.cmp(&j), "{} cmp {}", i, j);

@@ -55,7 +55,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         // chance. Sorting here is slower and adds more distracting branches as
         // interesting cases, but it also helps to discover interesting inputs
         // faster.
-        datoms.sort_by(|x, y| (&tree.comparator as &DatomOrd).cmp(x, y, &heap));
+        datoms.sort_by(|x, y| (&tree.comparator as &dyn DatomOrd).cmp(x, y, &heap));
 
         dprintln!("Inserting {} datoms:", datoms.len());
         for &datom in &datoms {

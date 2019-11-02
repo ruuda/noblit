@@ -13,7 +13,7 @@ use std::io;
 
 /// A reader that remembers its offset.
 pub struct Cursor {
-    reader: Box<'static + io::Read>,
+    reader: Box<dyn io::Read>,
     offset: usize,
 }
 
@@ -65,7 +65,7 @@ impl Cursor {
             | (buffer[0] as u32) << 24
             | (buffer[1] as u32) << 16
             | (buffer[2] as u32) << 8
-            | (buffer[3] as u32) << 0;
+            | (buffer[3] as u32) << 0
             ;
         Ok(v)
     }
@@ -83,7 +83,7 @@ impl Cursor {
             | (buffer[4] as u64) << 32
             | (buffer[5] as u64) << 40
             | (buffer[6] as u64) << 48
-            | (buffer[7] as u64) << 56;
+            | (buffer[7] as u64) << 56
             ;
         Ok(v)
     }
