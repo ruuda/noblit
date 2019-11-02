@@ -60,32 +60,6 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    pub fn take_u16(&mut self) -> Option<u16> {
-        if self.offset + 2 <= self.data.len() {
-            let v = 0
-                | (self.data[self.offset + 0] as u16) << 8
-                | (self.data[self.offset + 1] as u16) << 0;
-            self.offset += 2;
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn take_u32(&mut self) -> Option<u32> {
-        if self.offset + 4 <= self.data.len() {
-            let v = 0
-                | (self.data[self.offset + 0] as u32) << 24
-                | (self.data[self.offset + 1] as u32) << 16
-                | (self.data[self.offset + 2] as u32) << 8
-                | (self.data[self.offset + 3] as u32) << 0;
-            self.offset += 4;
-            Some(v)
-        } else {
-            None
-        }
-    }
-
     pub fn take_slice(&mut self, len: usize) -> Option<&'a [u8]> {
         if self.offset + len <= self.data.len() {
             let v = &self.data[self.offset..self.offset + len];
