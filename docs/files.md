@@ -72,9 +72,10 @@ The heap stores two kinds of values:
    bytes, big endian. (TODO: It should be little endian.)
  * Byte strings longer than 7 bytes. Note that e.g. strings are also stored as
    byte strings; it is the schema that specifies that those bytes should be
-   interpreted as a UTF-8-encoded string. Byte strings are length-prefixed with
-   a 64-bit length. The address of a byte string is the offset of its length
-   prefix, so its data can be found at the offset 8 bytes higher.
+   interpreted as a <abbr>UTF-8</abbr> encoded string. Byte strings are
+   length-prefixed with a 64-bit length. The address of a byte string is the
+   offset of its length prefix, so its data can be found at the offset 8 bytes
+   higher.
 
 Values on the value heap are aligned to 8 bytes.
 
