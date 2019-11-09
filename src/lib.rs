@@ -15,6 +15,8 @@ pub mod heap;
 pub mod htree;
 pub mod index;
 pub mod memory_store;
+pub mod mutation;
+pub mod parse;
 pub mod query;
 pub mod query_plan;
 pub mod store;

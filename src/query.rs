@@ -5,19 +5,15 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! Defines queries.
+//! Defines queries (read-only).
 //!
 //! Queries need to be translated into a query plan before they can be
 //! evaluated.
 
-use std::io;
-
-use binary::Cursor;
 use database::QueryEngine;
 use datom::{Aid, Value};
 use heap;
 use store;
-use temp_heap::TempHeap;
 use types::Type;
 
 /// A placeholder variable in a query.
@@ -71,6 +67,30 @@ impl Statement {
     }
 }
 
+/// Convert named attributes into fixed (by-id) attributes.
+pub fn fix_attributes_in_statements<
+    Store: store::Store,
+    Heap: heap::Heap,
+> (
+    engine: &mut QueryEngine<Store, Heap>,
+    statements: &mut [Statement],
+) {
+    for stmt in statements.iter_mut() {
+        let aid = match stmt.attribute {
+            QueryAttribute::Fixed(aid) => aid,
+            QueryAttribute::Named(ref name) => match engine.lookup_attribute_id(&name[..]) {
+                Some(aid) => aid,
+                None => {
+                    // TODO: Have proper error handling for missing attributes.
+                    panic!("No such attribute: {:?}", name);
+                }
+            }
+        };
+
+        stmt.attribute = QueryAttribute::Fixed(aid);
+    }
+}
+
 /// A query (read-only).
 pub struct Query {
     /// A human-meaningful name for every variable.
@@ -84,126 +104,6 @@ pub struct Query {
 }
 
 impl Query {
-    // TODO: Move binary format parsing into its own module.
-
-    /// Deserialize variable names from binary format.
-    fn parse_strings(cursor: &mut Cursor) -> io::Result<Vec<String>> {
-        let num_variables = cursor.take_u16_le()?;
-        let mut variable_names = Vec::with_capacity(num_variables as usize);
-        for _ in 0..num_variables {
-            let len = cursor.take_u16_le()?;
-            let name = cursor.take_utf8(len as usize)?;
-            variable_names.push(name.to_string());
-        }
-
-        Ok(variable_names)
-    }
-
-    /// Deserialize statements from binary format.
-    fn parse_statements<Heap: heap::Heap>(
-        cursor: &mut Cursor,
-        heap: &mut TempHeap<Heap>
-    ) -> io::Result<Vec<Statement>> {
-        let num_statements = cursor.take_u16_le()?;
-        let mut statements = Vec::with_capacity(num_statements as usize);
-        for _ in 0..num_statements {
-            let entity_var = cursor.take_u16_le()?;
-            let attribute_len = cursor.take_u16_le()?;
-            let attribute = cursor.take_utf8(attribute_len as usize)?;
-            let value_type = cursor.take_u8()?;
-            let value = match value_type {
-                0 => {
-                    let value_var = cursor.take_u16_le()?;
-                    QueryValue::Var(Var(value_var))
-                }
-                1 => {
-                    let value_u64 = cursor.take_u64_le()?;
-                    let value = match Value::from_u64(value_u64) {
-                        Some(v) => v,
-                        None => Value::from_const_u64(heap.push_u64(value_u64)),
-                    };
-                    QueryValue::Const(value)
-                }
-                2 => {
-                    let value_len = cursor.take_u16_le()?;
-                    let value_str = cursor.take_utf8(value_len as usize)?;
-                    let value = match Value::from_str(&value_str[..]) {
-                        Some(v) => v,
-                        None => {
-                            let bytes = value_str
-                                .into_boxed_str()
-                                .into_boxed_bytes();
-                            Value::from_const_bytes(heap.push_bytes(bytes))
-                        }
-                    };
-                    QueryValue::Const(value)
-                }
-                _ => unimplemented!("Unsupported value. TODO: Proper error handling."),
-            };
-
-            let statement = Statement {
-                entity: Var(entity_var),
-                attribute: QueryAttribute::Named(attribute.to_string()),
-                value: value,
-            };
-            statements.push(statement);
-        }
-
-        Ok(statements)
-    }
-
-    fn parse_variables(cursor: &mut Cursor) -> io::Result<Vec<Var>> {
-        let num_variables = cursor.take_u16_le()?;
-        let mut variables = Vec::with_capacity(num_variables as usize);
-        for _ in 0..num_variables {
-            let var = cursor.take_u16_le()?;
-            variables.push(Var(var));
-        }
-
-        Ok(variables)
-    }
-
-    /// Deserialize a query in binary format.
-    pub fn parse<Heap: heap::Heap>(
-        cursor: &mut Cursor,
-        heap: &mut TempHeap<Heap>
-    ) -> io::Result<Query> {
-        let variable_names = Query::parse_strings(cursor)?;
-        let where_statements = Query::parse_statements(cursor, heap)?;
-        let selects = Query::parse_variables(cursor)?;
-
-        let query = Query {
-            variable_names: variable_names,
-            where_statements: where_statements,
-            select: selects,
-        };
-
-        Ok(query)
-    }
-
-    fn fix_attributes_in_statements<
-        Store: store::Store,
-        Heap: heap::Heap,
-    > (
-        engine: &mut QueryEngine<Store, Heap>,
-        statements: &mut [Statement],
-    ) {
-        for stmt in statements.iter_mut() {
-            let aid = match stmt.attribute {
-                QueryAttribute::Fixed(aid) => aid,
-                QueryAttribute::Named(ref name) => match engine.lookup_attribute_id(&name[..]) {
-                    Some(aid) => aid,
-                    None => {
-                        // TODO: Have proper error handling for missing attributes.
-                        panic!("No such attribute: {:?}", name);
-                    }
-                }
-            };
-
-            stmt.attribute = QueryAttribute::Fixed(aid);
-        }
-    }
-
     pub fn fix_attributes<
         Store: store::Store,
         Heap: heap::Heap,
@@ -211,7 +111,7 @@ impl Query {
         &mut self,
         engine: &mut QueryEngine<Store, Heap>,
     ) {
-        Query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
+        fix_attributes_in_statements(engine, &mut self.where_statements[..]);
     }
 
     /// Infer the type of every variable.
@@ -269,110 +169,5 @@ impl Query {
             .collect();
 
         Ok(result)
-    }
-}
-
-/// A request to transact new datoms.
-pub struct QueryMut {
-    /// A human-meaningful name for every variable.
-    pub variable_names: Vec<String>,
-
-    /// Relations that bind variables, in order to refer to existing entities.
-    pub where_statements: Vec<Statement>,
-
-    /// New datoms to insert in this transaction.
-    pub assertions: Vec<Statement>,
-
-    /// Variables bound by the "where" part of the query.
-    pub bound_variables: Vec<Var>,
-
-    /// Free variables, for which we need to create new entities.
-    pub free_variables: Vec<Var>,
-
-    /// The variables to return results for, and their order.
-    pub select: Vec<Var>,
-}
-
-impl QueryMut {
-    /// Deserialize a transaction request in binary format.
-    pub fn parse<Heap: heap::Heap>(
-        cursor: &mut Cursor,
-        heap: &mut TempHeap<Heap>
-    ) -> io::Result<QueryMut> {
-        use std::iter;
-
-        // The first part is the same as for a regular query.
-        let variable_names = Query::parse_strings(cursor)?;
-        let where_statements = Query::parse_statements(cursor, heap)?;
-        let selects = Query::parse_variables(cursor)?;
-
-        // Then we get the assertions.
-        let assertions = Query::parse_statements(cursor, heap)?;
-
-        // Determine which variables are bound, by marking all variables that
-        // occur in the "where" part as bound.
-        let mut is_bound: Vec<bool> = iter::repeat(false)
-            .take(variable_names.len())
-            .collect();
-
-        for statement in where_statements.iter() {
-            // TODO: Guard against malicious inputs, report error on index out
-            // of bounds.
-            is_bound[statement.entity.0 as usize] = true;
-
-            if let QueryValue::Var(v) = statement.value {
-                is_bound[v.0 as usize] = true;
-            }
-        }
-
-        // From the bound/free bitmap, produce two collections with variables.
-        // These are mainly used for convenience.
-        let mut bound_variables = Vec::with_capacity(variable_names.len());
-        let mut free_variables = Vec::with_capacity(variable_names.len());
-        let mut was_bound = true;
-        for (i, &bound) in is_bound.iter().enumerate() {
-            if bound {
-                bound_variables.push(Var(i as u16));
-                assert!(was_bound, "Bound variables must precede free variables.");
-            } else {
-                free_variables.push(Var(i as u16));
-                was_bound = false;
-            }
-        }
-
-        let query_mut = QueryMut {
-            variable_names: variable_names,
-            where_statements: where_statements,
-            assertions: assertions,
-            bound_variables: bound_variables,
-            free_variables: free_variables,
-            select: selects,
-        };
-
-        Ok(query_mut)
-    }
-
-    pub fn fix_attributes<
-        Store: store::Store,
-        Heap: heap::Heap,
-    > (
-        &mut self,
-        engine: &mut QueryEngine<Store, Heap>,
-    ) {
-        Query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
-        Query::fix_attributes_in_statements(engine, &mut self.assertions[..]);
-    }
-
-    /// Return the read-only part of the query.
-    ///
-    /// For every tuple in the result of this read-only query, the assertions
-    /// will produce new datoms.
-    pub fn read_only_part(&self) -> Query {
-        Query {
-            // TODO: Avoid the clones.
-            variable_names: self.variable_names[..self.bound_variables.len()].to_vec(),
-            where_statements: self.where_statements.clone(),
-            select: self.bound_variables.clone(),
-        }
     }
 }

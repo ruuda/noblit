@@ -10,10 +10,11 @@ extern crate noblit;
 use std::io;
 
 use noblit::binary::Cursor;
-use noblit::datom::{Datom, Eid, Tid, Value};
 use noblit::database::{Database, self};
+use noblit::datom::{Datom, Eid, Tid, Value};
 use noblit::memory_store::{MemoryStore, MemoryHeap};
-use noblit::query::{Query, QueryMut, QueryAttribute, QueryValue};
+use noblit::parse;
+use noblit::query::{QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
 use noblit::types::{Type, self};
@@ -22,7 +23,7 @@ type MemoryStore4096 = MemoryStore<PageSize4096>;
 type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryHeap>;
 
 fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
-    let mut query = Query::parse(cursor, engine.heap_mut()).expect("Failed to parse query.");
+    let mut query = parse::parse_query(cursor, engine.heap_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the query.
     query.fix_attributes(engine);
@@ -41,18 +42,18 @@ fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
     ).unwrap();
 }
 
-fn run_query_mut(
+fn apply_mutation(
     cursor: &mut Cursor,
     engine: &mut QueryEngine,
     transaction: Tid,
     next_id: &mut u64,
 ) -> Vec<Datom> {
-    let mut query_mut = QueryMut::parse(cursor, engine.heap_mut()).expect("Failed to parse query.");
+    let mut mutation = parse::parse_mutation(cursor, engine.heap_mut()).expect("Failed to parse query.");
 
     // Resolve named attributes to id-based attributes, and plan the read-only
     // part of the query.
-    query_mut.fix_attributes(engine);
-    let plan = QueryPlan::new(query_mut.read_only_part(), engine);
+    mutation.fix_attributes(engine);
+    let plan = QueryPlan::new(mutation.read_only_part(), engine);
 
     let mut datoms_to_insert = Vec::new();
     let mut rows_to_return = Vec::new();
@@ -64,10 +65,10 @@ fn run_query_mut(
         // free variables, we need to generate new entities. The read-only part
         // of the query selects all bound variables in their order of
         // occurrence, so we can map the result onto the bound values directly.
-        let mut bound_values = Vec::with_capacity(query_mut.variable_names.len());
+        let mut bound_values = Vec::with_capacity(mutation.variable_names.len());
         bound_values.extend_from_slice(&result[..]);
 
-        for _ in query_mut.free_variables.iter() {
+        for _ in mutation.free_variables.iter() {
             // Generate a fresh entity id for every new entity. Increment by 2
             // because transaction ids claim the even ones (for now).
             // TODO: Encapsulate id generation better.
@@ -75,7 +76,7 @@ fn run_query_mut(
             *next_id += 2;
         }
 
-        for assertion in &query_mut.assertions[..] {
+        for assertion in &mutation.assertions[..] {
             let entity = bound_values[assertion.entity.0 as usize].as_eid(engine.heap());
             let attribute = match assertion.attribute {
                 QueryAttribute::Fixed(aid) => aid,
@@ -93,8 +94,8 @@ fn run_query_mut(
 
         // Collect the values to return from the query; those listed in the
         // select clause.
-        let mut row = Vec::with_capacity(query_mut.select.len());
-        for &v in query_mut.select.iter() {
+        let mut row = Vec::with_capacity(mutation.select.len());
+        for &v in mutation.select.iter() {
             row.push(bound_values[v.0 as usize]);
         }
         rows_to_return.push(row.into_boxed_slice());
@@ -103,9 +104,9 @@ fn run_query_mut(
     // Before we can print the results, we need to know the types of the
     // selected variables. For bound variables, we can get them from the plan.
     // For free variables, the type is always ref, because we create entities.
-    let mut select_types = Vec::with_capacity(query_mut.select.len());
-    for &v in query_mut.select.iter() {
-        let is_bound = (v.0 as usize) < query_mut.bound_variables.len();
+    let mut select_types = Vec::with_capacity(mutation.select.len());
+    for &v in mutation.select.iter() {
+        let is_bound = (v.0 as usize) < mutation.bound_variables.len();
         if is_bound {
             let index = plan.mapping[v.0 as usize];
             select_types.push(plan.variable_types[index.0 as usize]);
@@ -119,7 +120,7 @@ fn run_query_mut(
     types::draw_table(
         &mut stdout.lock(),
         engine.heap(),
-        query_mut.select.iter().map(|&v| &query_mut.variable_names[v.0 as usize][..]),
+        mutation.select.iter().map(|&v| &mutation.variable_names[v.0 as usize][..]),
         rows_to_return.iter().map(|ref row| &row[..]),
         &select_types[..],
     ).unwrap();
@@ -149,7 +150,7 @@ fn main() {
 
                 let (mut datoms, temporaries) = {
                     let mut engine = db.query();
-                    let datoms = run_query_mut(&mut cursor, &mut engine, transaction, &mut next_id);
+                    let datoms = apply_mutation(&mut cursor, &mut engine, transaction, &mut next_id);
                     (datoms, engine.into_temporaries())
                 };
                 db.persist_temporaries(&temporaries, &mut datoms[..]).unwrap();
