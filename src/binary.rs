@@ -5,9 +5,9 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-/// Support functionality for dealing with binary data.
-///
-/// This is used for the query parser, but also for the fuzzers (TODO).
+//! Support functionality for dealing with binary data.
+//!
+//! This is used for the query parser, but also for the fuzzers (TODO).
 
 use std::io;
 

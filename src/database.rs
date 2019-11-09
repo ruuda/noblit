@@ -213,6 +213,10 @@ impl Builtins {
     }
 }
 
+/// A database.
+///
+/// The database stores the current tree roots of the indexes, and counters to
+/// allocate new ids for transactions and other entities.
 pub struct Database<Store, Heap> {
     pub builtins: Builtins,
     // TODO: Make ids privat, expose methods to allocate them.
@@ -225,6 +229,14 @@ pub struct Database<Store, Heap> {
     avet_root: PageId,
 }
 
+/// Primitives to evaluate a query.
+///
+/// The query engine (TODO: better name) combines data from two places to be
+/// able to evaluate queries:
+///
+///  * The database itself, read-only.
+///  * A temporary heap, with large values that occur in the query.
+///
 pub struct QueryEngine<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     /// The database, which is immutable while we query it.
     database: &'a Database<Store, Heap>,

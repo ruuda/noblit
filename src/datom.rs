@@ -144,7 +144,7 @@ impl Value {
         self.0 & Value::TAG_BYTES != 0
     }
 
-    /// Return whether the value is the offset of an externally stored value.
+    /// Return whether the value is the offset of an external (on the heap) value.
     pub fn is_external(&self) -> bool {
         debug_assert!(!self.is_max(), "Should test for max before testing external.");
         self.0 & Value::TAG_EXTERNAL != 0
@@ -154,7 +154,7 @@ impl Value {
     ///
     /// Temporaries are used to refer to large values that occur in queries, but
     /// which are not necessarily in the database already. They are stored on
-    /// the `TempHeap`.
+    /// the `TempHeap`. `is_temporary` implies `is_external`.
     pub fn is_temporary(&self) -> bool {
         // External values are aligned to 8 bytes. Non-aligned values indicate
         // temporaries.

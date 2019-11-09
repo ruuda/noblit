@@ -74,7 +74,8 @@ impl<'a, T: SizedHeap> SizedHeap for &'a mut T {
 
 /// Assert that the heap is well-formed, that all invariants hold.
 ///
-/// This is used in tests and during fuzzing.
+/// This function panics if the heap is not well-formed. This function is used
+/// in tests and during fuzzing.
 pub fn check_invariants<H: SizedHeap>(heap: H) {
     // The maximum value that can still be stored inline. Integers on the heap
     // should be larger than this, otherwise they should have been stored
