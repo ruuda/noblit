@@ -7,4 +7,4 @@ executable bug-tracker
   main-is:           BugTracker.hs
   build-depends:     base, noblit, text, transformers
   default-language:  Haskell2010
-  ghc-options:       -Wall -Werror
+  ghc-options:       -Wall -Werror -Wincomplete-uni-patterns
