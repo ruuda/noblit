@@ -16,3 +16,4 @@ nav:
     - Files: files.md
     - Trees: htree.md
     - Query: query.md
+    - Execution: execution.md
