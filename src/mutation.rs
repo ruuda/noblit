@@ -42,7 +42,7 @@ impl Mutation {
         Heap: heap::Heap,
     > (
         &mut self,
-        view: &mut View<Store, Heap>,
+        view: &View<Store, Heap>,
     ) {
         query::fix_attributes_in_statements(view, &mut self.where_statements[..]);
         query::fix_attributes_in_statements(view, &mut self.assertions[..]);

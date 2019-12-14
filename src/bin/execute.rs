@@ -10,56 +10,64 @@ extern crate noblit;
 use std::io;
 
 use noblit::binary::Cursor;
-use noblit::database::{Database, self};
+use noblit::database;
 use noblit::datom::{Datom, Eid, Tid, Value};
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
 use noblit::query::{QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
+use noblit::temp_heap::Temporaries;
 use noblit::types::{Type, self};
 
 type MemoryStore4096 = MemoryStore<PageSize4096>;
-type QueryEngine<'a> = database::QueryEngine<'a, MemoryStore4096, MemoryHeap>;
+type Database = database::Database<MemoryStore4096, MemoryHeap>;
 
-fn run_query(cursor: &mut Cursor, engine: &mut QueryEngine) {
-    let mut query = parse::parse_query(cursor, engine.heap_mut()).expect("Failed to parse query.");
+fn run_query(cursor: &mut Cursor, database: &Database) {
+    let mut temporaries = Temporaries::new();
+    let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
+
+    let view = database.query(temporaries);
 
     // Resolve named attributes to id-based attributes, and plan the query.
-    query.fix_attributes(engine);
-    let plan = QueryPlan::new(query, engine);
+    query.fix_attributes(&view);
+    let plan = QueryPlan::new(query, &view);
 
     // Evaluate the query, and pretty-print the results in a table.
-    let eval = Evaluator::new(&plan, engine);
+    let eval = Evaluator::new(&plan, &view);
     let rows: Vec<_> = eval.collect();
     let stdout = io::stdout();
     types::draw_table(
         &mut stdout.lock(),
-        engine.heap(),
+        view.heap(),
         plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
         rows.iter().map(|ref row| &row[..]),
         &plan.select_types[..],
     ).unwrap();
 }
 
-fn apply_mutation(
+/// Evaluate the mutation, return the datoms produced.
+fn run_mutation(
     cursor: &mut Cursor,
-    engine: &mut QueryEngine,
+    database: &Database,
     transaction: Tid,
     next_id: &mut u64,
-) -> Vec<Datom> {
-    let mut mutation = parse::parse_mutation(cursor, engine.heap_mut()).expect("Failed to parse query.");
+) -> (Temporaries, Vec<Datom>) {
+    let mut temporaries = Temporaries::new();
+    let mut mutation = parse::parse_mutation(cursor, &mut temporaries).expect("Failed to parse query.");
+
+    let view = database.query(temporaries);
 
     // Resolve named attributes to id-based attributes, and plan the read-only
     // part of the query.
-    mutation.fix_attributes(engine);
-    let plan = QueryPlan::new(mutation.read_only_part(), engine);
+    mutation.fix_attributes(&view);
+    let plan = QueryPlan::new(mutation.read_only_part(), &view);
 
     let mut datoms_to_insert = Vec::new();
     let mut rows_to_return = Vec::new();
 
     // For each assignment of values to the bound variables, run the assertions.
-    for result in Evaluator::new(&plan, engine) {
+    for result in Evaluator::new(&plan, &view) {
         // To generate the asserted datoms, we need a value for every variable.
         // For the bound variables, we get them from the query results. For the
         // free variables, we need to generate new entities. The read-only part
@@ -77,7 +85,7 @@ fn apply_mutation(
         }
 
         for assertion in &mutation.assertions[..] {
-            let entity = bound_values[assertion.entity.0 as usize].as_eid(engine.heap());
+            let entity = bound_values[assertion.entity.0 as usize].as_eid(view.heap());
             let attribute = match assertion.attribute {
                 QueryAttribute::Fixed(aid) => aid,
                 QueryAttribute::Named(..) => {
@@ -119,13 +127,13 @@ fn apply_mutation(
     let stdout = io::stdout();
     types::draw_table(
         &mut stdout.lock(),
-        engine.heap(),
+        view.heap(),
         mutation.select.iter().map(|&v| &mutation.variable_names[v.0 as usize][..]),
         rows_to_return.iter().map(|ref row| &row[..]),
         &select_types[..],
     ).unwrap();
 
-    datoms_to_insert
+    (view.into_temporaries(), datoms_to_insert)
 }
 
 fn main() {
@@ -139,8 +147,7 @@ fn main() {
     loop {
         match cursor.take_u8() {
             Ok(0) => {
-                let mut engine = db.query();
-                run_query(&mut cursor, &mut engine);
+                run_query(&mut cursor, &db);
             }
             Ok(1) => {
                 let transaction = Tid(db.next_transaction_id);
@@ -148,11 +155,12 @@ fn main() {
 
                 let mut next_id = db.next_id;
 
-                let (mut datoms, temporaries) = {
-                    let mut engine = db.query();
-                    let datoms = apply_mutation(&mut cursor, &mut engine, transaction, &mut next_id);
-                    (datoms, engine.into_temporaries())
-                };
+                let (temporaries, mut datoms) = run_mutation(
+                    &mut cursor,
+                    &db,
+                    transaction,
+                    &mut next_id
+                );
                 db.persist_temporaries(&temporaries, &mut datoms[..]).unwrap();
                 db.insert(datoms).expect("Failed to insert datoms.");
                 db.next_id = next_id;
