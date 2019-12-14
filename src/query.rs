@@ -10,9 +10,11 @@
 //! Queries need to be translated into a query plan before they can be
 //! evaluated.
 
-use database::QueryEngine;
+use std::str;
+
+use database::View;
 use datom::{Aid, Value};
-use heap;
+use heap::{CidBytes, self};
 use store;
 use types::Type;
 
@@ -27,10 +29,11 @@ pub struct Var(pub u16);
 ///
 /// Named attributes are converted into fixed attribute ids at the start
 /// of evaluation. Names provide a level of indirection: attribute names
-/// may change, but their ids will not.
+/// may change, but their ids will not. In order to use named attributes,
+/// we must put the names on a temporary heap during query parsing.
 #[derive(Clone, Debug)]
 pub enum QueryAttribute {
-    Named(String),
+    Named(CidBytes),
     Fixed(Aid),
 }
 
@@ -50,18 +53,18 @@ pub struct Statement {
 }
 
 impl Statement {
-    pub fn named_var(entity: Var, attribute: &str, value: Var) -> Statement {
+    pub fn named_var(entity: Var, attribute_name: CidBytes, value: Var) -> Statement {
         Statement {
             entity: entity,
-            attribute: QueryAttribute::Named(attribute.to_string()),
+            attribute: QueryAttribute::Named(attribute_name),
             value: QueryValue::Var(value),
         }
     }
 
-    pub fn named_const(entity: Var, attribute: &str, value: Value) -> Statement {
+    pub fn named_const(entity: Var, attribute_name: CidBytes, value: Value) -> Statement {
         Statement {
             entity: entity,
-            attribute: QueryAttribute::Named(attribute.to_string()),
+            attribute: QueryAttribute::Named(attribute_name),
             value: QueryValue::Const(value),
         }
     }
@@ -72,17 +75,19 @@ pub fn fix_attributes_in_statements<
     Store: store::Store,
     Heap: heap::Heap,
 > (
-    engine: &mut QueryEngine<Store, Heap>,
+    view: &mut View<Store, Heap>,
     statements: &mut [Statement],
 ) {
+    use heap::Heap;
+
     for stmt in statements.iter_mut() {
         let aid = match stmt.attribute {
             QueryAttribute::Fixed(aid) => aid,
-            QueryAttribute::Named(ref name) => match engine.lookup_attribute_id(&name[..]) {
+            QueryAttribute::Named(cid) => match view.lookup_attribute_id(cid) {
                 Some(aid) => aid,
                 None => {
                     // TODO: Have proper error handling for missing attributes.
-                    panic!("No such attribute: {:?}", name);
+                    panic!("No such attribute: {:?}", str::from_utf8(view.heap().get_bytes(cid)));
                 }
             }
         };
@@ -109,9 +114,9 @@ impl Query {
         Heap: heap::Heap,
     > (
         &mut self,
-        engine: &mut QueryEngine<Store, Heap>,
+        view: &mut View<Store, Heap>,
     ) {
-        fix_attributes_in_statements(engine, &mut self.where_statements[..]);
+        fix_attributes_in_statements(view, &mut self.where_statements[..]);
     }
 
     /// Infer the type of every variable.
@@ -120,7 +125,7 @@ impl Query {
         Heap: heap::Heap,
     > (
         &self,
-        engine: &QueryEngine<Store, Heap>,
+        view: &View<Store, Heap>,
     ) -> Result<Vec<Type>, String>
     {
         let mut types: Vec<Option<Type>> = self.variable_names.iter().map(|_| None).collect();
@@ -142,7 +147,7 @@ impl Query {
                     panic!("Should have fixed attributes before type inference."),
             };
             // TODO: What if the attribute does not exist?
-            let attr_type = engine.lookup_attribute_type(aid);
+            let attr_type = view.lookup_attribute_type(aid);
 
             let value = match statement.value {
                 QueryValue::Const(..) => continue,

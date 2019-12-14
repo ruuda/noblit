@@ -9,12 +9,11 @@
 
 use std::io;
 
-use heap;
 use datom::{Value};
 use binary::Cursor;
 use query::{Query, QueryAttribute, QueryValue, Statement, Var};
 use mutation::Mutation;
-use temp_heap::TempHeap;
+use temp_heap::Temporaries;
 
 /// Deserialize variable names from binary format.
 ///
@@ -36,9 +35,9 @@ fn parse_strings(cursor: &mut Cursor) -> io::Result<Vec<String>> {
 /// Deserialize statements from binary format.
 ///
 /// TODO: Document the protocol properly somewhere.
-fn parse_statements<Heap: heap::Heap>(
+fn parse_statements(
     cursor: &mut Cursor,
-    heap: &mut TempHeap<Heap>
+    temporaries: &mut Temporaries
 ) -> io::Result<Vec<Statement>> {
     let num_statements = cursor.take_u16_le()?;
     let mut statements = Vec::with_capacity(num_statements as usize);
@@ -56,7 +55,7 @@ fn parse_statements<Heap: heap::Heap>(
                 let value_u64 = cursor.take_u64_le()?;
                 let value = match Value::from_u64(value_u64) {
                     Some(v) => v,
-                    None => Value::from_const_u64(heap.push_u64(value_u64)),
+                    None => Value::from_const_u64(temporaries.push_u64(value_u64)),
                 };
                 QueryValue::Const(value)
             }
@@ -69,7 +68,7 @@ fn parse_statements<Heap: heap::Heap>(
                         let bytes = value_str
                             .into_boxed_str()
                             .into_boxed_bytes();
-                        Value::from_const_bytes(heap.push_bytes(bytes))
+                        Value::from_const_bytes(temporaries.push_bytes(bytes))
                     }
                 };
                 QueryValue::Const(value)
@@ -77,9 +76,11 @@ fn parse_statements<Heap: heap::Heap>(
             _ => unimplemented!("Unsupported value. TODO: Proper error handling."),
         };
 
+        let attribute_bytes = attribute.to_string().into_boxed_str().into_boxed_bytes();
+        let attribute_name = temporaries.push_bytes(attribute_bytes);
         let statement = Statement {
             entity: Var(entity_var),
-            attribute: QueryAttribute::Named(attribute.to_string()),
+            attribute: QueryAttribute::Named(attribute_name),
             value: value,
         };
         statements.push(statement);
@@ -104,12 +105,12 @@ fn parse_variables(cursor: &mut Cursor) -> io::Result<Vec<Var>> {
 }
 
 /// Deserialize a query in binary format.
-pub fn parse_query<Heap: heap::Heap>(
+pub fn parse_query(
     cursor: &mut Cursor,
-    heap: &mut TempHeap<Heap>
+    temporaries: &mut Temporaries
 ) -> io::Result<Query> {
     let variable_names = parse_strings(cursor)?;
-    let where_statements = parse_statements(cursor, heap)?;
+    let where_statements = parse_statements(cursor, temporaries)?;
     let selects = parse_variables(cursor)?;
 
     let query = Query {
@@ -122,19 +123,19 @@ pub fn parse_query<Heap: heap::Heap>(
 }
 
 /// Deserialize a mutation request in binary format.
-pub fn parse_mutation<Heap: heap::Heap>(
+pub fn parse_mutation(
     cursor: &mut Cursor,
-    heap: &mut TempHeap<Heap>
+    temporaries: &mut Temporaries,
 ) -> io::Result<Mutation> {
     use std::iter;
 
     // The first part is the same as for a regular query.
     let variable_names = parse_strings(cursor)?;
-    let where_statements = parse_statements(cursor, heap)?;
+    let where_statements = parse_statements(cursor, temporaries)?;
     let selects = parse_variables(cursor)?;
 
     // Then we get the assertions.
-    let assertions = parse_statements(cursor, heap)?;
+    let assertions = parse_statements(cursor, temporaries)?;
 
     // Determine which variables are bound, by marking all variables that
     // occur in the "where" part as bound.

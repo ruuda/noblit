@@ -79,7 +79,7 @@ impl Temporaries {
 /// is aligned to 8 bytes. Persistent constants are, so in that case we look up
 /// the constant in the underlying heap. If the id is not 0 modulo 8, then it
 /// must be a temporary, so we look it up in the temporary heap.
-pub struct TempHeap<'a, H: Heap> {
+pub struct TempHeap<H: Heap> {
     /// The underlying append-only heap, for persistent constants.
     inner: H,
 
@@ -116,7 +116,7 @@ impl<H: Heap> Heap for TempHeap<H> {
         // otherwise it was a temporary.
         match offset.0 & 7 {
             0 => self.inner.get_bytes(offset),
-            1 => self.temporaries.get_u64(offset),
+            1 => self.temporaries.get_bytes(offset),
             _ => unreachable!("Invalid byte string constant id: 0x{:x}", offset.0),
         }
     }

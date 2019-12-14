@@ -10,7 +10,7 @@
 //! Mutations consist of a query part that provides context for the mutation,
 //! and an assertion part that specifies which new datoms to insert.
 
-use database::QueryEngine;
+use database::View;
 use heap;
 use query::{self, Query, Statement, Var};
 use store;
@@ -42,10 +42,10 @@ impl Mutation {
         Heap: heap::Heap,
     > (
         &mut self,
-        engine: &mut QueryEngine<Store, Heap>,
+        view: &mut View<Store, Heap>,
     ) {
-        query::fix_attributes_in_statements(engine, &mut self.where_statements[..]);
-        query::fix_attributes_in_statements(engine, &mut self.assertions[..]);
+        query::fix_attributes_in_statements(view, &mut self.where_statements[..]);
+        query::fix_attributes_in_statements(view, &mut self.assertions[..]);
     }
 
     /// Return the read-only part of the query.

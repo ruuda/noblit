@@ -241,7 +241,7 @@ pub struct View<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     /// The database, which is immutable while we query it.
     database: &'a Database<Store, Heap>,
 
-    /// The stack of temporary constants that are needed for a query.
+    /// The temporary constants that are needed for a query.
     ///
     /// The temporary values live on top of the base heap from the database.
     temp_heap: TempHeap<&'a Heap>,
@@ -281,10 +281,10 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(db)
     }
 
-    pub fn query(&self) -> View<Store, Heap> {
-        QueryEngine {
+    pub fn query(&self, temporaries: Temporaries) -> View<Store, Heap> {
+        View {
             database: self,
-            temp_heap: TempHeap::new(&self.heap),
+            temp_heap: TempHeap::new(&self.heap, temporaries),
         }
     }
 
@@ -420,7 +420,6 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         eid
     }
 
-
     /// Create a byte string `Value`.
     ///
     /// If the value is large and needs to be stored on the large value heap, it
@@ -448,20 +447,14 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
         &self.temp_heap
     }
 
-    /// Return the heap that should be used to resolve values.
-    ///
-    /// TODO: is there a better way to do this, can we avoid making it public?
-    pub fn heap_mut(&mut self) -> &mut TempHeap<&'a Heap> {
-        &mut self.temp_heap
-    }
-
     /// Destroy the engine, free up the underlying database, exfiltrate temporaries.
     ///
     /// This allows the temporaries that may have been created for a query, to
     /// be persisted to the underlying heap (which will be available for writes
     /// again after the engine no longer borrows it read-only).
     pub fn into_temporaries(self) -> Temporaries {
-        self.temp_heap.into_temporaries()
+        let (_db_heap, temporaries) = self.temp_heap.into_inner();
+        temporaries
     }
 
     /// Return the (entity, attribute, value, transaction) index.
@@ -500,27 +493,18 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
         self.avet().into_iter(&min, &max).map(|&datom| datom.entity).next()
     }
 
-    pub fn lookup_attribute_id(&mut self, name: &str) -> Option<Aid> {
-        // TODO: Can we avoid the copy here? We could parametrize the temp heap
-        // over the lifetime of the values it stores.
-        let name_bytes = name.to_string().into_boxed_str().into_boxed_bytes();
-        // TODO: Encapsulate this push/pop with RAII.
-        let cid = self.temp_heap.push_bytes(name_bytes);
-        let value = Value::from_const_bytes(cid);
-        let result = self
+    pub fn lookup_attribute_id(&mut self, name_cid: CidBytes) -> Option<Aid> {
+        let value = Value::from_const_bytes(name_cid);
+        self
             .lookup_entity(self.database.builtins.attribute_db_attribute_name, value)
-            .map(|Eid(id)| Aid(id));
-        self.temp_heap.pop_bytes(cid);
-        result
+            .map(|Eid(id)| Aid(id))
     }
 
     pub fn lookup_attribute_name(&self, attribute: Aid) -> Value {
         let entity = Eid(attribute.0);
-        let value = self
+        self
             .lookup_value(entity, self.database.builtins.attribute_db_attribute_name)
-            .expect("All attributes must have a name.");
-
-        value
+            .expect("All attributes must have a name.")
     }
 
     pub fn lookup_attribute_type(&self, attribute: Aid) -> Type {

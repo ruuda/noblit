@@ -10,7 +10,7 @@
 // TODO: Remove this once I have decent query plans.
 #![allow(dead_code)]
 
-use database::{Builtins, QueryEngine};
+use database::{Builtins, View};
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use heap;
 use query::{Query, self};
@@ -162,7 +162,7 @@ impl QueryPlan {
         Heap: heap::Heap,
     > (
         query: Query,
-        engine: &QueryEngine<Store, Heap>,
+        view: &View<Store, Heap>,
     ) -> QueryPlan {
         // Map variables in the query to variables in the plan. They may have
         // different indices.
@@ -258,7 +258,7 @@ impl QueryPlan {
             }
         }
 
-        let perm_types = query.infer_types(engine).expect("TODO: Handle type errors.");
+        let perm_types = query.infer_types(view).expect("TODO: Handle type errors.");
         let perm_names = query.variable_names;
 
         // TODO: Do a true permutation, avoid the clone.
@@ -296,7 +296,7 @@ impl QueryPlan {
         Heap: heap::Heap,
     > (
         &self,
-        engine: &QueryEngine<Store, Heap>,
+        view: &View<Store, Heap>,
     ) {
         for (i, ref def) in self.definitions.iter().enumerate() {
             let v = Var(i as u16);
@@ -305,7 +305,7 @@ impl QueryPlan {
                 Retrieval::ScanAvetAny { .. } => { }
                 Retrieval::ScanAvetConst { .. } => { }
                 Retrieval::ScanAvetVar { attribute, value } => {
-                    let attr_value_type = engine.lookup_attribute_type(attribute);
+                    let attr_value_type = view.lookup_attribute_type(attribute);
                     let var_type = self.get_type(value);
                     assert_eq!(var_type, attr_value_type,
                                "Type mismatche in avet scan for variable {:?}. \
@@ -314,7 +314,7 @@ impl QueryPlan {
                     assert!(value < v, "Variable {:?} refers to later variable {:?}.", v, value);
                 },
                 Retrieval::LookupEavt { entity, attribute } => {
-                    let attr_value_type = engine.lookup_attribute_type(attribute);
+                    let attr_value_type = view.lookup_attribute_type(attribute);
                     let var_type = self.get_type(v);
                     assert_eq!(var_type, attr_value_type,
                                "Type mismatche in eavt lookup for entity {:?}. \
@@ -459,7 +459,7 @@ type ValueIter<'a> = Box<dyn Iterator<Item = Value> + 'a>;
 /// Iterator that yields results from a given query plan.
 pub struct Evaluator<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     /// The database to query.
-    engine: &'a QueryEngine<'a, Store, Heap>,
+    view: &'a View<'a, Store, Heap>,
 
     /// The query plan.
     plan: &'a QueryPlan,
@@ -472,10 +472,10 @@ pub struct Evaluator<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
 }
 
 impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
-    pub fn new(plan: &'a QueryPlan, engine: &'a QueryEngine<'a, Store, Heap>) -> Evaluator<'a, Store, Heap> {
+    pub fn new(plan: &'a QueryPlan, view: &'a View<'a, Store, Heap>) -> Evaluator<'a, Store, Heap> {
         use std::iter;
 
-        plan.assert_valid(engine);
+        plan.assert_valid(view);
         let num_variables = plan.definitions.len();
 
         let iters = iter::repeat_with(|| {
@@ -484,7 +484,7 @@ impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
         }).take(num_variables).collect();
 
         let mut eval = Evaluator {
-            engine: engine,
+            view: view,
             plan: plan,
             iters: iters,
             values: iter::repeat(Value::min()).take(num_variables).collect(),
@@ -509,7 +509,7 @@ impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
                 let min = Datom::new(Eid::min(), attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(Eid::max(), attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
-                    .engine
+                    .view
                     .avet()
                     .into_iter(&min, &max)
                     .map(|&datom| Value::from_eid(datom.entity));
@@ -519,7 +519,7 @@ impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
                 let min = Datom::new(Eid::min(), attribute, value, Tid::min(), Operation::Retract);
                 let max = Datom::new(Eid::max(), attribute, value, Tid::max(), Operation::Assert);
                 let iter = self
-                    .engine
+                    .view
                     .avet()
                     .into_iter(&min, &max)
                     .map(|&datom| Value::from_eid(datom.entity));
@@ -531,18 +531,18 @@ impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
                 let min = Datom::new(Eid::min(), attribute, v, Tid::min(), Operation::Retract);
                 let max = Datom::new(Eid::max(), attribute, v, Tid::max(), Operation::Assert);
                 let iter = self
-                    .engine
+                    .view
                     .avet()
                     .into_iter(&min, &max)
                     .map(|&datom| Value::from_eid(datom.entity));
                 Box::new(iter)
             }
             Retrieval::LookupEavt { entity, attribute } => {
-                let e = self.get_value(entity).as_eid(&self.engine.heap());
+                let e = self.get_value(entity).as_eid(&self.view.heap());
                 let min = Datom::new(e, attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self
-                    .engine
+                    .view
                     .eavt()
                     .into_iter(&min, &max)
                     .map(|&datom| datom.value);
