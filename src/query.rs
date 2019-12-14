@@ -75,7 +75,7 @@ pub fn fix_attributes_in_statements<
     Store: store::Store,
     Heap: heap::Heap,
 > (
-    view: &mut View<Store, Heap>,
+    view: &View<Store, Heap>,
     statements: &mut [Statement],
 ) {
     use heap::Heap;
@@ -114,7 +114,7 @@ impl Query {
         Heap: heap::Heap,
     > (
         &mut self,
-        view: &mut View<Store, Heap>,
+        view: &View<Store, Heap>,
     ) {
         fix_attributes_in_statements(view, &mut self.where_statements[..]);
     }

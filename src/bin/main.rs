@@ -9,11 +9,12 @@ extern crate noblit;
 
 use noblit::database::Database;
 use noblit::datom::{Aid, Datom, Value};
+use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
-use noblit::types;
 use noblit::store::{PageSize4096};
-use noblit::memory_store::{MemoryStore, MemoryHeap};
+use noblit::temp_heap::Temporaries;
+use noblit::types;
 
 fn main() {
     let store: MemoryStore<PageSize4096> = MemoryStore::new();
@@ -81,7 +82,14 @@ fn main() {
 
         use query::{Query, Statement, Var};
 
-        let mut engine = db.query();
+        let mut temporaries = Temporaries::new();
+        let cid_db_attribute_name = temporaries.push_string("db.attribute.name".to_string());
+        let cid_db_attribute_type = temporaries.push_string("db.attribute.type".to_string());
+        let cid_db_attribute_unique = temporaries.push_string("db.attribute.unique".to_string());
+        let cid_db_attribute_many = temporaries.push_string("db.attribute.many".to_string());
+        let cid_db_type_name = temporaries.push_string("db.type.name".to_string());
+
+        let view = db.query(temporaries);
 
         let mut query = Query {
             variable_names: vec![
@@ -93,24 +101,24 @@ fn main() {
                 "type".to_string(),     // 5
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "db.attribute.name", Var(2)),
-                Statement::named_var(Var(0), "db.attribute.type", Var(1)),
-                Statement::named_var(Var(0), "db.attribute.unique", Var(3)),
-                Statement::named_var(Var(0), "db.attribute.many", Var(4)),
-                Statement::named_var(Var(1), "db.type.name", Var(5)),
+                Statement::named_var(Var(0), cid_db_attribute_name, Var(2)),
+                Statement::named_var(Var(0), cid_db_attribute_type, Var(1)),
+                Statement::named_var(Var(0), cid_db_attribute_unique, Var(3)),
+                Statement::named_var(Var(0), cid_db_attribute_many, Var(4)),
+                Statement::named_var(Var(1), cid_db_type_name, Var(5)),
             ],
             select: vec![Var(0), Var(2), Var(5), Var(3), Var(4)],
         };
-        query.fix_attributes(&mut engine);
-        let plan = QueryPlan::new(query, &engine);
+        query.fix_attributes(&view);
+        let plan = QueryPlan::new(query, &view);
 
         println!("\nAll attributes:");
-        let eval = Evaluator::new(&plan, &engine);
+        let eval = Evaluator::new(&plan, &view);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            engine.heap(),
+            view.heap(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],
@@ -125,7 +133,10 @@ fn main() {
 
         use query::{Query, Statement, Var};
 
-        let mut engine = db.query();
+        let mut temporaries = Temporaries::new();
+        let cid_db_type_name = temporaries.push_string("db.type.name".to_string());
+
+        let mut view = db.query(temporaries);
 
         let mut query = Query {
             variable_names: vec![
@@ -133,20 +144,20 @@ fn main() {
                 "name".to_string(),     // 1
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "db.type.name", Var(1)),
+                Statement::named_var(Var(0), cid_db_type_name, Var(1)),
             ],
             select: vec![Var(0), Var(1)],
         };
-        query.fix_attributes(&mut engine);
-        let plan = QueryPlan::new(query, &engine);
+        query.fix_attributes(&mut view);
+        let plan = QueryPlan::new(query, &view);
 
         println!("\nAll types:");
-        let eval = Evaluator::new(&plan, &engine);
+        let eval = Evaluator::new(&plan, &view);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            engine.heap(),
+            view.heap(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],
@@ -162,7 +173,11 @@ fn main() {
 
         use query::{Query, Statement, Var};
 
-        let mut engine = db.query();
+        let mut temporaries = Temporaries::new();
+        let cid_name = temporaries.push_string("name".to_string());
+        let cid_level = temporaries.push_string("level".to_string());
+
+        let mut view = db.query(temporaries);
 
         let mut query = Query {
             variable_names: vec![
@@ -171,21 +186,21 @@ fn main() {
                 "level".to_string(),  // 2
             ],
             where_statements: vec![
-                Statement::named_var(Var(0), "name", Var(1)),
-                Statement::named_var(Var(0), "level", Var(2)),
+                Statement::named_var(Var(0), cid_name, Var(1)),
+                Statement::named_var(Var(0), cid_level, Var(2)),
             ],
             select: vec![Var(1), Var(2)],
         };
-        query.fix_attributes(&mut engine);
-        let plan = QueryPlan::new(query, &engine);
+        query.fix_attributes(&mut view);
+        let plan = QueryPlan::new(query, &view);
 
         println!("\nNamed entities with level:");
-        let eval = Evaluator::new(&plan, &engine);
+        let eval = Evaluator::new(&plan, &view);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
-            engine.heap(),
+            view.heap(),
             plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
             rows.iter().map(|ref row| &row[..]),
             &plan.select_types[..],

@@ -493,7 +493,7 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
         self.avet().into_iter(&min, &max).map(|&datom| datom.entity).next()
     }
 
-    pub fn lookup_attribute_id(&mut self, name_cid: CidBytes) -> Option<Aid> {
+    pub fn lookup_attribute_id(&self, name_cid: CidBytes) -> Option<Aid> {
         let value = Value::from_const_bytes(name_cid);
         self
             .lookup_entity(self.database.builtins.attribute_db_attribute_name, value)

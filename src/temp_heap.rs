@@ -58,6 +58,15 @@ impl Temporaries {
         CidBytes(index as u64 * 8 + 1)
     }
 
+    /// Push the string, as its UTF-8 bytes.
+    pub fn push_string(&mut self, value: String) -> CidBytes {
+        let bytes = value
+            .into_boxed_str()
+            .into_boxed_bytes();
+
+        self.push_bytes(bytes)
+    }
+
     /// Resolve a temporary constant id to the `u64` value.
     pub fn get_u64(&self, cid: CidInt) -> u64 {
         debug_assert_eq!(cid.0 & 7, 1, "Expected temporary id to be 1 mod 8.");

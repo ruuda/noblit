@@ -64,23 +64,17 @@ fn parse_statements(
                 let value_str = cursor.take_utf8(value_len as usize)?;
                 let value = match Value::from_str(&value_str[..]) {
                     Some(v) => v,
-                    None => {
-                        let bytes = value_str
-                            .into_boxed_str()
-                            .into_boxed_bytes();
-                        Value::from_const_bytes(temporaries.push_bytes(bytes))
-                    }
+                    None => Value::from_const_bytes(temporaries.push_string(value_str)),
                 };
                 QueryValue::Const(value)
             }
             _ => unimplemented!("Unsupported value. TODO: Proper error handling."),
         };
 
-        let attribute_bytes = attribute.to_string().into_boxed_str().into_boxed_bytes();
-        let attribute_name = temporaries.push_bytes(attribute_bytes);
+        let attribute_name_cid = temporaries.push_string(attribute.to_string());
         let statement = Statement {
             entity: Var(entity_var),
-            attribute: QueryAttribute::Named(attribute_name),
+            attribute: QueryAttribute::Named(attribute_name_cid),
             value: value,
         };
         statements.push(statement);
