@@ -18,34 +18,26 @@ components involved are:
 
 ## Queries
 
- 1. Acquire indexes (read-only).
- 2. Acquire the heap (read-only).
- 3. Create a temporary heap on top of the persistent one.
- 4. Parse the query. Place values on the temporary heap.
- 5. Evaluate the query.
- 6. Drop the temporary heap.
- 7. Release the heap (read-only).
- 8. Release indexes (read-only).
+ 1. Create a temporary heap.
+ 2. Parse the query. Place values on the temporary heap.
+ 3. Acquire persistent indexes and heap (read-only).
+ 4. Evaluate the query.
+ 5. Release persistent indexes and heap (read-only).
+ 6. Drop the temporaries.
 
 ## Mutations
 
-  1. Acquire indexes (read-only).
-  2. Acquire the heap (read-only).
-  3. Create two temporary heaps: one for reads, one for writes.
-  4. Parse the query.
+  1. Create a temporary heap. (TODO: Create two, one for reads, one for writes.)
+  2. Parse the query.
      Place values that occur in the query part on the reads temporary heap.
      Place values that occur in assertions on the writes temporary heap.
-  5. Evaluate the query part (if any, otherwise use unit).
+  3. Acquire persistent indexes and heap (read-only).
+  4. Evaluate the query part (if any, otherwise use unit).
      For every result, collect new datoms.
-  6. Drop the reads temporary heap.
-  7. Drop the writes temporary heap, but keep the values.
-  8. Release the persistent heap (read-only).
-  9. Acquire the persistent heap (read-write).
- 10. Persist any temporaries referenced by new datoms.
- 11. Release the persistent heap (read-write).
- 12. Release indexes (read-only).
- 13. Acquire indexes (read-write).
- 14. Acquire the persistent heap, now containing necessary values (read-only).
- 15. Persist new datoms.
- 16. Release the persistent heap (read-only).
- 17. Release indexes (read-write).
+  5. Release persistent indexes and heap (read-only).
+  6. Persist any temporaries referenced by new datoms.
+     This requires write access to the persistent heap.
+  7. Acquire the persistent heap, now containing necessary values (read-only).
+  8. Persist new datoms.
+     This requires write access to the persistent indexes.
+  9. Release the persistent heap (read-only).
