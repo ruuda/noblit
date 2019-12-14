@@ -9,7 +9,7 @@
 
 use heap::{CidBytes, CidInt, Heap};
 
-/// A stack of transient constants, on top of a (persistent) append-only heap.
+/// Transient constants used in queries, not yet in databases.
 ///
 /// A query may contain constants. In order to compare those against database
 /// values, the values that are too large to be inlined, need to be backed by
@@ -20,37 +20,23 @@ use heap::{CidBytes, CidInt, Heap};
 /// Because ids of persistent constants are aligned to 8 bytes, we are free to
 /// use non-aligned ids for temporary constants, and we can tell to which class
 /// a constant belongs from its id.
-pub struct TempHeap<H: Heap> {
-    /// The underlying append-only heap.
-    heap: H,
-
-    /// The stack of temporary 64-bit unsigned integer constants.
-    stack_u64: Vec<u64>,
-
-    /// The stack of temporary byte string constants.
-    stack_bytes: Vec<Box<[u8]>>,
-}
-
-/// A stack of transient constants that used to live on the temp heap.
-///
-/// The temp heap is used to track temporaries during queries. At the end of a
-/// mutation, when it is known which datoms to insert, the temporaries need to
-/// be persisted to the heap as persistent values. This struct eases that
-/// transition: it allows the values to escape, while releasing the read-only
-/// borrow of the underlying heap, so it can be mutated again in order to
-/// persist the values.
 pub struct Temporaries {
-    /// The stack of temporary 64-bit unsigned integer constants.
+    /// The temporary 64-bit unsigned integer constants.
     stack_u64: Vec<u64>,
 
-    /// The stack of temporary byte string constants.
+    /// The temporary byte string constants.
     stack_bytes: Vec<Box<[u8]>>,
 }
 
-impl<H: Heap> TempHeap<H> {
-    pub fn new(inner: H) -> TempHeap<H> {
-        TempHeap {
-            heap: inner,
+impl Temporaries {
+    pub fn new() -> Temporaries {
+        // TODO: We could give every temporaries instance a generation number,
+        // that also gets mixed in to the constant ids it generates. Every time
+        // we construct a temporaries container, we would use a new generation
+        // number. That will make it harder to mix up ids form different
+        // generations. It would make things fail fast, rather than silently
+        // corrupting data, in the face of bugs.
+        Temporaries {
             stack_u64: Vec::new(),
             stack_bytes: Vec::new(),
         }
@@ -61,9 +47,6 @@ impl<H: Heap> TempHeap<H> {
         self.stack_u64.push(value);
         // Constant ids of the underlying heap ale always aligned to 8 bytes,
         // so make sure that ours are not, so we can always keep the two apart.
-        // TODO: We could include a generation number that increments when the
-        // stack height falls to zero. That makes it harder to accidentally
-        // re-use values across generations.
         CidInt(index as u64 * 8 + 1)
     }
 
@@ -75,57 +58,6 @@ impl<H: Heap> TempHeap<H> {
         CidBytes(index as u64 * 8 + 1)
     }
 
-    pub fn pop_u64(&mut self, cid: CidInt) {
-        let index = (cid.0 - 1) / 8;
-        self.stack_u64.pop();
-        debug_assert_eq!(
-            index, self.stack_u64.len() as u64,
-            "Value to be popped must be the value on top of the u64 stack.",
-        );
-    }
-
-    pub fn pop_bytes(&mut self, cid: CidBytes) {
-        let index = (cid.0 - 1) / 8;
-        self.stack_bytes.pop();
-        debug_assert_eq!(
-            index, self.stack_bytes.len() as u64,
-            "Value to be popped must be the value on top of the byte string stack.",
-        );
-    }
-
-    pub fn into_temporaries(self) -> Temporaries {
-        Temporaries {
-            stack_u64: self.stack_u64,
-            stack_bytes: self.stack_bytes,
-        }
-    }
-}
-
-impl<H: Heap> Heap for TempHeap<H> {
-    fn get_u64(&self, offset: CidInt) -> u64 {
-        // If the id is aligned, it comes from the underlying heap,
-        // otherwise it was ours.
-        let index = match offset.0 & 7 {
-            0 => return self.heap.get_u64(offset),
-            1 => (offset.0 - 1) / 8,
-            _ => unreachable!("Invalid integer constant id."),
-        };
-        self.stack_u64[index as usize]
-    }
-
-    fn get_bytes(&self, offset: CidBytes) -> &[u8] {
-        // If the id is aligned, it comes from the underlying heap,
-        // otherwise it was ours.
-        let index = match offset.0 & 7 {
-            0 => return self.heap.get_bytes(offset),
-            1 => (offset.0 - 1) / 8,
-            _ => unreachable!("Invalid byte string constant id: 0x{:x}", offset.0),
-        };
-        &self.stack_bytes[index as usize]
-    }
-}
-
-impl Temporaries {
     /// Resolve a temporary constant id to the `u64` value.
     pub fn get_u64(&self, cid: CidInt) -> u64 {
         debug_assert_eq!(cid.0 & 7, 1, "Expected temporary id to be 1 mod 8.");
@@ -138,5 +70,54 @@ impl Temporaries {
         debug_assert_eq!(cid.0 & 7, 1, "Expected temporary id to be 1 mod 8.");
         let index = (cid.0 - 1) / 8;
         &self.stack_bytes[index as usize]
+    }
+}
+
+/// A heap that can look up temporaries, and constants form an underlying heap.
+///
+/// Contains `Temporaries`, and an inner heap. For a lookup, we check if the id
+/// is aligned to 8 bytes. Persistent constants are, so in that case we look up
+/// the constant in the underlying heap. If the id is not 0 modulo 8, then it
+/// must be a temporary, so we look it up in the temporary heap.
+pub struct TempHeap<'a, H: Heap> {
+    /// The underlying append-only heap, for persistent constants.
+    inner: H,
+
+    /// Temporary constants, used in a query, but not yet in the database.
+    temporaries: Temporaries,
+}
+
+impl<H: Heap> TempHeap<H> {
+    pub fn new(inner: H, temporaries: Temporaries) -> TempHeap<H> {
+        TempHeap {
+            inner: inner,
+            temporaries: temporaries,
+        }
+    }
+
+    pub fn into_inner(self) -> (H, Temporaries) {
+        (self.inner, self.temporaries)
+    }
+}
+
+impl<H: Heap> Heap for TempHeap<H> {
+    fn get_u64(&self, offset: CidInt) -> u64 {
+        // If the id is aligned, it comes from the underlying heap,
+        // otherwise it was a temporary.
+        match offset.0 & 7 {
+            0 => self.inner.get_u64(offset),
+            1 => self.temporaries.get_u64(offset),
+            _ => unreachable!("Invalid integer constant id."),
+        }
+    }
+
+    fn get_bytes(&self, offset: CidBytes) -> &[u8] {
+        // If the id is aligned, it comes from the underlying heap,
+        // otherwise it was a temporary.
+        match offset.0 & 7 {
+            0 => self.inner.get_bytes(offset),
+            1 => self.temporaries.get_u64(offset),
+            _ => unreachable!("Invalid byte string constant id: 0x{:x}", offset.0),
+        }
     }
 }

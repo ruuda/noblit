@@ -229,15 +229,15 @@ pub struct Database<Store, Heap> {
     avet_root: PageId,
 }
 
-/// Primitives to evaluate a query.
+/// A view of the database. The database cannot be mutated while the view exists.
 ///
-/// The query engine (TODO: better name) combines data from two places to be
-/// able to evaluate queries:
+/// The view combines data from two places to be able to evaluate queries:
 ///
 ///  * The database itself, read-only.
-///  * A temporary heap, with large values that occur in the query.
+///  * A temporary heap, with large values that occur in the query, but which
+///    may not be in the database itself.
 ///
-pub struct QueryEngine<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
+pub struct View<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     /// The database, which is immutable while we query it.
     database: &'a Database<Store, Heap>,
 
@@ -281,7 +281,7 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(db)
     }
 
-    pub fn query(&self) -> QueryEngine<Store, Heap> {
+    pub fn query(&self) -> View<Store, Heap> {
         QueryEngine {
             database: self,
             temp_heap: TempHeap::new(&self.heap),
@@ -440,7 +440,7 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     }
 }
 
-impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> QueryEngine<'a, Store, Heap> {
+impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> {
     /// Return the heap that should be used to resolve values.
     ///
     /// TODO: is there a better way to do this, can we avoid making it public?
