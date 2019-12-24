@@ -78,10 +78,17 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
             }
             // Command 0xff commits a transaction with the datoms so far.
             0xff => {
-                dprintln!("COMMIT");
-                dprintln!("  Inserting {} datoms at transaction {}.", datoms.len(), tid);
-                for &datom in &datoms {
-                    dprintln!("  {:?}", datom);
+                #[cfg(not(fuzzing))]
+                {
+                    println!("COMMIT");
+                    println!(
+                        "  Inserting {} datoms at transaction {}.",
+                        datoms.len(),
+                        tid,
+                    );
+                    for &datom in &datoms {
+                        println!("  {:?}", datom);
+                    }
                 }
 
                 tree.insert(&datoms[..]).unwrap();

@@ -57,9 +57,12 @@ fn run<Size: PageSize>(full_data: &[u8]) {
         // faster.
         datoms.sort_by(|x, y| (&tree.comparator as &dyn DatomOrd).cmp(x, y, &heap));
 
-        dprintln!("Inserting {} datoms:", datoms.len());
-        for &datom in &datoms {
-            dprintln!("  {:?}", datom);
+        #[cfg(not(fuzzing))]
+        {
+            println!("Inserting {} datoms:", datoms.len());
+            for &datom in &datoms {
+                println!("  {:?}", datom);
+            }
         }
 
         tree.insert(&datoms[..]).unwrap();
