@@ -17,6 +17,12 @@ use datom::{Eid, Tid};
 /// is, when generating entity ids, the generator acts as a normal counter, but
 /// when a transaction id is needed, we may skip an integer to satisfy the 0 mod
 /// 2 requirement.
+///
+/// By filling the id space, rather than devoting half of the id space to
+/// transaction ids and half to non-transaction entity ids, datoms that relate
+/// to the transaction (such as a transaction timestamp) are more likely to end
+/// up adjacent to other datoms from the same transaction during insertions,
+/// which enables more efficient updates of the htree indexes.
 struct IdGen {
     /// The next unused id which is 0 mod 2.
     next_even: u64,
