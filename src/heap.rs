@@ -8,7 +8,8 @@
 //! Thin abstractions for a bump-pointer heap of constants.
 //!
 //! *Heap* refers to an area of storage, it is unrelated to e.g. the
-//! *binary heap* data structure.
+//! *binary heap* data structure. It is also unrelated to the malloc heap,
+//! although a heap of constants may be allocated on the malloc heap.
 
 use std::io;
 
