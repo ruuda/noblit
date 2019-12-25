@@ -19,10 +19,10 @@ use store::{PageId, self};
 use temp_heap::{TempHeap, Temporaries};
 use types::Type;
 
-/// The genisis transaction adds all built-in attributes.
+/// The genesis transaction adds all built-in attributes.
 pub struct Builtins {
-    /// Transaction id of the genisis transaction.
-    pub genisis_transaction: Tid,
+    /// Transaction id of the genesis transaction.
+    pub genesis_transaction: Tid,
 
     /// Built-in attribute `db.attribute.name`.
     pub attribute_db_attribute_name: Aid,
@@ -62,7 +62,7 @@ impl Builtins {
         let id_db_type_string = 10;
 
         let builtins = Builtins {
-            genisis_transaction: Tid(id_transaction),
+            genesis_transaction: Tid(id_transaction),
             attribute_db_attribute_name: Aid(id_db_attr_name),
             attribute_db_attribute_type: Aid(id_db_attr_type),
             attribute_db_attribute_unique: Aid(id_db_attr_unique),
@@ -286,16 +286,16 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     pub fn new(mut store: Store, mut heap: Heap) -> io::Result<Database<Store, Heap>>
     where Store: store::StoreMut, Heap: heap::HeapMut
     {
-        let (builtins, genisis_datoms, genisis_consts) = Builtins::new();
+        let (builtins, genesis_datoms, genesis_consts) = Builtins::new();
 
-        for const_str in genisis_consts {
+        for const_str in genesis_consts {
             heap.append_bytes(const_str.as_bytes())?;
         }
 
         let roots = IndexRoots {
-            eavt_root: HTree::initialize(Eavt, &mut store, &heap, &genisis_datoms)?.root_page,
-            aevt_root: HTree::initialize(Aevt, &mut store, &heap, &genisis_datoms)?.root_page,
-            avet_root: HTree::initialize(Avet, &mut store, &heap, &genisis_datoms)?.root_page,
+            eavt_root: HTree::initialize(Eavt, &mut store, &heap, &genesis_datoms)?.root_page,
+            aevt_root: HTree::initialize(Aevt, &mut store, &heap, &genesis_datoms)?.root_page,
+            avet_root: HTree::initialize(Avet, &mut store, &heap, &genesis_datoms)?.root_page,
         };
 
         let head = Head {
