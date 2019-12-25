@@ -10,7 +10,7 @@
 use std::collections::HashSet;
 use std::io;
 
-use datom::{Eid, Aid, Value, Tid, Operation, TidOp, Datom};
+use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use heap::{CidBytes, self};
 use htree::HTree;
 use index::{DatomOrd, Aevt, Avet, Eavt};
@@ -253,7 +253,7 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
             // very bad idea and we want to have the entities created in a
             // transaction and the transaction itself be adjacent in the indices
             // by giving them adjacent ids. We start these counters at 100 to
-            // reserve some room to extend the geneisis transaction.
+            // reserve some room to extend the genesis transaction.
             next_id: 101,
             next_transaction_id: 100,
             eavt_root: eavt_root,
@@ -388,25 +388,9 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         tid
     }
 
-    pub fn create_entity(
-        &mut self,
-        datoms: &mut Vec<Datom>,
-        attribute: Aid,
-        value: Value,
-        transaction: Tid
-    ) -> Eid {
+    pub fn create_entity(&mut self) -> Eid {
         let eid = Eid(self.next_id);
         self.next_id += 2;
-
-        let datom = Datom {
-            entity: eid,
-            attribute: attribute,
-            value: value,
-            transaction_operation: TidOp::new(transaction, Operation::Assert),
-        };
-
-        datoms.push(datom);
-
         eid
     }
 
