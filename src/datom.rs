@@ -115,8 +115,10 @@ impl TidOp {
 ///       string, padded with zeros. This means that the empty string is
 ///       represented as `0x8000_0000_0000_0000`.
 /// * 11: A string stored externally. The remaining 62 bits indicate its storage
-///       address. The special addres `0xfff_ffff_ffff_ffff` indicates the
-///       maximal value.
+///       address. The special addres `0x3fff_ffff_ffff_ffff` (2<sup>62</sup> -
+///       1) indicates the maximal value. A value with this address is not a
+///       valid value for use in persistent datoms, but it is useful as an upper
+///       bound for half-open range queries.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Value(pub u64); // TODO: Non-public field?
 
@@ -227,6 +229,8 @@ impl Value {
     }
 
     /// Construct a byte string value from a 7-byte string slice or shorter.
+    ///
+    /// Panics if the value is too large. Use `from_const_bytes` to handle large values.
     pub fn from_str_inline(value: &str) -> Value {
         Value::from_bytes_inline(value.as_bytes())
     }
@@ -288,15 +292,25 @@ impl Value {
         }
     }
 
+    /// Return the constant id of an external integer.
+    ///
+    /// Panics if the value is not an integer, or if the value is not external.
+    /// See also `as_u64` for a unified getter that handles both inline and
+    /// external values.
     pub fn as_const_u64(&self) -> CidInt {
-        debug_assert!(self.is_u64(), "Value must be int for as_const_u64.");
-        debug_assert!(self.is_external(), "Value must be external for as_const_u64.");
+        assert!(self.is_u64(), "Value must be int for as_const_u64.");
+        assert!(self.is_external(), "Value must be external for as_const_u64.");
         CidInt(self.0 & !Value::TAG_MASK)
     }
 
+    /// Return the constant id of an external integer.
+    ///
+    /// Panics if the value is not a byte string, or if the value is not external.
+    /// See also `as_bytes` for a unified getter that handles both inline and
+    /// external values.
     pub fn as_const_bytes(&self) -> CidBytes {
-        debug_assert!(self.is_bytes(), "Value must be int for as_const_bytes.");
-        debug_assert!(self.is_external(), "Value must be external for as_const_bytes.");
+        assert!(self.is_bytes(), "Value must be bytes for as_const_bytes.");
+        assert!(self.is_external(), "Value must be external for as_const_bytes.");
         CidBytes(self.0 & !Value::TAG_MASK)
     }
 
