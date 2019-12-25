@@ -89,7 +89,7 @@ fn main() {
         let cid_db_attribute_many = temporaries.push_string("db.attribute.many".to_string());
         let cid_db_type_name = temporaries.push_string("db.type.name".to_string());
 
-        let view = db.query(temporaries);
+        let view = db.view(temporaries);
 
         let mut query = Query {
             variable_names: vec![
@@ -136,7 +136,7 @@ fn main() {
         let mut temporaries = Temporaries::new();
         let cid_db_type_name = temporaries.push_string("db.type.name".to_string());
 
-        let mut view = db.query(temporaries);
+        let mut view = db.view(temporaries);
 
         let mut query = Query {
             variable_names: vec![
@@ -177,7 +177,7 @@ fn main() {
         let cid_name = temporaries.push_string("name".to_string());
         let cid_level = temporaries.push_string("level".to_string());
 
-        let mut view = db.query(temporaries);
+        let mut view = db.view(temporaries);
 
         let mut query = Query {
             variable_names: vec![

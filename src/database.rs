@@ -281,7 +281,8 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(db)
     }
 
-    pub fn query(&self, temporaries: Temporaries) -> View<Store, Heap> {
+    /// View the current database and given temporaries together.
+    pub fn view(&self, temporaries: Temporaries) -> View<Store, Heap> {
         View {
             database: self,
             temp_heap: TempHeap::new(&self.heap, temporaries),

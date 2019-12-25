@@ -27,7 +27,7 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
     let mut temporaries = Temporaries::new();
     let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
 
-    let view = database.query(temporaries);
+    let view = database.view(temporaries);
 
     // Resolve named attributes to id-based attributes, and plan the query.
     query.fix_attributes(&view);
@@ -56,7 +56,7 @@ fn run_mutation(
     let mut temporaries = Temporaries::new();
     let mut mutation = parse::parse_mutation(cursor, &mut temporaries).expect("Failed to parse query.");
 
-    let view = database.query(temporaries);
+    let view = database.view(temporaries);
 
     // Resolve named attributes to id-based attributes, and plan the read-only
     // part of the query.
