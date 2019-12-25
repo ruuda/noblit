@@ -264,7 +264,7 @@ pub struct Database<Store, Heap> {
     head: Head,
 }
 
-/// A view of the database. The database cannot be mutated while the view exists.
+/// An immutable view of the database with temporaries.
 ///
 /// The view combines data from two places to be able to evaluate queries:
 ///
@@ -484,11 +484,11 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
         &self.temp_heap
     }
 
-    /// Destroy the engine, free up the underlying database, exfiltrate temporaries.
+    /// Destroy the view, release underlying heap, and return temporaries.
     ///
     /// This allows the temporaries that may have been created for a query, to
     /// be persisted to the underlying heap (which will be available for writes
-    /// again after the engine no longer borrows it read-only).
+    /// again after the view no longer borrows it read-only).
     pub fn into_temporaries(self) -> Temporaries {
         let (_db_heap, temporaries) = self.temp_heap.into_inner();
         temporaries
