@@ -5,7 +5,7 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-/// Support functionality for fuzz tests.
+//! Support functionality for fuzz tests.
 
 /// Print, except when fuzzing.
 ///
