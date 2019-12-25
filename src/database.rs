@@ -363,10 +363,26 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     /// are not going to be used afterwards anyway.
     pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
     where Store: store::StoreMut {
-        // TODO: Enforce that large values have all been stored on the heap at
-        // this point. For now we just assume it without check.
-        self.eavt_root = {
-            let mut index = self.eavt_mut();
+        // Perform some sanity checks over the datoms to be inserted.
+        for &datom in &datoms {
+            // The max value can be used as an upper bound for range queries;
+            // it should not be persisted directly.
+            assert!(
+                !datom.value.is_max(),
+                "Value::max() should not be persisted.",
+            );
+
+            // Temporaries need to be persisted before inserting the datoms.
+            assert!(
+                !datom.value.is_temporary(),
+                "Datoms with temporary values should not be persisted.",
+            );
+        }
+
+        // We do aevt after avet so the data is still partiall sorted for the
+        // second sort.
+        self.avet_root = {
+            let mut index = self.avet_mut();
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
@@ -375,8 +391,8 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
-        self.avet_root = {
-            let mut index = self.avet_mut();
+        self.eavt_root = {
+            let mut index = self.eavt_mut();
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
