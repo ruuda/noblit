@@ -23,7 +23,8 @@ use datom::{Eid, Tid};
 /// to the transaction (such as a transaction timestamp) are more likely to end
 /// up adjacent to other datoms from the same transaction during insertions,
 /// which enables more efficient updates of the htree indexes.
-struct IdGen {
+#[derive(Clone)]
+pub struct IdGen {
     /// The next unused id which is 0 mod 2.
     next_even: u64,
     /// The next unused id which is 1 mod 2.
@@ -39,6 +40,8 @@ fn post_increment_two(x: &mut u64) -> u64 {
 
 impl IdGen {
     /// Return an id generator that generatest `start` as the first fresh id.
+    ///
+    /// The start id must be even.
     pub fn new(start: u64) -> IdGen {
         assert_eq!(start % 2, 0, "IdGen start must be even.");
         IdGen {
@@ -62,12 +65,12 @@ impl IdGen {
     }
 
     /// Generate a fresh entity id.
-    fn take_entity_id(&mut self) -> Eid {
+    pub fn take_entity_id(&mut self) -> Eid {
         Eid(self.take_any())
     }
 
     /// Generate a fresh transaction id.
-    fn take_transaction_id(&mut self) -> Tid {
+    pub fn take_transaction_id(&mut self) -> Tid {
         Tid(self.take_even())
     }
 }
@@ -129,11 +132,10 @@ mod test {
                 _ => IdGenResult::Eid(self.gen.take_entity_id()),
             };
             let is_done = self.increment();
-            let gen_copy = IdGen { ..self.gen };
 
             match is_done {
                 true => None,
-                false => Some((result, gen_copy)),
+                false => Some((result, self.gen.clone())),
             }
         }
     }

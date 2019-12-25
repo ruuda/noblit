@@ -14,7 +14,7 @@ use std::io;
 /// A page id is the offset of the page (counted in pages) from the start of the
 /// file that contains it. For 4096-byte pages, page 0 starts at byte 0, page
 /// 2 starts at byte 8192, etc.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 // TODO: Field should not be pub, but it's useful in tests.
 pub struct PageId(pub u64);
 

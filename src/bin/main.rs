@@ -33,31 +33,34 @@ fn main() {
         let db_type_string = db.builtins.entity_db_type_string;
 
         let mut datoms = Vec::new();
-        let t0 = db.create_transaction();
-        let eid_level = db.create_entity();
+        let mut head = db.begin();
+        let t0 = head.create_transaction();
+        let eid_level = head.create_entity();
         datoms.push(Datom::assert(eid_level, db_attr_name, Value::from_str_inline("level"), t0));
         datoms.push(Datom::assert(eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0));
         datoms.push(Datom::assert(eid_level, db_attr_unique, Value::from_bool(false), t0));
         datoms.push(Datom::assert(eid_level, db_attr_many, Value::from_bool(false), t0));
 
-        let eid_name = db.create_entity();
+        let eid_name = head.create_entity();
         datoms.push(Datom::assert(eid_name, db_attr_name, Value::from_str_inline("name"), t0));
         datoms.push(Datom::assert(eid_name, db_attr_type, Value::from_eid(db_type_string), t0));
         datoms.push(Datom::assert(eid_name, db_attr_unique, Value::from_bool(true), t0));
         datoms.push(Datom::assert(eid_name, db_attr_many, Value::from_bool(false), t0));
-        db.insert(datoms).expect("Failed to commit transaction.");
+        head.roots = db.insert(datoms).expect("Failed to commit transaction.");
+        db.commit(head).expect("Failed to commit transaction.");
 
         let mut datoms = Vec::new();
+        let mut head = db.begin();
         let attr_level = Aid(eid_level.0);
         let attr_name = Aid(eid_name.0);
-        let t1 = db.create_transaction();
+        let t1 = head.create_transaction();
         // Note: the insertion order is deliberately not sorted in advance to
         // expose ordering bugs.
         // TODO: Turn this into a test case.
-        let e1 = db.create_entity();
-        let e2 = db.create_entity();
-        let e3 = db.create_entity();
-        let e4 = db.create_entity();
+        let e1 = head.create_entity();
+        let e2 = head.create_entity();
+        let e3 = head.create_entity();
+        let e4 = head.create_entity();
         datoms.push(Datom::assert(e1, attr_level, Value::from_u64_inline(11), t1));
         datoms.push(Datom::assert(e2, attr_level, Value::from_u64_inline(13), t1));
         datoms.push(Datom::assert(e3, attr_level, Value::from_u64_inline(5), t1));
@@ -70,7 +73,8 @@ fn main() {
         datoms.push(Datom::assert(e2, attr_name, v2, t1));
         datoms.push(Datom::assert(e3, attr_name, v3, t1));
         datoms.push(Datom::assert(e4, attr_name, v4, t1));
-        db.insert(datoms).expect("Failed to commit transaction.");
+        head.roots = db.insert(datoms).expect("Failed to commit transaction.");
+        db.commit(head).expect("Failed to commit transaction");
     }
 
     db.eavt().check_invariants().unwrap();

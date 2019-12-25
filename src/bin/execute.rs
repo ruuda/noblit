@@ -11,7 +11,7 @@ use std::io;
 
 use noblit::binary::Cursor;
 use noblit::database;
-use noblit::datom::{Datom, Eid, Tid, Value};
+use noblit::datom::{Datom, Value};
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
 use noblit::query::{QueryAttribute, QueryValue};
@@ -47,93 +47,93 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
 }
 
 /// Evaluate the mutation, return the datoms produced.
-fn run_mutation(
-    cursor: &mut Cursor,
-    database: &Database,
-    transaction: Tid,
-    next_id: &mut u64,
-) -> (Temporaries, Vec<Datom>) {
+fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
+    let mut head = database.begin();
     let mut temporaries = Temporaries::new();
     let mut mutation = parse::parse_mutation(cursor, &mut temporaries).expect("Failed to parse query.");
 
-    let view = database.view(temporaries);
+    let (temporaries, mut datoms) = {
+        let view = database.view(temporaries);
 
-    // Resolve named attributes to id-based attributes, and plan the read-only
-    // part of the query.
-    mutation.fix_attributes(&view);
-    let plan = QueryPlan::new(mutation.read_only_part(), &view);
+        let transaction = head.create_transaction();
 
-    let mut datoms_to_insert = Vec::new();
-    let mut rows_to_return = Vec::new();
+        // Resolve named attributes to id-based attributes, and plan the read-only
+        // part of the query.
+        mutation.fix_attributes(&view);
+        let plan = QueryPlan::new(mutation.read_only_part(), &view);
 
-    // For each assignment of values to the bound variables, run the assertions.
-    for result in Evaluator::new(&plan, &view) {
-        // To generate the asserted datoms, we need a value for every variable.
-        // For the bound variables, we get them from the query results. For the
-        // free variables, we need to generate new entities. The read-only part
-        // of the query selects all bound variables in their order of
-        // occurrence, so we can map the result onto the bound values directly.
-        let mut bound_values = Vec::with_capacity(mutation.variable_names.len());
-        bound_values.extend_from_slice(&result[..]);
+        let mut datoms_to_insert = Vec::new();
+        let mut rows_to_return = Vec::new();
 
-        for _ in mutation.free_variables.iter() {
-            // Generate a fresh entity id for every new entity. Increment by 2
-            // because transaction ids claim the even ones (for now).
-            // TODO: Encapsulate id generation better.
-            bound_values.push(Value::from_eid(Eid(*next_id)));
-            *next_id += 2;
+        // For each assignment of values to the bound variables, run the assertions.
+        for result in Evaluator::new(&plan, &view) {
+            // To generate the asserted datoms, we need a value for every variable.
+            // For the bound variables, we get them from the query results. For the
+            // free variables, we need to generate new entities. The read-only part
+            // of the query selects all bound variables in their order of
+            // occurrence, so we can map the result onto the bound values directly.
+            let mut bound_values = Vec::with_capacity(mutation.variable_names.len());
+            bound_values.extend_from_slice(&result[..]);
+
+            for _ in mutation.free_variables.iter() {
+                // Generate a fresh entity id for every new entity.
+                bound_values.push(Value::from_eid(head.create_entity()));
+            }
+
+            for assertion in &mutation.assertions[..] {
+                let entity = bound_values[assertion.entity.0 as usize].as_eid(view.heap());
+                let attribute = match assertion.attribute {
+                    QueryAttribute::Fixed(aid) => aid,
+                    QueryAttribute::Named(..) => {
+                        panic!("Should have resolved attribute name to id already.");
+                    }
+                };
+                let value = match assertion.value {
+                    QueryValue::Const(v) => v,
+                    QueryValue::Var(var) => bound_values[var.0 as usize],
+                };
+                let datom = Datom::assert(entity, attribute, value, transaction);
+                datoms_to_insert.push(datom);
+            }
+
+            // Collect the values to return from the query; those listed in the
+            // select clause.
+            let mut row = Vec::with_capacity(mutation.select.len());
+            for &v in mutation.select.iter() {
+                row.push(bound_values[v.0 as usize]);
+            }
+            rows_to_return.push(row.into_boxed_slice());
         }
 
-        for assertion in &mutation.assertions[..] {
-            let entity = bound_values[assertion.entity.0 as usize].as_eid(view.heap());
-            let attribute = match assertion.attribute {
-                QueryAttribute::Fixed(aid) => aid,
-                QueryAttribute::Named(..) => {
-                    panic!("Should have resolved attribute name to id already.");
-                }
-            };
-            let value = match assertion.value {
-                QueryValue::Const(v) => v,
-                QueryValue::Var(var) => bound_values[var.0 as usize],
-            };
-            let datom = Datom::assert(entity, attribute, value, transaction);
-            datoms_to_insert.push(datom);
-        }
-
-        // Collect the values to return from the query; those listed in the
-        // select clause.
-        let mut row = Vec::with_capacity(mutation.select.len());
+        // Before we can print the results, we need to know the types of the
+        // selected variables. For bound variables, we can get them from the plan.
+        // For free variables, the type is always ref, because we create entities.
+        let mut select_types = Vec::with_capacity(mutation.select.len());
         for &v in mutation.select.iter() {
-            row.push(bound_values[v.0 as usize]);
+            let is_bound = (v.0 as usize) < mutation.bound_variables.len();
+            if is_bound {
+                let index = plan.mapping[v.0 as usize];
+                select_types.push(plan.variable_types[index.0 as usize]);
+            } else {
+                // Free variables are entities.
+                select_types.push(Type::Ref);
+            }
         }
-        rows_to_return.push(row.into_boxed_slice());
-    }
 
-    // Before we can print the results, we need to know the types of the
-    // selected variables. For bound variables, we can get them from the plan.
-    // For free variables, the type is always ref, because we create entities.
-    let mut select_types = Vec::with_capacity(mutation.select.len());
-    for &v in mutation.select.iter() {
-        let is_bound = (v.0 as usize) < mutation.bound_variables.len();
-        if is_bound {
-            let index = plan.mapping[v.0 as usize];
-            select_types.push(plan.variable_types[index.0 as usize]);
-        } else {
-            // Free variables are entities.
-            select_types.push(Type::Ref);
-        }
-    }
+        let stdout = io::stdout();
+        types::draw_table(
+            &mut stdout.lock(),
+            view.heap(),
+            mutation.select.iter().map(|&v| &mutation.variable_names[v.0 as usize][..]),
+            rows_to_return.iter().map(|ref row| &row[..]),
+            &select_types[..],
+        ).unwrap();
 
-    let stdout = io::stdout();
-    types::draw_table(
-        &mut stdout.lock(),
-        view.heap(),
-        mutation.select.iter().map(|&v| &mutation.variable_names[v.0 as usize][..]),
-        rows_to_return.iter().map(|ref row| &row[..]),
-        &select_types[..],
-    ).unwrap();
-
-    (view.into_temporaries(), datoms_to_insert)
+        (view.into_temporaries(), datoms_to_insert)
+    };
+    database.persist_temporaries(&temporaries, &mut datoms).unwrap();
+    head.roots = database.insert(datoms).expect("Failed to insert datoms.");
+    database.commit(head).expect("Failed to commit transaction.");
 }
 
 fn main() {
@@ -146,25 +146,8 @@ fn main() {
 
     loop {
         match cursor.take_u8() {
-            Ok(0) => {
-                run_query(&mut cursor, &db);
-            }
-            Ok(1) => {
-                let transaction = Tid(db.next_transaction_id);
-                db.next_transaction_id += 2;
-
-                let mut next_id = db.next_id;
-
-                let (temporaries, mut datoms) = run_mutation(
-                    &mut cursor,
-                    &db,
-                    transaction,
-                    &mut next_id
-                );
-                db.persist_temporaries(&temporaries, &mut datoms[..]).unwrap();
-                db.insert(datoms).expect("Failed to insert datoms.");
-                db.next_id = next_id;
-            }
+            Ok(0) => run_query(&mut cursor, &db),
+            Ok(1) => run_mutation(&mut cursor, &mut db),
             Ok(n) => panic!("Unsupported operation: {}", n),
             // EOF is actually expected. At EOF, we are done.
             Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,

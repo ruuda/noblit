@@ -13,6 +13,7 @@ use std::io;
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
 use heap::{CidBytes, self};
 use htree::HTree;
+use idgen::IdGen;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{PageId, self};
 use temp_heap::{TempHeap, Temporaries};
@@ -196,20 +197,71 @@ impl Builtins {
     }
 }
 
+/// Page ids of root nodes of the index trees.
+#[derive(Clone)]
+pub struct IndexRoots {
+    eavt_root: PageId,
+    aevt_root: PageId,
+    avet_root: PageId,
+}
+
+impl IndexRoots {
+    /// Return whether all roots of `self` lie strictly before all roots of `other`.
+    ///
+    /// Because page ids are allocated sequentially, roots A preceding roots B
+    /// implies that the elements reachable from A are a subset of the elements
+    /// reachable from B, under the assumption that B was obtained from A by
+    /// appending elements.
+    pub fn precedes(&self, other: &IndexRoots) -> bool {
+        if self.eavt_root >= other.eavt_root { return false }
+        if self.aevt_root >= other.aevt_root { return false }
+        if self.avet_root >= other.avet_root { return false }
+        true
+    }
+}
+
+/// Volatile state of the database that changes after every transaction.
+///
+/// Most of the database is append-only, but a few mutable variables are needed:
+///
+/// * The page ids of the latest roots of the index trees.
+/// * The next free ids to use for entities and transactions.
+pub struct Head {
+    // TODO: Can we make this not public, and have a better way to manage
+    // transactions?
+    pub roots: IndexRoots,
+    id_gen: IdGen,
+}
+
+impl Head {
+    /// Generate a fresh entity id.
+    pub fn create_entity(&mut self) -> Eid {
+        self.id_gen.take_entity_id()
+    }
+
+    /// Generate a fresh transaction id.
+    pub fn create_transaction(&mut self) -> Tid {
+        self.id_gen.take_transaction_id()
+    }
+
+    /// Private clone method, not exposed outside of the crate.
+    fn clone(&self) -> Head {
+        Head {
+            roots: self.roots.clone(),
+            id_gen: self.id_gen.clone(),
+        }
+    }
+}
+
 /// A database.
 ///
 /// The database stores the current tree roots of the indexes, and counters to
 /// allocate new ids for transactions and other entities.
 pub struct Database<Store, Heap> {
     pub builtins: Builtins,
-    // TODO: Replace with IdGen.
-    pub next_id: u64,
-    pub next_transaction_id: u64,
     store: Store,
     heap: Heap,
-    eavt_root: PageId,
-    aevt_root: PageId,
-    avet_root: PageId,
+    head: Head,
 }
 
 /// A view of the database. The database cannot be mutated while the view exists.
@@ -240,25 +292,24 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
             heap.append_bytes(const_str.as_bytes())?;
         }
 
-        let eavt_root = HTree::initialize(Eavt, &mut store, &heap, &genisis_datoms)?.root_page;
-        let aevt_root = HTree::initialize(Aevt, &mut store, &heap, &genisis_datoms)?.root_page;
-        let avet_root = HTree::initialize(Avet, &mut store, &heap, &genisis_datoms)?.root_page;
+        let roots = IndexRoots {
+            eavt_root: HTree::initialize(Eavt, &mut store, &heap, &genisis_datoms)?.root_page,
+            aevt_root: HTree::initialize(Aevt, &mut store, &heap, &genisis_datoms)?.root_page,
+            avet_root: HTree::initialize(Avet, &mut store, &heap, &genisis_datoms)?.root_page,
+        };
+
+        let head = Head {
+            // We start allocating ids for user data at 100 to reserve some room
+            // to extend the genesis transaction later.
+            id_gen: IdGen::new(100),
+            roots: roots,
+        };
 
         let db = Database {
             builtins: builtins,
             store: store,
             heap: heap,
-            // Transaction ids must be even. For now we do that by just tracking
-            // separate counters and incrementing both by 2. Perhaps this is a
-            // very bad idea and we want to have the entities created in a
-            // transaction and the transaction itself be adjacent in the indices
-            // by giving them adjacent ids. We start these counters at 100 to
-            // reserve some room to extend the genesis transaction.
-            next_id: 101,
-            next_transaction_id: 100,
-            eavt_root: eavt_root,
-            aevt_root: aevt_root,
-            avet_root: avet_root,
+            head: head,
         };
 
         Ok(db)
@@ -274,32 +325,32 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
 
     /// Return the (entity, attribute, value, transaction) index, immutable.
     pub fn eavt(&self) -> HTree<Eavt, &Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.eavt_root, Eavt, &self.store, &self.heap)
+        HTree::new(self.head.roots.eavt_root, Eavt, &self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, immutable.
     pub fn aevt(&self) -> HTree<Aevt, &Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.aevt_root, Aevt, &self.store, &self.heap)
+        HTree::new(self.head.roots.aevt_root, Aevt, &self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, immutable.
     pub fn avet(&self) -> HTree<Avet, &Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.avet_root, Avet, &self.store, &self.heap)
+        HTree::new(self.head.roots.avet_root, Avet, &self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
     pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.eavt_root, Eavt, &mut self.store, &self.heap)
+        HTree::new(self.head.roots.eavt_root, Eavt, &mut self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
     pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.aevt_root, Aevt, &mut self.store, &self.heap)
+        HTree::new(self.head.roots.aevt_root, Aevt, &mut self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
     pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.avet_root, Avet, &mut self.store, &self.heap)
+        HTree::new(self.head.roots.avet_root, Avet, &mut self.store, &self.heap)
     }
 
     /// Persist temporary values that the datoms may reference the heap.
@@ -339,12 +390,16 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(())
     }
 
-    /// Insert datoms into the database.
+    /// Insert datoms into the database, return new index roots.
     ///
     /// Takes the datoms by value in order to sort them in-place during
-    /// insertion without allocating an unnecessary copy, in case the datoms
+    /// insertion without allocating an unnecessary copy, in as the datoms
     /// are not going to be used afterwards anyway.
-    pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<()>
+    ///
+    /// Returns the new tree roots. When the method returns, tree nodes have
+    /// been persisted, but they will not be reachable unless the new roots are
+    /// persisted as well. TODO: xref to method to save roots.
+    pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<IndexRoots>
     where Store: store::StoreMut {
         // Perform some sanity checks over the datoms to be inserted.
         for &datom in &datoms {
@@ -364,34 +419,60 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
 
         // We do aevt after avet so the data is still partiall sorted for the
         // second sort.
-        self.avet_root = {
+        let avet_root = {
             let mut index = self.avet_mut();
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
-        self.aevt_root = {
+        let aevt_root = {
             let mut index = self.aevt_mut();
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
-        self.eavt_root = {
+        let eavt_root = {
             let mut index = self.eavt_mut();
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
+
+        let roots = IndexRoots {
+            avet_root: avet_root,
+            aevt_root: aevt_root,
+            eavt_root: eavt_root,
+        };
+
+        Ok(roots)
+    }
+
+    /// Make a copy of the current head, to execute transactions against.
+    ///
+    /// To append new datoms to the database, we need to:
+    ///
+    /// * Allocate a new transaction id, and possibly entity ids.
+    /// * Persist large values that occur in new datoms.
+    /// * Persist the new datoms themselves.
+    /// * Write the new head (tree roots and fresh id counters).
+    ///
+    /// The first stage of this process is to obtain the current roots and id
+    /// counters.
+    ///
+    /// TODO: Could we use the type system, to ensure that we begin at most one
+    /// transaction at a time, while still allowing id generation to happen
+    /// during query evaluation, so new datoms can be partially streamed?
+    pub fn begin(&self) -> Head {
+        self.head.clone()
+    }
+
+    /// Finalize a transaction by writing the new head.
+    pub fn commit(&mut self, new_head: Head) -> io::Result<()> {
+        assert!(self.head.roots.precedes(&new_head.roots), "Old index roots must precede new roots.");
+        // TODO also check the id generator. Also, possibly include a generation
+        // number to double check.
+
+        self.head = new_head;
+
+        // TODO: Have some abstraction for storing the head.
         Ok(())
-    }
-
-    pub fn create_transaction(&mut self) -> Tid {
-        let tid = Tid(self.next_transaction_id);
-        self.next_transaction_id += 2;
-        tid
-    }
-
-    pub fn create_entity(&mut self) -> Eid {
-        let eid = Eid(self.next_id);
-        self.next_id += 2;
-        eid
     }
 
     /// Create a byte string `Value`.
@@ -433,17 +514,17 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
 
     /// Return the (entity, attribute, value, transaction) index.
     pub fn eavt(&self) -> HTree<Eavt, &Store, &TempHeap<&'a Heap>> {
-        HTree::new(self.database.eavt_root, Eavt, &self.database.store, &self.temp_heap)
+        HTree::new(self.database.head.roots.eavt_root, Eavt, &self.database.store, &self.temp_heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index.
     pub fn aevt(&self) -> HTree<Aevt, &Store, &TempHeap<&'a Heap>> {
-        HTree::new(self.database.aevt_root, Aevt, &self.database.store, &self.temp_heap)
+        HTree::new(self.database.head.roots.aevt_root, Aevt, &self.database.store, &self.temp_heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index.
     pub fn avet(&self) -> HTree<Avet, &Store, &TempHeap<&'a Heap>> {
-        HTree::new(self.database.avet_root, Avet, &self.database.store, &self.temp_heap)
+        HTree::new(self.database.head.roots.avet_root, Avet, &self.database.store, &self.temp_heap)
     }
 
     pub fn lookup_value(&self, entity: Eid, attribute: Aid) -> Option<Value> {
