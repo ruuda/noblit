@@ -14,6 +14,7 @@ pub mod datom;
 pub mod heap;
 pub mod htree;
 pub mod index;
+pub mod idgen;
 pub mod memory_store;
 pub mod mutation;
 pub mod parse;

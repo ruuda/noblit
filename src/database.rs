@@ -202,7 +202,7 @@ impl Builtins {
 /// allocate new ids for transactions and other entities.
 pub struct Database<Store, Heap> {
     pub builtins: Builtins,
-    // TODO: Make ids privat, expose methods to allocate them.
+    // TODO: Replace with IdGen.
     pub next_id: u64,
     pub next_transaction_id: u64,
     store: Store,
