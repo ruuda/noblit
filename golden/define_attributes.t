@@ -24,7 +24,7 @@ select
 ┌───────┬───────┐
 │ level │ name  │
 ├───────┼───────┤
-│ # 103 │ # 101 │
+│ # 102 │ # 101 │
 └───────┴───────┘
 
 -- Step 2: Now that we have these new attributes, we can create a few entities
@@ -52,7 +52,7 @@ select
 ┌───────┬───────┬───────┐
 │ leon  │ pris  │ roy   │
 ├───────┼───────┼───────┤
-│ # 105 │ # 107 │ # 109 │
+│ # 103 │ # 105 │ # 106 │
 └───────┴───────┴───────┘
 
 -- Step 3: Update the schema: add a "model" attribute. The query returns its id.
@@ -72,7 +72,7 @@ select
 ┌───────┐
 │ model │
 ├───────┤
-│ # 111 │
+│ # 107 │
 └───────┘
 
 -- Step 4: Set the "model" attribute for every entity "r" that has a "name"
@@ -91,9 +91,9 @@ select
 ┌───────┐
 │ r     │
 ├───────┤
+│ # 103 │
 │ # 105 │
-│ # 107 │
-│ # 109 │
+│ # 106 │
 └───────┘
 
 -- Step 5: Double check that we now have all the data.
