@@ -65,14 +65,16 @@ fn main() {
         datoms.push(Datom::assert(e2, attr_level, Value::from_u64_inline(13), t1));
         datoms.push(Datom::assert(e3, attr_level, Value::from_u64_inline(5), t1));
         datoms.push(Datom::assert(e4, attr_level, Value::from_u64_inline(97), t1));
-        let v1 = db.persist_value_bytes("Henk de Steen".as_bytes()).unwrap();
-        let v2 = db.persist_value_bytes("Klaas de Rots".as_bytes()).unwrap();
-        let v3 = db.persist_value_bytes("Sjaak de Kei".as_bytes()).unwrap();
-        let v4 = db.persist_value_bytes("Aart".as_bytes()).unwrap();
+        let mut tmps = Temporaries::new();
+        let v1 = Value::from_const_bytes(tmps.push_string("Henk de Steen".to_string()));
+        let v2 = Value::from_const_bytes(tmps.push_string("Klaas de Rots".to_string()));
+        let v3 = Value::from_const_bytes(tmps.push_string("Sjaak de Kei".to_string()));
+        let v4 = Value::from_str_inline("Aart");
         datoms.push(Datom::assert(e1, attr_name, v1, t1));
         datoms.push(Datom::assert(e2, attr_name, v2, t1));
         datoms.push(Datom::assert(e3, attr_name, v3, t1));
         datoms.push(Datom::assert(e4, attr_name, v4, t1));
+        db.persist_temporaries(&tmps, &mut datoms).expect("Failed to persist temporaries.");
         head.roots = db.insert(datoms).expect("Failed to commit transaction.");
         db.commit(head).expect("Failed to commit transaction");
     }

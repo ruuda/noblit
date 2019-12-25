@@ -474,24 +474,6 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         // TODO: Have some abstraction for storing the head.
         Ok(())
     }
-
-    /// Create a byte string `Value`.
-    ///
-    /// If the value is large and needs to be stored on the large value heap, it
-    /// is persisted there, and a reference value is returned. Therefore, this
-    /// method should not be used for temporary values (use `TempHeap` instead
-    /// in that case).
-    pub fn persist_value_bytes(&mut self, bytes: &[u8]) -> io::Result<Value>
-    where Heap: heap::HeapMut
-    {
-        match Value::from_bytes(bytes) {
-            Some(v) => Ok(v),
-            None => {
-                let cid = self.heap.append_bytes(bytes)?;
-                Ok(Value::from_const_bytes(cid))
-            }
-        }
-    }
 }
 
 impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> {
