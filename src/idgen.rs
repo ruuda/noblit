@@ -154,4 +154,22 @@ mod test {
             assert_eq!(ids.len(), n + 1);
         }
     }
+
+    #[test]
+    fn id_gen_ids_are_close() {
+        let mut allowed_gap: i64 = 1;
+        for (result, gen) in IdGenTest::new() {
+            match result {
+                IdGenResult::Tid(..) => allowed_gap += 2,
+                IdGenResult::Eid(..) => allowed_gap = (allowed_gap - 2).max(1),
+            };
+            let actual_gap = (gen.next_even as i64 - gen.next_odd as i64).abs();
+            assert!(
+                actual_gap <= allowed_gap,
+                "Actual gap {} exceeds allowed gap of {}",
+                actual_gap,
+                allowed_gap,
+            );
+        }
+    }
 }
