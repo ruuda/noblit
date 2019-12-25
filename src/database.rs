@@ -33,8 +33,6 @@ pub struct Builtins {
     pub attribute_db_attribute_many: Aid,
     /// Built-in attribute `db.type.name`.
     pub attribute_db_type_name: Aid,
-    /// Built-in attribute `db.transaction.time`.
-    pub attribute_db_transaction_time: Aid,
 
     /// Built-in type `db.type.bool`.
     pub entity_db_type_bool: Eid,
@@ -56,12 +54,11 @@ impl Builtins {
         let id_db_attr_unique = 3;
         let id_db_attr_many = 4;
         let id_db_type_name = 5;
-        let id_db_transaction_time = 6;
-        let id_db_type_bool = 7;
-        let id_db_type_ref = 8;
-        let id_db_type_uint64 = 9;
-        let id_db_type_bytes = 10;
-        let id_db_type_string = 11;
+        let id_db_type_bool = 6;
+        let id_db_type_ref = 7;
+        let id_db_type_uint64 = 8;
+        let id_db_type_bytes = 9;
+        let id_db_type_string = 10;
 
         let builtins = Builtins {
             genisis_transaction: Tid(id_transaction),
@@ -70,7 +67,6 @@ impl Builtins {
             attribute_db_attribute_unique: Aid(id_db_attr_unique),
             attribute_db_attribute_many: Aid(id_db_attr_many),
             attribute_db_type_name: Aid(id_db_type_name),
-            attribute_db_transaction_time: Aid(id_db_transaction_time),
             entity_db_type_bool: Eid(id_db_type_bool),
             entity_db_type_ref: Eid(id_db_type_ref),
             entity_db_type_uint64: Eid(id_db_type_uint64),
@@ -174,13 +170,6 @@ impl Builtins {
             unique: true,
             many: false,
         };
-        define_attribute! {
-            aid: id_db_transaction_time,
-            name: "db.transaction.time",
-            type: id_db_type_uint64, // TODO: Time type.
-            unique: false, // TODO: Timestamp uniqueness is debatable.
-            many: false,
-        };
 
         define_type! {
             eid: id_db_type_bool,
@@ -202,12 +191,6 @@ impl Builtins {
             eid: id_db_type_string,
             name: "db.type.string",
         };
-
-        tuples.push(Datom::new(
-            Eid(id_transaction),
-            Aid(id_db_transaction_time), Value::from_u64_inline(0),
-            Tid(id_transaction), Operation::Assert,
-        ));
 
         (builtins, tuples, consts)
     }
@@ -399,19 +382,9 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(())
     }
 
-    pub fn create_transaction(&mut self, datoms: &mut Vec<Datom>) -> Tid {
+    pub fn create_transaction(&mut self) -> Tid {
         let tid = Tid(self.next_transaction_id);
         self.next_transaction_id += 2;
-
-        // Record the "timestamp" for the transaction.
-        let datom_timestamp = Datom {
-            entity: Eid(tid.0),
-            attribute: self.builtins.attribute_db_transaction_time,
-            value: Value::from_u64_inline(0), // TODO: actually record an epoch number value.
-            transaction_operation: TidOp::new(tid, Operation::Assert),
-        };
-        datoms.push(datom_timestamp);
-
         tid
     }
 

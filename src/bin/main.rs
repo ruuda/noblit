@@ -33,7 +33,7 @@ fn main() {
         let db_type_string = db.builtins.entity_db_type_string;
 
         let mut datoms = Vec::new();
-        let t0 = db.create_transaction(&mut datoms);
+        let t0 = db.create_transaction();
         let eid_level = db.create_entity(&mut datoms, db_attr_name, Value::from_str_inline("level"), t0);
         datoms.push(Datom::assert(eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0));
         datoms.push(Datom::assert(eid_level, db_attr_unique, Value::from_bool(false), t0));
@@ -47,7 +47,7 @@ fn main() {
         let mut datoms = Vec::new();
         let attr_level = Aid(eid_level.0);
         let attr_name = Aid(eid_name.0);
-        let t1 = db.create_transaction(&mut datoms);
+        let t1 = db.create_transaction();
         // Note: the insertion order is deliberately not sorted in advance to
         // expose ordering bugs.
         // TODO: Turn this into a test case.

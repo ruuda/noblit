@@ -6,9 +6,9 @@ select
 ┌──────┬──────────────────┐
 │ t    │ name             │
 ├──────┼──────────────────┤
-│ # 7  │ "db.type.bool"   │
-│ # 10 │ "db.type.bytes"  │
-│ # 8  │ "db.type.ref"    │
-│ # 11 │ "db.type.string" │
-│ # 9  │ "db.type.uint64" │
+│ # 6  │ "db.type.bool"   │
+│ # 9  │ "db.type.bytes"  │
+│ # 7  │ "db.type.ref"    │
+│ # 10 │ "db.type.string" │
+│ # 8  │ "db.type.uint64" │
 └──────┴──────────────────┘

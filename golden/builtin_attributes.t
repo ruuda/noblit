@@ -14,6 +14,5 @@ select
 │ # 1 │ "db.attribute.name"   │ "db.type.string" │ true   │ false │
 │ # 2 │ "db.attribute.type"   │ "db.type.ref"    │ false  │ false │
 │ # 3 │ "db.attribute.unique" │ "db.type.bool"   │ false  │ false │
-│ # 6 │ "db.transaction.time" │ "db.type.uint64" │ false  │ false │
 │ # 5 │ "db.type.name"        │ "db.type.string" │ true   │ false │
 └─────┴───────────────────────┴──────────────────┴────────┴───────┘
