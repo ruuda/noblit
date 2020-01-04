@@ -48,14 +48,12 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
 
 /// Evaluate the mutation, return the datoms produced.
 fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
-    let mut head = database.begin();
+    let mut transaction = database.begin();
     let mut temporaries = Temporaries::new();
     let mut mutation = parse::parse_mutation(cursor, &mut temporaries).expect("Failed to parse query.");
 
     let (temporaries, mut datoms) = {
         let view = database.view(temporaries);
-
-        let transaction = head.create_transaction();
 
         // Resolve named attributes to id-based attributes, and plan the read-only
         // part of the query.
@@ -77,7 +75,8 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
 
             for _ in mutation.free_variables.iter() {
                 // Generate a fresh entity id for every new entity.
-                bound_values.push(Value::from_eid(head.create_entity()));
+                let entity_id = transaction.create_entity();
+                bound_values.push(Value::from_eid(entity_id));
             }
 
             for assertion in &mutation.assertions[..] {
@@ -92,7 +91,7 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
                     QueryValue::Const(v) => v,
                     QueryValue::Var(var) => bound_values[var.0 as usize],
                 };
-                let datom = Datom::assert(entity, attribute, value, transaction);
+                let datom = Datom::assert(entity, attribute, value, transaction.id());
                 datoms_to_insert.push(datom);
             }
 
@@ -132,8 +131,7 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
         (view.into_temporaries(), datoms_to_insert)
     };
     database.persist_temporaries(&temporaries, &mut datoms).unwrap();
-    head.roots = database.insert(datoms).expect("Failed to insert datoms.");
-    database.commit(head).expect("Failed to commit transaction.");
+    database.commit(transaction, datoms).expect("Failed to commit transaction.");
 }
 
 fn main() {

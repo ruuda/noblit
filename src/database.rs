@@ -198,7 +198,7 @@ impl Builtins {
 }
 
 /// Page ids of root nodes of the index trees.
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexRoots {
     eavt_root: PageId,
     aevt_root: PageId,
@@ -227,10 +227,52 @@ impl IndexRoots {
 /// * The page ids of the latest roots of the index trees.
 /// * The next free ids to use for entities and transactions.
 pub struct Head {
-    // TODO: Can we make this not public, and have a better way to manage
-    // transactions?
-    pub roots: IndexRoots,
+    roots: IndexRoots,
     id_gen: IdGen,
+}
+
+pub struct Transaction {
+    /// Index roots at the moment that the transaction started.
+    ///
+    /// TODO: Instead of storing those, can the borrow checker enforce that we
+    /// have at most one open transaction?
+    base_roots: IndexRoots,
+
+    /// Id counters at the moment that the transaction started.
+    base_id_gen: IdGen,
+
+    /// Mutable id counters to supply entity ids for this transaction.
+    next_id_gen: IdGen,
+
+    /// The id of this transaction.
+    transaction_id: Tid,
+}
+
+impl Transaction {
+    fn new(roots: &IndexRoots, id_gen: &IdGen) -> Transaction {
+        let base_id_gen = id_gen.clone();
+        let mut next_id_gen = id_gen.clone();
+        let transaction_id = next_id_gen.take_transaction_id();
+
+        Transaction {
+            base_roots: roots.clone(),
+            base_id_gen: base_id_gen,
+            next_id_gen: next_id_gen,
+            transaction_id: transaction_id,
+        }
+    }
+
+    /// The id of this transaction.
+    ///
+    /// TODO: Don't expose, expose assert/retract instead.
+    pub fn id(&self) -> Tid {
+        self.transaction_id
+    }
+
+    /// Generate a fresh entity id.
+    pub fn create_entity(&mut self) -> Eid {
+        self.next_id_gen.take_entity_id()
+    }
 }
 
 impl Head {
@@ -242,14 +284,6 @@ impl Head {
     /// Generate a fresh transaction id.
     pub fn create_transaction(&mut self) -> Tid {
         self.id_gen.take_transaction_id()
-    }
-
-    /// Private clone method, not exposed outside of the crate.
-    fn clone(&self) -> Head {
-        Head {
-            roots: self.roots.clone(),
-            id_gen: self.id_gen.clone(),
-        }
     }
 }
 
@@ -339,18 +373,18 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn eavt_mut(&mut self) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.head.roots.eavt_root, Eavt, &mut self.store, &self.heap)
+    pub fn eavt_mut(&mut self, roots: &IndexRoots) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
+        HTree::new(roots.eavt_root, Eavt, &mut self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn aevt_mut(&mut self) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.head.roots.aevt_root, Aevt, &mut self.store, &self.heap)
+    pub fn aevt_mut(&mut self, roots: &IndexRoots) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
+        HTree::new(roots.aevt_root, Aevt, &mut self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
-    pub fn avet_mut(&mut self) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
-        HTree::new(self.head.roots.avet_root, Avet, &mut self.store, &self.heap)
+    pub fn avet_mut(&mut self, roots: &IndexRoots) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
+        HTree::new(roots.avet_root, Avet, &mut self.store, &self.heap)
     }
 
     /// Persist temporary values that the datoms may reference the heap.
@@ -399,7 +433,7 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     /// Returns the new tree roots. When the method returns, tree nodes have
     /// been persisted, but they will not be reachable unless the new roots are
     /// persisted as well. TODO: xref to method to save roots.
-    pub fn insert(&mut self, mut datoms: Vec<Datom>) -> io::Result<IndexRoots>
+    pub fn insert(&mut self, roots: &IndexRoots, mut datoms: Vec<Datom>) -> io::Result<IndexRoots>
     where Store: store::StoreMut {
         // Perform some sanity checks over the datoms to be inserted.
         for &datom in &datoms {
@@ -420,17 +454,17 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         // We do aevt after avet so the data is still partiall sorted for the
         // second sort.
         let avet_root = {
-            let mut index = self.avet_mut();
+            let mut index = self.avet_mut(roots);
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
         let aevt_root = {
-            let mut index = self.aevt_mut();
+            let mut index = self.aevt_mut(roots);
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
         let eavt_root = {
-            let mut index = self.eavt_mut();
+            let mut index = self.eavt_mut(roots);
             datoms.sort_by(|x, y| index.comparator.cmp(x, y, index.heap));
             index.insert(&datoms[..])?
         };
@@ -459,17 +493,28 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     /// TODO: Could we use the type system, to ensure that we begin at most one
     /// transaction at a time, while still allowing id generation to happen
     /// during query evaluation, so new datoms can be partially streamed?
-    pub fn begin(&self) -> Head {
-        self.head.clone()
+    pub fn begin(&self) -> Transaction {
+        Transaction::new(&self.head.roots, &self.head.id_gen)
     }
 
     /// Finalize a transaction by writing the new head.
-    pub fn commit(&mut self, new_head: Head) -> io::Result<()> {
-        assert!(self.head.roots.precedes(&new_head.roots), "Old index roots must precede new roots.");
-        // TODO also check the id generator. Also, possibly include a generation
-        // number to double check.
+    pub fn commit(&mut self, transaction: Transaction, datoms: Vec<Datom>) -> io::Result<()>
+    where Store: store::StoreMut {
+        // TODO: Return error instead of panicking.
+        assert_eq!(self.head.roots, transaction.base_roots, "Transaction was not based on current tip.");
+        assert_eq!(self.head.id_gen, transaction.base_id_gen, "Transaction was not based on current tip.");
 
-        self.head = new_head;
+        let new_roots = self.insert(&transaction.base_roots, datoms)?;
+
+        // Sanity check: the transaction base was the current head, so the
+        // current roots must precede the new roots.
+        assert!(self.head.roots.precedes(&new_roots), "Old index roots must precede new roots.");
+
+        // TODO also check the id generator.
+        // Also, possibly include a generation number to double check.
+
+        self.head.roots = new_roots;
+        self.head.id_gen = transaction.next_id_gen;
 
         // TODO: Have some abstraction for storing the head.
         Ok(())

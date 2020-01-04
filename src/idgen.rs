@@ -23,7 +23,7 @@ use datom::{Eid, Tid};
 /// to the transaction (such as a transaction timestamp) are more likely to end
 /// up adjacent to other datoms from the same transaction during insertions,
 /// which enables more efficient updates of the htree indexes.
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IdGen {
     /// The next unused id which is 0 mod 2.
     next_even: u64,
