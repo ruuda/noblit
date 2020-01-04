@@ -73,9 +73,7 @@ fn main() {
         db.commit(&tmps, tx).expect("Failed to commit transaction");
     }
 
-    db.eavt().check_invariants().unwrap();
-    db.aevt().check_invariants().unwrap();
-    db.avet().check_invariants().unwrap();
+    db.check_invariants().unwrap();
 
     {
         // where

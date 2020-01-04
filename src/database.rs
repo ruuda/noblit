@@ -357,33 +357,50 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     }
 
     /// Return the (entity, attribute, value, transaction) index, immutable.
-    pub fn eavt(&self) -> HTree<Eavt, &Store, &Heap> where Store: store::StoreMut {
+    fn eavt(&self) -> HTree<Eavt, &Store, &Heap> {
         HTree::new(self.head.roots.eavt_root, Eavt, &self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, immutable.
-    pub fn aevt(&self) -> HTree<Aevt, &Store, &Heap> where Store: store::StoreMut {
+    fn aevt(&self) -> HTree<Aevt, &Store, &Heap> {
         HTree::new(self.head.roots.aevt_root, Aevt, &self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, immutable.
-    pub fn avet(&self) -> HTree<Avet, &Store, &Heap> where Store: store::StoreMut {
+    fn avet(&self) -> HTree<Avet, &Store, &Heap> {
         HTree::new(self.head.roots.avet_root, Avet, &self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    fn eavt_mut(&mut self, roots: &IndexRoots) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
+    fn eavt_mut(&mut self, roots: &IndexRoots) -> HTree<Eavt, &mut Store, &Heap>
+    where Store: store::StoreMut {
         HTree::new(roots.eavt_root, Eavt, &mut self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    fn aevt_mut(&mut self, roots: &IndexRoots) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
+    fn aevt_mut(&mut self, roots: &IndexRoots) -> HTree<Aevt, &mut Store, &Heap>
+    where Store: store::StoreMut {
         HTree::new(roots.aevt_root, Aevt, &mut self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
-    fn avet_mut(&mut self, roots: &IndexRoots) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
+    fn avet_mut(&mut self, roots: &IndexRoots) -> HTree<Avet, &mut Store, &Heap>
+    where Store: store::StoreMut {
         HTree::new(roots.avet_root, Avet, &mut self.store, &self.heap)
+    }
+
+    /// Assert that the database is well-formed.
+    ///
+    /// This is used in tests and during fuzzing. This is a high-level check
+    /// that invokes `check_invariants` on the parts that make up the database.
+    ///
+    /// Panics on a violated invariant, returns unit on success.
+    pub fn check_invariants(&self) -> io::Result<()> where Heap: heap::SizedHeap {
+        heap::check_invariants(&self.heap);
+        self.eavt().check_invariants()?;
+        self.aevt().check_invariants()?;
+        self.avet().check_invariants()?;
+        Ok(())
     }
 
     /// Persist temporary values that the datoms may reference the heap.
