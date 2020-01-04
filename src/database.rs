@@ -199,7 +199,7 @@ impl Builtins {
 
 /// Page ids of root nodes of the index trees.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndexRoots {
+struct IndexRoots {
     eavt_root: PageId,
     aevt_root: PageId,
     avet_root: PageId,
@@ -227,7 +227,7 @@ impl IndexRoots {
 /// * The page ids of the latest roots of the index trees.
 /// * The next free ids to use for entities and transactions.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Head {
+struct Head {
     roots: IndexRoots,
     id_gen: IdGen,
 }
@@ -372,17 +372,17 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn eavt_mut(&mut self, roots: &IndexRoots) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
+    fn eavt_mut(&mut self, roots: &IndexRoots) -> HTree<Eavt, &mut Store, &Heap> where Store: store::StoreMut {
         HTree::new(roots.eavt_root, Eavt, &mut self.store, &self.heap)
     }
 
     /// Return the (entity, attribute, value, transaction) index, writable.
-    pub fn aevt_mut(&mut self, roots: &IndexRoots) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
+    fn aevt_mut(&mut self, roots: &IndexRoots) -> HTree<Aevt, &mut Store, &Heap> where Store: store::StoreMut {
         HTree::new(roots.aevt_root, Aevt, &mut self.store, &self.heap)
     }
 
     /// Return the (attribute, value, entity, transaction) index, writable.
-    pub fn avet_mut(&mut self, roots: &IndexRoots) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
+    fn avet_mut(&mut self, roots: &IndexRoots) -> HTree<Avet, &mut Store, &Heap> where Store: store::StoreMut {
         HTree::new(roots.avet_root, Avet, &mut self.store, &self.heap)
     }
 
@@ -393,7 +393,7 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     /// tempoaries as values, these datoms cannot be inserted directly. The
     /// temporaries must first be persisted on the heap, and the values in the
     /// datoms must be updated to reference the new stable offsets.
-    pub fn persist_temporaries(
+    fn persist_temporaries(
         &mut self,
         temporaries: &Temporaries,
         datoms: &mut [Datom],
@@ -431,8 +431,8 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     ///
     /// Returns the new tree roots. When the method returns, tree nodes have
     /// been persisted, but they will not be reachable unless the new roots are
-    /// persisted as well. TODO: xref to method to save roots.
-    pub fn insert(&mut self, roots: &IndexRoots, mut datoms: Vec<Datom>) -> io::Result<IndexRoots>
+    /// persisted as well.
+    fn insert(&mut self, roots: &IndexRoots, mut datoms: Vec<Datom>) -> io::Result<IndexRoots>
     where Store: store::StoreMut {
         // Perform some sanity checks over the datoms to be inserted.
         for &datom in &datoms {
