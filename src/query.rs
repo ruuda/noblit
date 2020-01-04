@@ -10,8 +10,6 @@
 //! Queries need to be translated into a query plan before they can be
 //! evaluated.
 
-use std::str;
-
 use database::View;
 use datom::{Aid, Value};
 use heap::{CidBytes, self};
@@ -78,16 +76,14 @@ pub fn fix_attributes_in_statements<
     view: &View<Store, Heap>,
     statements: &mut [Statement],
 ) {
-    use heap::Heap;
-
     for stmt in statements.iter_mut() {
         let aid = match stmt.attribute {
             QueryAttribute::Fixed(aid) => aid,
             QueryAttribute::Named(cid) => match view.lookup_attribute_id(cid) {
-                Some(aid) => aid,
-                None => {
+                Ok(aid) => aid,
+                Err(name) => {
                     // TODO: Have proper error handling for missing attributes.
-                    panic!("No such attribute: {:?}", str::from_utf8(view.heap().get_bytes(cid)));
+                    panic!("No such attribute: {:?}", name);
                 }
             }
         };

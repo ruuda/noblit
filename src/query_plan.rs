@@ -538,7 +538,7 @@ impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
                 Box::new(iter)
             }
             Retrieval::LookupEavt { entity, attribute } => {
-                let e = self.get_value(entity).as_eid(&self.view.heap());
+                let e = self.view.value_as_eid(self.get_value(entity));
                 let min = Datom::new(e, attribute, Value::min(), Tid::min(), Operation::Retract);
                 let max = Datom::new(e, attribute, Value::max(), Tid::max(), Operation::Assert);
                 let iter = self

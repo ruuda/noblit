@@ -536,6 +536,15 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
         &self.temp_heap
     }
 
+    /// Assume that the value represents an entity id, and look it up.
+    ///
+    /// Usually this will be a no-op, but for large entity ids, the value
+    /// representation may be as an external value on the large value heap,
+    /// and in that case we need to look it up.
+    pub fn value_as_eid(&self, value: Value) -> Eid {
+        value.as_eid(&self.temp_heap)
+    }
+
     /// Destroy the view, release underlying heap, and return temporaries.
     ///
     /// This allows the temporaries that may have been created for a query, to
@@ -582,11 +591,22 @@ impl<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> View<'a, Store, Heap> 
         self.avet().into_iter(&min, &max).map(|&datom| datom.entity).next()
     }
 
-    pub fn lookup_attribute_id(&self, name_cid: CidBytes) -> Option<Aid> {
+    /// Resolve a named attribute to its attribute id.
+    ///
+    /// If no such attribute exists, the resolved name is returned, which is
+    /// helpful for making error messages more actionable.
+    pub fn lookup_attribute_id(&self, name_cid: CidBytes) -> Result<Aid, String> {
         let value = Value::from_const_bytes(name_cid);
-        self
-            .lookup_entity(self.database.builtins.attribute_db_attribute_name, value)
-            .map(|Eid(id)| Aid(id))
+        match self.lookup_entity(self.database.builtins.attribute_db_attribute_name, value) {
+            Some(Eid(id)) => Ok(Aid(id)),
+            None => {
+                let name_bytes = value.as_bytes(&self.temp_heap).to_vec();
+                match String::from_utf8(name_bytes) {
+                    Ok(attr_name) => Err(attr_name),
+                    Err(..) => Err("<attribute name is invalid UTF-8>".into()),
+                }
+            }
+        }
     }
 
     pub fn lookup_attribute_name(&self, attribute: Aid) -> Value {
