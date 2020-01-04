@@ -232,6 +232,14 @@ struct Head {
     id_gen: IdGen,
 }
 
+/// A collection of datoms to be added, with means to create those.
+///
+/// A transaction can be started with `database::begin()`. The transaction
+/// stores new datoms to be added, and it allocates ids for new entities. Datoms
+/// added to the transaction are stored in the transaction itself, they are not
+/// yet written to the database. Only `database::commit()` modifies the database
+/// to write the datoms. This means that there is no explicit rollback. Simply
+/// drop the transaction without committing it instead.
 pub struct Transaction {
     /// Database head at the start of the transaction.
     base: Head,
@@ -270,6 +278,9 @@ impl Transaction {
     }
 
     /// Add a new datom to this transaction.
+    ///
+    /// The transaction field of the datom will be filled automatically with the
+    /// id of this transaction.
     pub fn insert(&mut self, entity: Eid, attribute: Aid, value: Value, operation: Operation) {
         let datom = Datom::new(entity, attribute, value, self.id, operation);
         self.datoms.push(datom);
@@ -443,7 +454,7 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     /// Insert datoms into the database, return new index roots.
     ///
     /// Takes the datoms by value in order to sort them in-place during
-    /// insertion without allocating an unnecessary copy, in as the datoms
+    /// insertion without allocating an unnecessary copy, as the datoms
     /// are not going to be used afterwards anyway.
     ///
     /// Returns the new tree roots. When the method returns, tree nodes have
@@ -494,26 +505,35 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(roots)
     }
 
-    /// Make a copy of the current head, to execute transactions against.
+    /// Begin a new transaction.
     ///
-    /// To append new datoms to the database, we need to:
+    /// A transaction holds datoms to be added, and it can allocate ids for new
+    /// entities. The transaction itself does not mutate the database, only
+    /// committing it does.
     ///
-    /// * Allocate a new transaction id, and possibly entity ids.
-    /// * Persist large values that occur in new datoms.
-    /// * Persist the new datoms themselves.
-    /// * Write the new head (tree roots and fresh id counters).
-    ///
-    /// The first stage of this process is to obtain the current roots and id
-    /// counters.
+    /// A transaction tracks its *base*, the database tip that the transaction
+    /// was created from. The transaction can only be committed if the tip has
+    /// remained unchanged since the transaction was created.
     ///
     /// TODO: Could we use the type system, to ensure that we begin at most one
-    /// transaction at a time, while still allowing id generation to happen
-    /// during query evaluation, so new datoms can be partially streamed?
+    /// transaction at a time, while still allowing query while the transaction
+    /// exists, so new datoms can be partially streamed?
     pub fn begin(&self) -> Transaction {
         Transaction::new(self.head.clone())
     }
 
-    /// Finalize a transaction by writing the new head.
+    /// Commit a transaction to storage, and advance the tip of the database.
+    ///
+    /// Given the transaction, which contains the datoms to be committed, and
+    /// updated counters for entity id allocation, commit proceeds in three
+    /// stages:
+    ///
+    /// * Persist large values that occur in new datoms, to the large value heap.
+    /// * Persist the new datoms themselves, to the index trees.
+    /// * Write the new head (tree roots and fresh id counters).
+    ///
+    /// In case of an IO error, some data may have been persisted, but the
+    /// transaction will not be visible.
     pub fn commit(&mut self, temporaries: &Temporaries, transaction: Transaction) -> io::Result<()>
     where Store: store::StoreMut, Heap: heap::HeapMut {
         // TODO: Return error instead of panicking.
