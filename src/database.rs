@@ -226,38 +226,36 @@ impl IndexRoots {
 ///
 /// * The page ids of the latest roots of the index trees.
 /// * The next free ids to use for entities and transactions.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Head {
     roots: IndexRoots,
     id_gen: IdGen,
 }
 
 pub struct Transaction {
-    /// Index roots at the moment that the transaction started.
-    ///
-    /// TODO: Instead of storing those, can the borrow checker enforce that we
-    /// have at most one open transaction?
-    base_roots: IndexRoots,
-
-    /// Id counters at the moment that the transaction started.
-    base_id_gen: IdGen,
+    /// Database head at the start of the transaction.
+    base: Head,
 
     /// Mutable id counters to supply entity ids for this transaction.
-    next_id_gen: IdGen,
+    ///
+    /// The id generator in the base remains unchanged; it is used to ensure
+    /// that the database has not changed by the time we are ready to commit.
+    /// The id generator here is the one that we use to generate ids for new
+    /// entities. At commit, the database head is forwarded to it.
+    id_gen: IdGen,
 
     /// The id of this transaction.
     transaction_id: Tid,
 }
 
 impl Transaction {
-    fn new(roots: &IndexRoots, id_gen: &IdGen) -> Transaction {
-        let base_id_gen = id_gen.clone();
-        let mut next_id_gen = id_gen.clone();
-        let transaction_id = next_id_gen.take_transaction_id();
+    fn new(base: Head) -> Transaction {
+        let mut id_gen = base.id_gen.clone();
+        let transaction_id = id_gen.take_transaction_id();
 
         Transaction {
-            base_roots: roots.clone(),
-            base_id_gen: base_id_gen,
-            next_id_gen: next_id_gen,
+            base: base,
+            id_gen: id_gen,
             transaction_id: transaction_id,
         }
     }
@@ -271,19 +269,7 @@ impl Transaction {
 
     /// Generate a fresh entity id.
     pub fn create_entity(&mut self) -> Eid {
-        self.next_id_gen.take_entity_id()
-    }
-}
-
-impl Head {
-    /// Generate a fresh entity id.
-    pub fn create_entity(&mut self) -> Eid {
         self.id_gen.take_entity_id()
-    }
-
-    /// Generate a fresh transaction id.
-    pub fn create_transaction(&mut self) -> Tid {
-        self.id_gen.take_transaction_id()
     }
 }
 
@@ -494,17 +480,16 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     /// transaction at a time, while still allowing id generation to happen
     /// during query evaluation, so new datoms can be partially streamed?
     pub fn begin(&self) -> Transaction {
-        Transaction::new(&self.head.roots, &self.head.id_gen)
+        Transaction::new(self.head.clone())
     }
 
     /// Finalize a transaction by writing the new head.
     pub fn commit(&mut self, transaction: Transaction, datoms: Vec<Datom>) -> io::Result<()>
     where Store: store::StoreMut {
         // TODO: Return error instead of panicking.
-        assert_eq!(self.head.roots, transaction.base_roots, "Transaction was not based on current tip.");
-        assert_eq!(self.head.id_gen, transaction.base_id_gen, "Transaction was not based on current tip.");
+        assert_eq!(self.head, transaction.base, "Transaction was not based on current tip.");
 
-        let new_roots = self.insert(&transaction.base_roots, datoms)?;
+        let new_roots = self.insert(&transaction.base.roots, datoms)?;
 
         // Sanity check: the transaction base was the current head, so the
         // current roots must precede the new roots.
@@ -513,8 +498,10 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         // TODO also check the id generator.
         // Also, possibly include a generation number to double check.
 
-        self.head.roots = new_roots;
-        self.head.id_gen = transaction.next_id_gen;
+        self.head = Head {
+            roots: new_roots,
+            id_gen: transaction.id_gen,
+        };
 
         // TODO: Have some abstraction for storing the head.
         Ok(())
