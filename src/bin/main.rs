@@ -8,7 +8,7 @@
 extern crate noblit;
 
 use noblit::database::Database;
-use noblit::datom::{Aid, Datom, Value};
+use noblit::datom::{Aid, Value};
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
@@ -32,28 +32,24 @@ fn main() {
         let db_type_uint64 = db.builtins.entity_db_type_uint64;
         let db_type_string = db.builtins.entity_db_type_string;
 
-        let mut datoms = Vec::new();
         let mut tx = db.begin();
-        let t0 = tx.id();
         let eid_level = tx.create_entity();
-        datoms.push(Datom::assert(eid_level, db_attr_name, Value::from_str_inline("level"), t0));
-        datoms.push(Datom::assert(eid_level, db_attr_type, Value::from_eid(db_type_uint64), t0));
-        datoms.push(Datom::assert(eid_level, db_attr_unique, Value::from_bool(false), t0));
-        datoms.push(Datom::assert(eid_level, db_attr_many, Value::from_bool(false), t0));
+        tx.assert(eid_level, db_attr_name, Value::from_str_inline("level"));
+        tx.assert(eid_level, db_attr_type, Value::from_eid(db_type_uint64));
+        tx.assert(eid_level, db_attr_unique, Value::from_bool(false));
+        tx.assert(eid_level, db_attr_many, Value::from_bool(false));
 
         let eid_name = tx.create_entity();
-        datoms.push(Datom::assert(eid_name, db_attr_name, Value::from_str_inline("name"), t0));
-        datoms.push(Datom::assert(eid_name, db_attr_type, Value::from_eid(db_type_string), t0));
-        datoms.push(Datom::assert(eid_name, db_attr_unique, Value::from_bool(true), t0));
-        datoms.push(Datom::assert(eid_name, db_attr_many, Value::from_bool(false), t0));
+        tx.assert(eid_name, db_attr_name, Value::from_str_inline("name"));
+        tx.assert(eid_name, db_attr_type, Value::from_eid(db_type_string));
+        tx.assert(eid_name, db_attr_unique, Value::from_bool(true));
+        tx.assert(eid_name, db_attr_many, Value::from_bool(false));
 
-        db.commit(tx, datoms).expect("Failed to commit transaction.");
+        db.commit(&Temporaries::new(), tx).expect("Failed to commit transaction.");
 
-        let mut datoms = Vec::new();
         let mut tx = db.begin();
         let attr_level = Aid(eid_level.0);
         let attr_name = Aid(eid_name.0);
-        let t1 = tx.id();
         // Note: the insertion order is deliberately not sorted in advance to
         // expose ordering bugs.
         // TODO: Turn this into a test case.
@@ -61,21 +57,20 @@ fn main() {
         let e2 = tx.create_entity();
         let e3 = tx.create_entity();
         let e4 = tx.create_entity();
-        datoms.push(Datom::assert(e1, attr_level, Value::from_u64_inline(11), t1));
-        datoms.push(Datom::assert(e2, attr_level, Value::from_u64_inline(13), t1));
-        datoms.push(Datom::assert(e3, attr_level, Value::from_u64_inline(5), t1));
-        datoms.push(Datom::assert(e4, attr_level, Value::from_u64_inline(97), t1));
+        tx.assert(e1, attr_level, Value::from_u64_inline(11));
+        tx.assert(e2, attr_level, Value::from_u64_inline(13));
+        tx.assert(e3, attr_level, Value::from_u64_inline(5));
+        tx.assert(e4, attr_level, Value::from_u64_inline(97));
         let mut tmps = Temporaries::new();
         let v1 = Value::from_const_bytes(tmps.push_string("Henk de Steen".to_string()));
         let v2 = Value::from_const_bytes(tmps.push_string("Klaas de Rots".to_string()));
         let v3 = Value::from_const_bytes(tmps.push_string("Sjaak de Kei".to_string()));
         let v4 = Value::from_str_inline("Aart");
-        datoms.push(Datom::assert(e1, attr_name, v1, t1));
-        datoms.push(Datom::assert(e2, attr_name, v2, t1));
-        datoms.push(Datom::assert(e3, attr_name, v3, t1));
-        datoms.push(Datom::assert(e4, attr_name, v4, t1));
-        db.persist_temporaries(&tmps, &mut datoms).expect("Failed to persist temporaries.");
-        db.commit(tx, datoms).expect("Failed to commit transaction");
+        tx.assert(e1, attr_name, v1);
+        tx.assert(e2, attr_name, v2);
+        tx.assert(e3, attr_name, v3);
+        tx.assert(e4, attr_name, v4);
+        db.commit(&tmps, tx).expect("Failed to commit transaction");
     }
 
     db.eavt().check_invariants().unwrap();

@@ -11,12 +11,12 @@ use std::io;
 
 use noblit::binary::Cursor;
 use noblit::database;
-use noblit::datom::{Datom, Value};
+use noblit::datom::Value;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
 use noblit::query::{QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
-use noblit::store::{PageSize4096};
+use noblit::store::PageSize4096;
 use noblit::temp_heap::Temporaries;
 use noblit::types::{Type, self};
 
@@ -52,7 +52,7 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
     let mut temporaries = Temporaries::new();
     let mut mutation = parse::parse_mutation(cursor, &mut temporaries).expect("Failed to parse query.");
 
-    let (temporaries, mut datoms) = {
+    let temporaries = {
         let view = database.view(temporaries);
 
         // Resolve named attributes to id-based attributes, and plan the read-only
@@ -60,7 +60,6 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
         mutation.fix_attributes(&view);
         let plan = QueryPlan::new(mutation.read_only_part(), &view);
 
-        let mut datoms_to_insert = Vec::new();
         let mut rows_to_return = Vec::new();
 
         // For each assignment of values to the bound variables, run the assertions.
@@ -91,8 +90,7 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
                     QueryValue::Const(v) => v,
                     QueryValue::Var(var) => bound_values[var.0 as usize],
                 };
-                let datom = Datom::assert(entity, attribute, value, transaction.id());
-                datoms_to_insert.push(datom);
+                transaction.assert(entity, attribute, value);
             }
 
             // Collect the values to return from the query; those listed in the
@@ -128,10 +126,9 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
             &select_types[..],
         ).unwrap();
 
-        (view.into_temporaries(), datoms_to_insert)
+        view.into_temporaries()
     };
-    database.persist_temporaries(&temporaries, &mut datoms).unwrap();
-    database.commit(transaction, datoms).expect("Failed to commit transaction.");
+    database.commit(&temporaries, transaction).expect("Failed to commit transaction.");
 }
 
 fn main() {

@@ -245,7 +245,10 @@ pub struct Transaction {
     id_gen: IdGen,
 
     /// The id of this transaction.
-    transaction_id: Tid,
+    id: Tid,
+
+    /// The datoms that committing this transaction will add.
+    datoms: Vec<Datom>,
 }
 
 impl Transaction {
@@ -256,20 +259,30 @@ impl Transaction {
         Transaction {
             base: base,
             id_gen: id_gen,
-            transaction_id: transaction_id,
+            id: transaction_id,
+            datoms: Vec::new(),
         }
-    }
-
-    /// The id of this transaction.
-    ///
-    /// TODO: Don't expose, expose assert/retract instead.
-    pub fn id(&self) -> Tid {
-        self.transaction_id
     }
 
     /// Generate a fresh entity id.
     pub fn create_entity(&mut self) -> Eid {
         self.id_gen.take_entity_id()
+    }
+
+    /// Add a new datom to this transaction.
+    pub fn insert(&mut self, entity: Eid, attribute: Aid, value: Value, operation: Operation) {
+        let datom = Datom::new(entity, attribute, value, self.id, operation);
+        self.datoms.push(datom);
+    }
+
+    /// Shorthand for inserting an assertion datom.
+    pub fn assert(&mut self, entity: Eid, attribute: Aid, value: Value) {
+        self.insert(entity, attribute, value, Operation::Assert);
+    }
+
+    /// Shorthand for inserting a retraction datom.
+    pub fn retract(&mut self, entity: Eid, attribute: Aid, value: Value) {
+        self.insert(entity, attribute, value, Operation::Retract);
     }
 }
 
@@ -484,11 +497,18 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
     }
 
     /// Finalize a transaction by writing the new head.
-    pub fn commit(&mut self, transaction: Transaction, datoms: Vec<Datom>) -> io::Result<()>
-    where Store: store::StoreMut {
+    pub fn commit(&mut self, temporaries: &Temporaries, transaction: Transaction) -> io::Result<()>
+    where Store: store::StoreMut, Heap: heap::HeapMut {
         // TODO: Return error instead of panicking.
         assert_eq!(self.head, transaction.base, "Transaction was not based on current tip.");
 
+        // First persist temporaries in the new datoms to the heap. This updates
+        // the datoms in-place.
+        let mut datoms = transaction.datoms;
+        self.persist_temporaries(temporaries, &mut datoms)?;
+
+        // Then insert the new datoms into the index trees. We get the new
+        // roots to the trees that include the datoms we just inserted.
         let new_roots = self.insert(&transaction.base.roots, datoms)?;
 
         // Sanity check: the transaction base was the current head, so the
