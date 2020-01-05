@@ -72,24 +72,6 @@ List all known directors:
     select
       name
 
-## Resources
-
- * [Deconstructing the Database by Rich Hickey][deconstr]
- * [The Datomic Data Model][datamodel]
- * [LevelDB implementation documentation][leveldb]
- * [InfluxDB Storage Engine Internals][influxdb]
- * [What You Always Wanted to Know About Datalog][datalog]
- * [Unofficial Guide to Datomic Internals][unofficial]
- * [SQLite: A Database for the Edge of the Network][edge]
-
-[deconstr]:   https://www.infoq.com/presentations/Deconstructing-Database
-[datamodel]:  https://docs.datomic.com/cloud/whatis/data-model.html
-[leveldb]:    https://github.com/google/leveldb/blob/1cb384088184be9840bd59b4040503a9fa9aee66/doc/impl.md
-[influxdb]:   https://www.youtube.com/watch?v=rtEalnKT25I
-[datalog]:    https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf
-[unofficial]: http://tonsky.me/blog/unofficial-guide-to-datomic-internals/
-[edge]:       https://www.youtube.com/watch?v=gpxnbly9bz4
-
 ## Design
 
 Goals:

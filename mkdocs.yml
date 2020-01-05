@@ -10,9 +10,11 @@ nav:
     - Data model: data-model.md
   - Examples:
     - Bug tracker: examples/bug-tracker.md
-  - Internals:
+  - Development:
     - Building: building.md
     - Golden tests: golden-tests.md
+    - Resources: resources.md
+  - Internals:
     - Files: files.md
     - Trees: htree.md
     - Query: query.md
