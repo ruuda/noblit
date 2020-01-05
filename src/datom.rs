@@ -258,6 +258,7 @@ impl Value {
         if self.is_external() {
             heap.get_bytes(self.as_const_bytes())
         } else {
+            // TODO: Use to_le_bytes on Rust 1.32.
             let bytes: &[u8; 8] = unsafe { mem::transmute(&self.0) };
             let len = (bytes[7] & 0x3f) as usize;
             debug_assert!(len <= 7);
