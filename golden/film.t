@@ -1,4 +1,20 @@
--- This is the example from the readme.
+-- This file contains an example of a basic film database.
+
+-- Before we can insert any data, we need to set up the schema. For this we
+-- define four attributes. The schema below is analogous to the following SQL
+-- schema, although there are some pretty fundamenal differences between SQL's
+-- data model and Noblit's.
+--
+--   create table directors (
+--     id       integer primary key autoincrement,
+--     name     text
+--   )
+--   create table films (
+--     id       integer primary key autoincrement,
+--     title    text,
+--     year     integer,
+--     director integer,
+--   )
 
 where
   uint64_t db.type.name "db.type.uint64"
@@ -47,14 +63,16 @@ where
 
 assert
   -- Create three new entities, and set the director.name attribute for them.
-  -- The variables s, n, and t will refer to these entities henceforth.
+  -- The variables "scott", "nolan", and "tarantino" will refer to these
+  -- entities henceforth.
   scott director.name "Ridley Scott"
   nolan director.name "Christopher Nolan"
   tarantino director.name "Quentin Tarantino"
 
   -- Create a new entity with three attributes. The type of the film.title
-  -- attribute is string, the type of film.year is integer. The type of
-  -- film.director is ref: it references an other entity.
+  -- attribute is string, the type of film.year is uint64. The type of
+  -- film.director is ref: it references an other entity. The variable "b"
+  -- refers to the new entity.
   b film.title "Blade Runner"
   b film.director scott
   b film.year 1982
