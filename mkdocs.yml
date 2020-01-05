@@ -8,6 +8,7 @@ nav:
   - Overview: index.md
   - Concepts:
     - Data model: data-model.md
+    - Query: query.md
   - Examples:
     - Bug tracker: examples/bug-tracker.md
   - Development:
@@ -17,5 +18,4 @@ nav:
   - Internals:
     - Files: files.md
     - Trees: htree.md
-    - Query: query.md
     - Execution: execution.md
