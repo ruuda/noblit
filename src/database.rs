@@ -359,6 +359,16 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(db)
     }
 
+    /// Return the inner store.
+    pub fn get_store(&self) -> &Store {
+        &self.store
+    }
+
+    /// Return the inner heap.
+    pub fn get_heap(&self) -> &Heap {
+        &self.heap
+    }
+
     /// View the current database and given temporaries together.
     pub fn view(&self, temporaries: Temporaries) -> View<Store, Heap> {
         View {
