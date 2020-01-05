@@ -1,30 +1,38 @@
 # Files
 
-*Vaporware warning: much of the content below is hypothetical. In particular,
-Noblit does not yet keep a journal.*
+*Vaporware warning: much of the content below is hypothetical. Currently Noblit
+does not persist anything to disk at all.*
 
 Noblit stores thee kinds of data on disk:
 
- * [The *journal*](#the-journal) (sometimes called *write-ahead log*) of new datoms.
- * [The *indexes*](#the-indexes) that store datoms in sorted order.
  * [The *heap*](#the-heap) of large values (integers larger than 62 bits, and
    byte strings longer than 7 bytes).
+ * [The *indexes*](#the-indexes) that store datoms in sorted order.
+ * [The *head*](#the-head) with the most recent tree roots, and id counters.
 
-## The Journal
+## Accretion
 
 Because Noblit is an append-only database, transactions only add new datoms.
-These new datoms are appended to the journal. Committing a transaction is a
-three-stage process:
+Datoms are only stored in indexes (the indexes are *covering*), but they may
+reference large values on the heap. The indexes are persistent data structures,
+in the sense that data is immutable once written, but we can construct a new
+index that shares most of its nodes with a previous version. Indexes are trees
+that consist of nodes. The index file is an append-only collection of nodes. The
+head points to the latest roots of the index trees, and it stores the counters
+for allocating entity ids. The head is the only part of Noblit that is updated
+in place, the other files are append-only.
+
+Committing a transaction is a three-stage process:
 
  1. Append any new large values to the heap file, and sync the heap.
- 2. Append new datoms at the end of the journal, and sync the journal.
- 3. Update the journal size in the journal header, and sync the header.
+ 2. Add datoms to the indexes. This produces one or more new tree nodes per
+    index. Append the new nodes to the index file, and sync it.
+ 3. Write the new head, and sync it.
 
-The final header update ensures commits are atomic. When replaying the journal,
-only as many datoms as the header indicates are restored. If the header was not
-updated, the journal will have trailing data that is discarded. The heap may
-have trailing data as well. If the header was updated, then all referenced
-datoms will have been stored.
+By making the head update atomic, the entire transaction becomes atomic. If the
+commit fails at some point before the new head is written, the old head is still
+valid, and it points to valid data. New data may have been appended, but that
+data is not yet referenced.
 
 ## The Indexes
 
@@ -58,6 +66,14 @@ are not recycled to ensure immutability of written files: new data is only ever
 appended at the end. This simplifies caching.
 
 [htree]: htree.md
+
+## The Head
+
+For every index, the head stores the page id of the root of the tree for that
+index. Furthermore, the head stores the counters for id allocation.
+
+TODO: The head should store the size of the index file and heap file, so that it
+can truncate them after a failed transaction.
 
 ## The Heap
 
