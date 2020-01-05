@@ -176,7 +176,7 @@ impl Value {
     /// Returns `None` if the value is too large to be stored inline. In that
     /// case, store the value in on the heap and use `from_const_u64`.
     pub fn from_u64(value: u64) -> Option<Value> {
-        if value < Value::TAG_MASK {
+        if value & Value::TAG_MASK == 0 {
             Some(Value::from_u64_inline(value))
         } else {
             None
@@ -400,6 +400,13 @@ mod test {
     use heap::HeapMut;
     use memory_store::MemoryHeap;
     use super::Value;
+
+    #[test]
+    fn from_u64_returns_none_on_large_values() {
+        // This is a regression test. A previous test considered this value
+        // small enough, but then constructing an inline u64 failed.
+        assert_eq!(Value::from_u64(8141037401938390264), None);
+    }
 
     #[test]
     fn cmp_works_on_small_uint64s() {
