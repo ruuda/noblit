@@ -30,7 +30,7 @@ first-class and queryable.
  * **Reified transactions**.
    Transactions in Noblit are entities that can have attributes like any other
    entity. Possibilities include the transaction timestamp and the user who
-   initiated the transaction. Transactions can inspected in queries.
+   initiated the transaction. Transactions can be inspected in queries.
 
 ## Comparison
 
