@@ -115,3 +115,36 @@ Finally, keeping only the selected columns yields the answer:
 | Klaas  | Klaas  |
 | Henk   | Piet   |
 | Piet   | Piet   |
+
+## Aggregations
+
+*Note: This is an idea, it has not been implemented yet.*
+
+For aggregations such as _sum_, _count_, and _min_ and _max_, we put the
+aggregate in the select part of the query. For example, in an order database,
+we could select the total amount billed in 2020:
+
+    where
+      i invoice.year 2020
+      i invoice.amount_eur amount_eur
+    select
+      sum(amount_eur)
+
+When mixing aggregates and non-aggregates, aggregates are taken over the
+group keyed on the non-aggregate variables. For example, we may compute the
+total amount billed per year:
+
+    where
+      i invoice.year year
+      i invoice.amount_eur amount_eur
+    select
+      year, sum(amount_eur)
+
+The above query will return one row per distinct year, it will not return the
+same year twice. This is in contrast to the non-aggregate query, which would
+return a row for every invoice entity.
+
+Aggregates can always be streamed, the grouping behavior does never cause a
+collection to be materialized in memory. This is because a query is evaluated as
+a nested loop. Non-aggregated variables are on the outer loops, and aggregated
+variables on the inner loops. This means that we visit one group key at a time.
