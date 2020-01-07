@@ -19,7 +19,8 @@ pub mod memory_store;
 pub mod mutation;
 pub mod parse;
 pub mod query;
-pub mod query_plan;
+pub mod plan; // New, not yet supported, not feature complete.
+pub mod query_plan; // Deprecated implementation that was at least working.
 pub mod store;
 pub mod temp_heap;
 pub mod types;
