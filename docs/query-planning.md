@@ -62,8 +62,48 @@ TODO: Write about interaction between ordering constraints and the query plan.
 
 ## Advice
 
-TODO: Write down performance advice.
+*Warning: The advice here is just a guess, and not based on measurements.*
+
+Given the way that evaluation and the query planner work, it makes sense to
+choose a statement order that constrains the ranges scanned as much as possible,
+to minimize the number of loop iterations.
 
 ## Query optimization
 
-TODO: Write down optimization idea.
+*Vaporware warning: This is only and idea, it has not been implemented.*
+
+Noblit does provide a query optimizer. Unlike traditional relational databases,
+optimization is an explicit operation, it is not implicitly part of every query.
+With the burden of runtime query plan optimization out of the way, Noblit can
+focus on an off-line optimizer. This has several advantages over runtime query
+optimization:
+
+ * Because the runtime query planner is very simple, it is very fast.
+ * There is less of a trade-off between spending time on planning and spending
+   time on evaluation. Off-line (in the sense that it runs when instructed to,
+   not implicitly as part of every query) we can afford to spend more time
+   optimizing.
+ * Now that we can afford to spend more time, the optimizer can _measure_, it
+   does not have to guess. Instead of using statistics to try and estimate the
+   cost of a given plan, Noblit can profile the query against your actual
+   database.
+ * Now that the optimizer measures, rather than estimates, there is no need to
+   keep statistics about the data to base the estimates on. This eliminates a
+   lot of complexity.
+
+This optimization scheme is made possible by the control that a straightforward
+query planner provides. If the planner would perform more advanced runtime
+optimization, then there would be less opportunity to tell it exactly what kind
+of plan we want.
+
+Of course this optimization scheme has downsides too. In particular, off-line
+optimization is not always possible or desirable.
+
+ * For ad-hoc one-off queries, you have to keep performance in mind.
+ * When representative data is unavailable (for example, when you only have a
+   test database, not production data), results of off-line optimization may not
+   be representative of real-world performance. Rules of thumb can help to
+   ensure reasonable plans, but are no substitute for profiling.
+ * There is no way to optimize generated or partially generated queries. What
+   you *can* do though, is optimize a few generated queries, and use the lessons
+   learned to tweak the generator.

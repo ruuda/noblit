@@ -31,6 +31,10 @@ first-class and queryable.
    Transactions in Noblit are entities that can have attributes like any other
    entity. Possibilities include the transaction timestamp and the user who
    initiated the transaction. Transactions can be inspected in queries.
+ * **Profile-guided query optimization**.
+   While queries are declarative, statement order affects the query plan. An
+   explicit query optimizer can optimize a given query by measuring how
+   alternatives perform, instead of having to estimate from statistics.
 
 ## Comparison
 
