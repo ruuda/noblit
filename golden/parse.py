@@ -96,6 +96,7 @@ class Query(NamedTuple):
     where_statements: List[Statement]
     assertions: List[Statement]
     select: List[Var]
+    explain: bool
 
     def __str__(self) -> str:
         """
@@ -130,9 +131,12 @@ class Query(NamedTuple):
         """
         Serialize the query to a binary format that Noblit can read.
         """
-        # 1-byte query type, 0 for a read, 1 for a write.
-        type_ = 0 if len(self.assertions) == 0 else 1
-        yield u8(type_)
+        # 1-byte query type: 0 for a read, 1 for a write, 2 for explain.
+        if self.explain:
+            yield u8(2)
+        else:
+            type_ = 0 if len(self.assertions) == 0 else 1
+            yield u8(type_)
 
         # 2-byte number of variables, followed by length-prefixed names.
         yield u16_le(len(self.variable_names))
@@ -251,6 +255,7 @@ def parse_query(lines: Iterable[str]) -> Query:
     statements: List[Statement] = []
     assertions: List[Statement] = []
     select: List[Var] = []
+    explain = False
 
     for line in lines:
         if line.strip() == '' or line.strip().startswith('--'):
@@ -272,15 +277,23 @@ def parse_query(lines: Iterable[str]) -> Query:
             for v in vs:
                 select.append(variables.get(v))
 
+        elif state == State.INIT and line == 'explain\n':
+            # Allow an "explain" prefix on queries.
+            explain = True
+
         else:
             # Interpret anything else as a state change.
             state = parse_state(line)
+
+    if explain:
+        assert len(assertions) == 0, '"Explain" is not supported with assertions.'
 
     return Query(
         variable_names=variables.names(),
         where_statements=statements,
         assertions=assertions,
         select=select,
+        explain=explain,
     )
 
 

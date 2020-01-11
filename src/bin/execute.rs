@@ -14,6 +14,7 @@ use noblit::database;
 use noblit::datom::Value;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
+use noblit::planner::Planner;
 use noblit::query::{QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::PageSize4096;
@@ -44,6 +45,19 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
         rows.iter().map(|ref row| &row[..]),
         &plan.select_types[..],
     ).unwrap();
+}
+
+fn explain_query(cursor: &mut Cursor, database: &Database) {
+    let mut temporaries = Temporaries::new();
+    let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
+    let view = database.view(temporaries);
+    query.fix_attributes(&view);
+
+    let mut planner = Planner::new(&query);
+    planner.initialize_scans();
+
+    // TODO: Enumerate all, estimate cost.
+    println!("{:?}", planner.get_plan());
 }
 
 /// Evaluate the mutation, return the datoms produced.
@@ -143,6 +157,7 @@ fn main() {
         match cursor.take_u8() {
             Ok(0) => run_query(&mut cursor, &db),
             Ok(1) => run_mutation(&mut cursor, &mut db),
+            Ok(2) => explain_query(&mut cursor, &db),
             Ok(n) => panic!("Unsupported operation: {}", n),
             // EOF is actually expected. At EOF, we are done.
             Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
