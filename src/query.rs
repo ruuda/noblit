@@ -146,7 +146,11 @@ impl Query {
             let attr_type = view.lookup_attribute_type(aid);
 
             let value = match statement.value {
-                QueryValue::Const(..) => continue,
+                QueryValue::Const(..) => {
+                    // TODO: Check that the value base type (uint64 or bytes) is
+                    // compatible with the attribute type.
+                    continue
+                }
                 QueryValue::Var(v) => v,
             };
             let value_type = types[value.0 as usize];

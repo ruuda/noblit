@@ -8,7 +8,6 @@
 //! Defines query plans.
 
 use datom::{Aid, Value};
-use types::Type;
 
 /// The index of a slot.
 ///
@@ -63,8 +62,12 @@ pub struct Scan {
     pub slots: [Slot; 2],
 }
 
-/// Determines how to fill a slot.
-pub enum SlotContents {
+/// Defines how a slot is filled during evaluation.
+///
+/// A slot can contain either a constant, or the current value for a variable.
+/// Constants are filled once at the start of evaluation; variable slots can be
+/// assigned new values at every iteration.
+pub enum SlotDefinition {
     /// A query variable that fills a slot in the query plan.
     ///
     /// In the query plan, slots are indentified by index, not by name. But for
@@ -74,19 +77,6 @@ pub enum SlotContents {
 
     /// A constant that fills a slot in the query plan.
     Constant { value: Value },
-}
-
-/// Defines how a slot is filled during evaluation.
-///
-/// A slot can contain either a constant, or the current value for a variable.
-/// Constants are filled once at the start of evaluation; variable slots can be
-/// assigned new values at every iteration.
-pub struct SlotDefinition {
-    /// How to fill this slot.
-    pub contents: SlotContents,
-
-    /// The type of the value in this slot.
-    pub datatype: Type
 }
 
 /// A query plan.
@@ -107,6 +97,11 @@ pub struct Plan {
     pub scans: Vec<Scan>,
 
     /// The slots that are needed during query evaluation.
+    ///
+    /// Slots match the variables and constants in the query that the plan was
+    /// derived from. Variable *i* in the query resides at slot *i* in the plan.
+    /// The remaining slots are used for constants that occur in the query, in
+    /// their order of occurence.
     pub slots: Vec<SlotDefinition>,
 
     /// The slots to yield the values from in every iteration.
@@ -138,9 +133,9 @@ impl Plan {
         let mut initialization = Vec::with_capacity(self.slots.len());
 
         for slot_def in &self.slots {
-            match slot_def.contents {
-                SlotContents::Variable { .. } => initialization.push(Initialization::Uninitialized),
-                SlotContents::Constant { .. } => initialization.push(Initialization::Constant),
+            match *slot_def {
+                SlotDefinition::Variable { .. } => initialization.push(Initialization::Uninitialized),
+                SlotDefinition::Constant { .. } => initialization.push(Initialization::Constant),
             }
         }
 
