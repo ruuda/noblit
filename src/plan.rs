@@ -107,7 +107,7 @@ pub struct Plan {
     /// The slots to yield the values from in every iteration.
     ///
     /// The selects are in the select order of the query; the tuple indices match.
-    pub selects: Vec<Slot>,
+    pub select: Vec<Slot>,
 }
 
 impl Plan {
@@ -181,8 +181,8 @@ impl Plan {
     }
 
     /// Assert that the selects only reference slots that exist.
-    fn check_selects_in_bounds(&self) {
-        for (i_select, slot) in self.selects.iter().enumerate() {
+    fn check_select_in_bounds(&self) {
+        for (i_select, slot) in self.select.iter().enumerate() {
             assert!(
                 (slot.0 as usize) < self.slots.len(),
                 "Select {} references non-existing slot {}.",
@@ -196,6 +196,6 @@ impl Plan {
     /// Panics if any invariant is violated.
     pub fn check_invariants(&self) {
         self.check_slot_initialization();
-        self.check_selects_in_bounds();
+        self.check_select_in_bounds();
     }
 }
