@@ -23,11 +23,11 @@ pub enum Index {
     Eavt,
 }
 
-/// Which variables to fill, and which to read.
+/// Which slots to fill, and which to read.
 ///
 /// An index stores datoms ordered on various permutations of (entity,
 /// attribute, value). (Transaction is always last.) In queries, the attribute
-/// is always known ahead of time. This leaves two variables, *first* and
+/// is always known ahead of time. This leaves two slots, *first* and
 /// *second*.
 ///
 /// | Index | First  | Second |
@@ -44,7 +44,7 @@ pub enum Index {
 /// * Scan a part of the index, constrained by *first*. We *read first* and
 ///   *write second*.
 ///
-/// * Test the existence of datoms. We read both *first* and *second*.
+/// * Test the existence of known datoms. We read both *first* and *second*.
 pub enum Flow {
     OutOut,
     InOut,
@@ -83,44 +83,45 @@ pub enum SlotContents {
 /// assigned new values at every iteration.
 pub struct SlotDefinition {
     /// How to fill this slot.
-    contents: SlotContents,
+    pub contents: SlotContents,
 
     /// The type of the value in this slot.
-    datatype: Type
+    pub datatype: Type
 }
 
 /// A query plan.
 ///
-/// Like a query, a query plan specifies which values to find for a number of
-/// variables. But where a query only specifes *what* to find, the query plan
-/// specifies specifically *how* to find it.
-///
-/// A query plan defines a number of slots, that get filled with values. A slot
-/// definition determines how the slot is filled: either during evalutation, by
-/// a scan, or at the start of evaluation, for constants.
-///
-/// A query is always executed as a number of nested loops, one for each scan.
-/// Scans can read from slots that were written to by an earlier scan (one with
-/// a lower index). The innermost loop yields the result of the query.
+/// Where a query specifies *what* to find, the query plan specifies *how* to
+/// find it. A query plan defines a number of slots, that get filled with
+/// values. A slot definition determines how the slot is filled: either during
+/// evalutation, by a scan, or at the start of evaluation, with a constant.
+/// A query is executed as a number of nested loops, one for each scan. Scans
+/// can read from slots that were written to by an earlier scan (one with a
+/// lower index). The innermost loop yields the result of the query.
 pub struct Plan {
-    /// The scans that produce the values for the variables.
-    scans: Vec<Scan>,
+    /// The scans that fill the variable slots.
+    ///
+    /// Scans are evaluated as nested loops. The scan with the lowest index
+    /// becomes the outermost loop, the scan with the highest index becomes the
+    /// innermost loop.
+    pub scans: Vec<Scan>,
 
     /// The slots that are needed during query evaluation.
-    slots: Vec<SlotDefinition>,
+    pub slots: Vec<SlotDefinition>,
 
     /// The slots to yield the values from in every iteration.
     ///
     /// The selects are in the select order of the query; the tuple indices match.
-    selects: Vec<Slot>,
+    pub selects: Vec<Slot>,
 }
 
 impl Plan {
     /// Assert invariants about slot initialization.
     ///
+    /// * Check that the slots referenced by scans are all in bounds.
     /// * Check that scans only read from slots that were written to by earlier scans.
-    /// * Check that every slot is written to by at most one scan or constant.
     /// * Check that every slot is written to by at least one scan or constant.
+    /// * Check that every slot is written to by at most one scan or constant.
     ///
     /// Panics if any of the invariants is violated.
     pub fn check_slot_initialization(&self) {
