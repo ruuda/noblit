@@ -124,7 +124,7 @@ impl Plan {
     /// * Check that every slot is written to by at most one scan or constant.
     ///
     /// Panics if any of the invariants is violated.
-    pub fn check_slot_initialization(&self) {
+    fn check_slot_initialization(&self) {
         // For every slot, we store how it is initialized.
         #[derive(Eq, Debug, PartialEq)]
         enum Initialization {
@@ -183,5 +183,24 @@ impl Plan {
                 i_slot,
             );
         }
+    }
+
+    /// Assert that the selects only reference slots that exist.
+    fn check_selects_in_bounds(&self) {
+        for (i_select, slot) in self.selects.iter().enumerate() {
+            assert!(
+                (slot.0 as usize) < self.slots.len(),
+                "Select {} references non-existing slot {}.",
+                i_select, slot.0,
+            );
+        }
+    }
+
+    /// Assert that all invariants hold by calling all private `check_*` methods.
+    ///
+    /// Panics if any invariant is violated.
+    pub fn check_invariants(&self) {
+        self.check_slot_initialization();
+        self.check_selects_in_bounds();
     }
 }
