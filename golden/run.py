@@ -86,9 +86,10 @@ def main(fname: str) -> None:
             is_good = True
             for actual_line, expected_line in zip_longest(result_lines, expected_lines):
                 if actual_line != expected_line:
+                    if is_good or expected_line is not None:
+                        # Print a diff of expected vs actual. ? is ignored by TAP.
+                        print('?', expected_line or '\n', end='')
                     is_good = False
-                    # Print a diff of expected vs actual. ? is ignored by TAP.
-                    print('?', expected_line or '\n', end='')
 
             if is_good:
                 print('ok', i + 1, flush=True)
