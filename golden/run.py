@@ -61,20 +61,20 @@ def main(fname: str) -> None:
                 executor.stdin.write(query_bytes)
             executor.stdin.flush()
 
-            # Read executor output, either until we read the last line of the
-            # table (indicated by a bottom-left corner), or until EOF (in case
-            # the process printed something unexpected), or until the end of a
-            # query plan, indicated by "yield".
+            # Read executor output until ascii 0x04, "end of transmission", or
+            # until EOF (in case the process printed something unexpected).
             # TODO: We should put a timeout on this, in case the executor prints
             # nothing at all.
             result_lines: List[str] = []
             for line_bytes in executor.stdout:
                 line_str = line_bytes.decode('utf-8')
+
+                if line_str == '\u0004\n':
+                    break
+
                 result_lines.append(line_str)
                 # Echo the lines; '>' is ignored by TAP.
                 print('>', line_str, end='')
-                if line_str.startswith('└') or line_str.startswith('yield'):
-                    break
 
             # We should only interpret the output lines as meaningful output if
             # the executor is still behaving according to protocol. When it

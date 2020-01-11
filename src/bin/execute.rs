@@ -168,5 +168,9 @@ fn main() {
         // consistency check after every mutation, so we can use the goldens to
         // detect/reproduce consistency issues in the indexes, if any come up.
         db.check_invariants().unwrap();
+
+        // After every response, print ascii 0x04 "end of transmission" on its
+        // own line.
+        println!("\u{04}");
     }
 }
