@@ -22,6 +22,7 @@ pub mod query;
 pub mod store;
 pub mod temp_heap;
 pub mod types;
+pub mod permutation;
 
 // New, not yet supported, not feature complete, query plans.
 pub mod plan;
