@@ -9,6 +9,7 @@ nav:
   - Concepts:
     - Data model: data-model.md
     - Query: query.md
+    - Query planning: query-planning.md
   - Examples:
     - Bug tracker: examples/bug-tracker.md
   - Development:
