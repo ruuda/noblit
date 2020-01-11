@@ -10,6 +10,7 @@ extern crate noblit;
 use noblit::database::Database;
 use noblit::datom::{Aid, Value};
 use noblit::memory_store::{MemoryStore, MemoryHeap};
+use noblit::planner;
 use noblit::query;
 use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
@@ -115,6 +116,12 @@ fn main() {
             select: vec![Var(0), Var(2), Var(5), Var(3), Var(4)],
         };
         query.fix_attributes(&view);
+
+        // TODO: Replace full eval with new plan, don't just print it.
+        let mut planner = planner::Planner::new(&query);
+        planner.initialize_scans();
+        println!("Plan: \n{:?}", planner.get_plan());
+
         let plan = QueryPlan::new(query, &view);
 
         println!("\nAll attributes:");
@@ -154,6 +161,12 @@ fn main() {
             select: vec![Var(0), Var(1)],
         };
         query.fix_attributes(&mut view);
+
+        // TODO: Replace full eval with new plan, don't just print it.
+        let mut planner = planner::Planner::new(&query);
+        planner.initialize_scans();
+        println!("Plan: \n{:?}", planner.get_plan());
+
         let plan = QueryPlan::new(query, &view);
 
         println!("\nAll types:");
@@ -197,6 +210,12 @@ fn main() {
             select: vec![Var(1), Var(2)],
         };
         query.fix_attributes(&mut view);
+
+        // TODO: Replace full eval with new plan, don't just print it.
+        let mut planner = planner::Planner::new(&query);
+        planner.initialize_scans();
+        println!("Plan: \n{:?}", planner.get_plan());
+
         let plan = QueryPlan::new(query, &view);
 
         println!("\nNamed entities with level:");

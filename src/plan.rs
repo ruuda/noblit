@@ -7,6 +7,8 @@
 
 //! Defines query plans.
 
+use std;
+
 use datom::{Aid, Value};
 
 /// The index of a slot.
@@ -209,5 +211,75 @@ impl Plan {
     pub fn check_invariants(&self) {
         self.check_slot_initialization();
         self.check_select_in_bounds();
+    }
+}
+
+impl std::fmt::Debug for Plan {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // First print all constants.
+        for (i_slot, slot_def) in self.slots.iter().enumerate() {
+            match slot_def {
+                SlotDefinition::Constant { value } => {
+                    write!(f, "let :{} = {:?}\n", i_slot, value)?;
+                }
+                SlotDefinition::Variable { .. } => {}
+            }
+        }
+
+        // Shorthand to pretty-print slots as variable names with slot index.
+        let write_slot = |ff: &mut std::fmt::Formatter, Slot(i_slot)| {
+            match &self.slots[i_slot as usize] {
+                SlotDefinition::Constant { .. } => {
+                    write!(ff, ":{}", i_slot)
+                }
+                SlotDefinition::Variable { name } => {
+                    write!(ff, "{}:{}", name, i_slot)
+                }
+            }
+        };
+
+        // After the constants, print the scans, in scan order.
+        for scan in &self.scans {
+            let (index_name, first_label, second_label) = match scan.index {
+                Index::Aevt => ("aevt", "entity", "value"),
+                Index::Avet => ("avet", "value", "entity"),
+                Index::Eavt => ("eavt", "entity", "value"),
+            };
+            let [first, second] = scan.slots();
+            match scan.flow {
+                Flow::OutOut => {
+                    write!(f, "for ")?;
+                    write_slot(f, first)?;
+                    write!(f, ", ")?;
+                    write_slot(f, second)?;
+                    write!(f, " in {}\n", index_name)?
+                }
+                Flow::InOut => {
+                    write!(f, "for ")?;
+                    write_slot(f, second)?;
+                    write!(f, " in {} ({}=", index_name, first_label)?;
+                    write_slot(f, first)?;
+                    write!(f, ")\n")?;
+                }
+                Flow::InIn => {
+                    write!(f, "for _ in {} ({}=", index_name, first_label)?;
+                    write_slot(f, first)?;
+                    write!(f, ", {}=", second_label)?;
+                    write_slot(f, second)?;
+                    write!(f, ")\n")?;
+                }
+            }
+        }
+
+        // Finally, print selections.
+        write!(f, "yield ")?;
+        for (i, &slot) in self.select.iter().enumerate() {
+            write_slot(f, slot)?;
+            if i + 1 < self.select.len() {
+                write!(f, ", ")?;
+            }
+        }
+
+        Ok(())
     }
 }
