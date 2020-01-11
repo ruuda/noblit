@@ -1,0 +1,411 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    Kilsbergen MkDocs theme copyright 2019 Ruud van Asseldonk.
+    Licensed under the Apache 2.0 license.
+    See https://github.com/ruuda/kilsbergen.
+  -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resources — Noblit</title>
+  <link href="https://rsms.me/inter/inter.css?v=3.3" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,500" rel="stylesheet">
+  <style>
+  /* The Inter font family, see https://rsms.me/inter.
+     https://rsms.me/inter/#faq-cdn suggests that linking these files directly is fine.
+  */
+  @font-face {
+    font-family: Inter;
+    font-style:  normal;
+    font-weight: 400;
+    src: url("https://rsms.me/inter/font-files/Inter-Regular.woff2?v=3.3") format("woff2"),
+         url("https://rsms.me/inter/font-files/Inter-Regular.woff?v=3.3") format("woff");
+  }
+  @font-face {
+    font-family: Inter;
+    font-style:  italic;
+    font-weight: 400;
+    src: url("https://rsms.me/inter/font-files/Inter-Italic.woff2?v=3.3") format("woff2"),
+         url("https://rsms.me/inter/font-files/Inter-Italic.woff?v=3.3") format("woff");
+  }
+  @font-face {
+    font-family: Inter;
+    font-style:  normal;
+    font-weight: 500;
+    src: url("https://rsms.me/inter/font-files/Inter-Medium.woff2?v=3.3") format("woff2"),
+         url("https://rsms.me/inter/font-files/Inter-Medium.woff?v=3.3") format("woff");
+  }
+  @font-face {
+    font-family: Inter;
+    font-style:  normal;
+    font-weight: 600;
+    src: url("https://rsms.me/inter/font-files/Inter-SemiBold.woff2?v=3.3") format("woff2"),
+         url("https://rsms.me/inter/font-files/Inter-SemiBold.woff?v=3.3") format("woff");
+  }
+  @font-face {
+    font-family: Inter;
+    font-style:  normal;
+    font-weight: 700;
+    src: url("https://rsms.me/inter/font-files/Inter-Bold.woff2?v=3.3") format("woff2"),
+         url("https://rsms.me/inter/font-files/Inter-Bold.woff?v=3.3") format("woff");
+  }
+  /* Modular scale with exponent 1.26, about 2^(1/3), so we get 2em in there,
+     which is convenient. 1.26 is also close to (golden ratio)^0.5.
+     0.63em
+     0.80em
+     1.00em
+     1.26em
+     1.59em
+     2.00em
+  */
+  * { margin: 0; padding: 0; border-spacing: 0; }
+  html {
+    font-family: Inter, Roboto, sans-serif;
+    /* Turn on character variant 8 for Inter, which puts serifs on the uppercase I. */
+    font-feature-settings: 'cv08' 1;
+    font-size: 16px;
+    line-height: 1.59em;
+    background-color: #fff;
+    min-height: 100%;
+    position: relative;
+  }
+  body {
+    /* Tricks to make the sidebar full-height on short pages. */
+    position: absolute;
+    height: 100%;
+    width: 100%;
+  }
+  #content {
+    max-width: 66rem;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+    color: #333;
+    min-height: 100%;
+  }
+  #main {
+    margin-left: 18em;
+    margin-right: 2em;
+    padding: 2rem;
+    overflow: hidden;
+  }
+  #breadcrumbs {
+    margin-bottom: 2.85rem;
+    word-spacing: 0.3em;
+    color: #78a;
+  }
+  #breadcrumbs a {
+    word-spacing: 0;
+    color: #78a;
+  }
+  article {
+    margin-top: 1.3rem;
+  }
+  h1, h2, h3 {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #444;
+    margin-bottom: 1.59rem;
+  }
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 1.9rem;
+  }
+  h2 {
+    font-size: 1.59rem;
+    margin-top: 3.38rem;
+    margin-bottom: 1.39rem;
+  }
+  code {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.84rem;
+    line-height: 1.59rem;
+  }
+  .mono {
+    font-family: 'Roboto Mono', monospace;
+  }
+  abbr {
+    text-transform: uppercase;
+    /* Downsize so caps are x-height, and compensate weight loss. */
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.05rem;
+  }
+  sub, sup {
+    /* Don't disturb the line height of normal text. */
+    line-height: 0rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+  p > code,
+  a > code,
+  h3 > code,
+  li > code,
+  td > code {
+    background-color: #f0f0f0;
+    padding: 0.13rem;
+    padding-left: 0.3rem;
+    padding-right: 0.3rem;
+    border-radius: 0.2rem;
+    line-height: 1rem;
+  }
+  h3 {
+    margin-top: 2.29rem;
+    margin-bottom: 0.89rem;
+  }
+  h3 > code {
+    margin-left: -0.1rem;
+  }
+  a {
+    color: #36d;
+    text-decoration: none;
+  }
+  p, ul, ol, pre, table {
+    /* Same space as line height, leave exactly one line blank. */
+    margin-bottom: 1.59em;
+  }
+  pre {
+    padding: 1.41rem;
+    padding-right: 0;
+    background-color: #f8f8f8;
+    border-radius: 0 0.2rem 0.2rem 0;
+    border-left: 0.3rem solid #d5d8e0;
+    overflow-x: auto;
+  }
+  pre > code {
+    margin-right: 1.41rem;
+    color: #555;
+  }
+  ul, ol {
+    list-style-type: none;
+    counter-reset: item;
+  }
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    padding-right: 2rem;
+  }
+  th {
+    text-align: left;
+  }
+  #main ul li:before {
+    color: #555;
+    content: '\2022';
+    display: inline-block;
+    font-weight: 700;
+    margin-left: -0.9rem;
+    width: 0.9rem;
+  }
+  #main ul li {
+    margin-left: 0.87rem;
+  }
+  #main ol li:before {
+    content: counter(item);
+    display: inline-block;
+    font-weight: 700;
+    width: 0.8rem;
+    margin-left: -1.6rem;
+    padding-right: 0.8rem;
+  }
+  #main ol li {
+    margin-left: 1.6rem;
+    counter-increment: item;
+  }
+  #nav-prev-next {
+    margin-top: 3.18rem;
+    padding-bottom: 3.18rem;
+  }
+  #nav-prev, #nav-next, #repo-link {
+    display: inline-block;
+  }
+  #nav-prev {
+    float: left;
+  }
+  #nav-next, #repo-link {
+    float: right;
+    text-align: right;
+  }
+  #nav-prev::before {
+    content: '\219e';
+    padding-right: 0.5em;
+  }
+  #nav-next::after {
+    content: '\21a0';
+    padding-left: 0.5em;
+  }
+  aside {
+    position: absolute;
+    top: 0;
+    left: -84em;
+    width: 100em;
+    border-right: 1px solid #eee;
+    background-color: #fafafa;
+    height: 100%;
+  }
+  aside nav {
+    margin-top: 8.4rem;
+    margin-bottom: 3rem;
+    width: 14rem;
+    float: right;
+    /* Put the active chapter border over the sidebar border. */
+    margin-right: -1px;
+  }
+  aside a {
+    color: #78a;
+  }
+  aside .toc-section {
+    font-weight: 700;
+  }
+  aside ul {
+    margin-bottom: 0;
+  }
+  aside li ul {
+    /* This padding destroys the vertical rhythm,
+       but I somehow feel it is necessary. */
+    padding-top: 0.3rem;
+    padding-bottom: 0.4rem;
+  }
+  aside li.toc-section {
+    padding-top: 1.59rem;
+  }
+  aside li.toc-section a {
+    color: #36d;
+  }
+  aside li.current, aside li ul {
+    border-right: 0.3em solid #d5d8e0;
+    padding-left: 1em;
+    margin-left: -1em;
+  }
+  aside .current a {
+    font-weight: 600;
+  }
+  aside .current.mono a, h3 > code {
+    /* Roboto Mono 500 is about as heavy as Inter semibold (600). */
+    font-weight: 500;
+  }
+  aside li.toc-heading {
+    padding-left: 1em;
+  }
+
+  @media(max-width: 1150px)
+  {
+    html { font-size: 15px; }
+  }
+
+  /* Move the sidebar TOC below content at small widths. */
+  @media(max-width: 800px)
+  {
+    aside {
+      position: relative;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: auto;
+      border-top: 1px solid #eee;
+      border-right: 0px none;
+      overflow: hidden;
+    }
+    aside nav {
+      margin-left: 4em;
+      margin-top: 1.59em;
+      float: none;
+    }
+    #main {
+      margin-left: 2em;
+      padding-bottom: 1.59em;
+    }
+    aside li.current, aside li ul {
+      border-right: 0px none;
+    }
+  }
+
+  /* Use less generous margins for very narrow viewports. */
+  @media(max-width: 650px)
+  {
+    #main {
+      margin-left: 0;
+      margin-right: 0;
+    }
+    aside nav {
+      margin-left: 2em;
+      margin-bottom: 1.59em;
+    }
+  }
+
+  @media(max-width: 450px)
+  {
+    #main {
+      padding-left: 1.59em;
+      padding-right: 1.59em;
+    }
+    aside nav {
+      margin-left: 1.59em;
+    }
+  }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <div id="main">
+      <nav id="breadcrumbs">
+        <a href="..">Noblit</a>
+        › <a href="..">Development</a>
+  › <a href="./">Resources</a>
+  <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
+      </nav>
+      <article>
+        <h1 id="resources">Resources</h1>
+<p>Below are some resources that were helpful or inspiring for the development of
+Noblit. Some of them were not directly useful, but simply interesting.</p>
+<ul>
+<li><a href="https://www.infoq.com/presentations/Deconstructing-Database">Deconstructing the Database</a>, a talk about Datomic and its data model</li>
+<li><a href="https://docs.datomic.com/cloud/whatis/data-model.html">The Datomic Data Model</a>, from the Datomic documentation</li>
+<li><a href="https://github.com/google/leveldb/blob/1cb384088184be9840bd59b4040503a9fa9aee66/doc/impl.md">LevelDB implementation notes</a>, from the LevelDB documentation</li>
+<li><a href="https://www.youtube.com/watch?v=rtEalnKT25I">InfluxDB Storage Engine Internals</a>, a talk by Paul Dix</li>
+<li><a href="https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf">What You Always Wanted to Know About Datalog</a>, a paper on Datalog</li>
+<li><a href="http://tonsky.me/blog/unofficial-guide-to-datomic-internals/">Unofficial Guide to Datomic Internals</a>, a blog post on Datomic internals</li>
+<li><a href="https://www.youtube.com/watch?v=gpxnbly9bz4">SQLite: A Database for the Edge of the Network</a>, a talk about SQLite internals</li>
+</ul>
+      </article>
+      <nav id="nav-prev-next">
+        <a id="nav-prev" href="../golden-tests/" title="Golden tests">Previous</a>
+        <a id="nav-next" href="../files/" title="Files">Next</a>
+        </nav>
+      </div>
+    <aside>
+      <nav>
+        <ul>
+        <li class="toc-section"><a href="..">Overview</a></li>
+          <li class="toc-section"><a href="../data-model/">Concepts</a></li>
+          <li class="toc-chapter
+              "><a href="../data-model/">Data model</a></li>
+            <li class="toc-chapter
+              "><a href="../query/">Query</a></li>
+            <li class="toc-chapter
+              "><a href="../query-planning/">Query planning</a></li>
+            <li class="toc-section"><a href="../examples/bug-tracker/">Examples</a></li>
+          <li class="toc-chapter
+              "><a href="../examples/bug-tracker/">Bug tracker</a></li>
+            <li class="toc-section"><a href="../building/">Development</a></li>
+          <li class="toc-chapter
+              "><a href="../building/">Building</a></li>
+            <li class="toc-chapter
+              "><a href="../golden-tests/">Golden tests</a></li>
+            <li class="toc-chapter
+               current"><a href="./">Resources</a></li>
+            <li class="toc-section"><a href="../files/">Internals</a></li>
+          <li class="toc-chapter
+              "><a href="../files/">Files</a></li>
+            <li class="toc-chapter
+              "><a href="../htree/">Trees</a></li>
+            <li class="toc-chapter
+              "><a href="../execution/">Execution</a></li>
+            </ul>
+      </nav>
+    </aside>
+  </div>
+</body>
+</html>
