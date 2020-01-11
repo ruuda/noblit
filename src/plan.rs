@@ -25,25 +25,25 @@ pub enum Index {
 /// Which slots to fill, and which to read.
 ///
 /// An index stores datoms ordered on various permutations of (entity,
-/// attribute, value). (Transaction is always last.) In queries, the attribute
-/// is always known ahead of time. This leaves two slots, *first* and
-/// *second*.
-///
-/// | Index | First  | Second |
-/// |-------|--------|--------|
-/// | Aevt  | Entity | Value  |
-/// | Avet  | Value  | Entity |
-/// | Eavt  | Entity | Value  |
+/// attribute, value). Transaction is always last. In queries, the attribute is
+/// always known ahead of time. This leaves two slots, *entity* and *value*.
+/// Depending on the index and flow, these can be inputs or outputs.
 ///
 /// With the index, we can do three things:
 ///
-/// * Scan the full index. During the scan, we can fill both *first* and
-///   *second* at once.
+/// * Scan the full index. During the scan, we can fill both the *entity* and
+///   *value* slot at once.
 ///
-/// * Scan a part of the index, constrained by *first*. We *read first* and
-///   *write second*.
+/// * Scan a part of the index, constrained by the input. We read the input
+///   slot, and write to the output slot, as follows:
 ///
-/// * Test the existence of known datoms. We read both *first* and *second*.
+///   | Index | In     | Out    |
+///   |-------|--------|--------|
+///   | Aevt  | Entity | Value  |
+///   | Avet  | Value  | Entity |
+///   | Eavt  | Entity | Value  |
+///
+/// * Test the existence of known datoms. We read both the *entity* and *value*.
 pub enum Flow {
     OutOut,
     InOut,
@@ -53,13 +53,25 @@ pub enum Flow {
 /// A scan over an index.
 ///
 /// A scan may fill zero, one, or two variables depending on its kind. Depending
-/// on the index used, `slots[0]` and `slots[1]` can refer to the entity or
-/// value, as described in `Flow`.
+/// on the flow and index used, the slots referenced by the entity and value can
+/// be inputs or outputs.
 pub struct Scan {
     pub index: Index,
     pub flow: Flow,
+    pub entity: Slot,
     pub attribute: Aid,
-    pub slots: [Slot; 2],
+    pub value: Slot,
+}
+
+impl Scan {
+    /// Return the referenced slots in index order.
+    pub fn slots(&self) -> [Slot; 2] {
+        match self.index {
+            Index::Aevt => [self.entity, self.value],
+            Index::Avet => [self.value, self.entity],
+            Index::Eavt => [self.entity, self.value],
+        }
+    }
 }
 
 /// Defines how a slot is filled during evaluation.
@@ -146,7 +158,7 @@ impl Plan {
                 Flow::InIn => [false, false],
             };
 
-            for (slot, &is_write) in scan.slots.as_ref().iter().zip(is_writes.as_ref()) {
+            for (slot, &is_write) in scan.slots().as_ref().iter().zip(is_writes.as_ref()) {
                 assert!(
                     (slot.0 as usize) < self.scans.len(),
                     "Scan {} references non-existing slot {}.",

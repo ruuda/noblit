@@ -35,8 +35,6 @@ fn next_scan(scan: &mut Scan) -> bool {
         (Flow::InOut, Index::Avet) => (Index::Avet, false),
     };
 
-    // TODO: Fixup first/second to be entity/value after all.
-
     scan.index = index;
     is_new
 }
@@ -145,18 +143,19 @@ impl Planner {
             // flow combinations can be used to fill the remaining slots. When
             // there are multiple indexes that could fill the slot, we pick the
             // first one, and later on, iterating plans will explore alternatives.
-            let (index, flow, first, second) = match (is_entity_init, is_value_init) {
-                (true, true) => (Index::Aevt, Flow::InIn, slot_entity, slot_value),
-                (false, true) => (Index::Avet, Flow::InOut, slot_value, slot_entity),
-                (true, false) => (Index::Aevt, Flow::InOut, slot_entity, slot_value),
-                (false, false) => (Index::Aevt, Flow::OutOut, slot_entity, slot_value),
+            let (index, flow) = match (is_entity_init, is_value_init) {
+                (true, true) => (Index::Aevt, Flow::InIn),
+                (false, true) => (Index::Avet, Flow::InOut),
+                (true, false) => (Index::Aevt, Flow::InOut),
+                (false, false) => (Index::Aevt, Flow::OutOut),
             };
 
             let scan = Scan {
                 index: index,
                 flow: flow,
+                entity: slot_entity,
                 attribute: attribute,
-                slots: [first, second],
+                value: slot_value,
             };
 
             self.plan.scans.push(scan);
