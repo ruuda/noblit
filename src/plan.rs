@@ -57,10 +57,10 @@ pub enum Flow {
 /// on the index used, `slots[0]` and `slots[1]` can refer to the entity or
 /// value, as described in `Flow`.
 pub struct Scan {
-    index: Index,
-    flow: Flow,
-    attribute: Aid,
-    slots: [Slot; 2],
+    pub index: Index,
+    pub flow: Flow,
+    pub attribute: Aid,
+    pub slots: [Slot; 2],
 }
 
 /// Determines how to fill a slot.
