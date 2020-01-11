@@ -21,11 +21,11 @@ assert
 select
   level, name
 
-┌───────┬───────┐
-│ level │ name  │
-├───────┼───────┤
-│ # 102 │ # 101 │
-└───────┴───────┘
+> ┌───────┬───────┐
+> │ level │ name  │
+> ├───────┼───────┤
+> │ # 102 │ # 101 │
+> └───────┴───────┘
 
 -- Step 2: Now that we have these new attributes, we can create a few entities
 -- that use them. We return the entity ids of the new entities.
@@ -49,11 +49,11 @@ assert
 select
   leon, pris, roy
 
-┌───────┬───────┬───────┐
-│ leon  │ pris  │ roy   │
-├───────┼───────┼───────┤
-│ # 103 │ # 105 │ # 106 │
-└───────┴───────┴───────┘
+> ┌───────┬───────┬───────┐
+> │ leon  │ pris  │ roy   │
+> ├───────┼───────┼───────┤
+> │ # 103 │ # 105 │ # 106 │
+> └───────┴───────┴───────┘
 
 -- Step 3: Update the schema: add a "model" attribute. The query returns its id.
 
@@ -69,11 +69,11 @@ assert
 select
   model
 
-┌───────┐
-│ model │
-├───────┤
-│ # 107 │
-└───────┘
+> ┌───────┐
+> │ model │
+> ├───────┤
+> │ # 107 │
+> └───────┘
 
 -- Step 4: Set the "model" attribute for every entity "r" that has a "name"
 -- attribute. All of the current entities are of the same model. Return the ids
@@ -88,13 +88,13 @@ assert
 select
   r
 
-┌───────┐
-│ r     │
-├───────┤
-│ # 103 │
-│ # 105 │
-│ # 106 │
-└───────┘
+> ┌───────┐
+> │ r     │
+> ├───────┤
+> │ # 103 │
+> │ # 105 │
+> │ # 106 │
+> └───────┘
 
 -- Step 5: Double check that we now have all the data.
 
@@ -106,10 +106,10 @@ where
 select
   name, model, activation_year
 
-┌─────────────────┬───────────┬─────────────────┐
-│ name            │ model     │ activation_year │
-├─────────────────┼───────────┼─────────────────┤
-│ "Leon Kowalski" │ "Nexus 6" │ 2017            │
-│ "Pris Stratton" │ "Nexus 6" │ 2016            │
-│ "Roy Batty"     │ "Nexus 6" │ 2016            │
-└─────────────────┴───────────┴─────────────────┘
+> ┌─────────────────┬───────────┬─────────────────┐
+> │ name            │ model     │ activation_year │
+> ├─────────────────┼───────────┼─────────────────┤
+> │ "Leon Kowalski" │ "Nexus 6" │ 2017            │
+> │ "Pris Stratton" │ "Nexus 6" │ 2016            │
+> │ "Roy Batty"     │ "Nexus 6" │ 2016            │
+> └─────────────────┴───────────┴─────────────────┘

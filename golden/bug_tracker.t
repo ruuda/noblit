@@ -46,11 +46,11 @@ assert
 
 -- We selected nothing, so the output is empty.
 
-┌──┐
-│  │
-├──┤
-│  │
-└──┘
+> ┌──┐
+> │  │
+> ├──┤
+> │  │
+> └──┘
 
 where
   -- Hack to get a single assertion.
@@ -68,11 +68,11 @@ assert
 select
   i
 
-┌───────┐
-│ i     │
-├───────┤
-│ # 111 │
-└───────┘
+> ┌───────┐
+> │ i     │
+> ├───────┤
+> │ # 111 │
+> └───────┘
 
 where
   string_t db.type.name "db.type.string"
@@ -87,11 +87,11 @@ assert
   status_name db.attribute.unique true
   status_name db.attribute.many   false
 
-┌──┐
-│  │
-├──┤
-│  │
-└──┘
+> ┌──┐
+> │  │
+> ├──┤
+> │  │
+> └──┘
 
 where
   ref_t db.type.name "db.type.ref"
@@ -113,11 +113,11 @@ assert
   issue_status db.attribute.unique false
   issue_status db.attribute.many   false
 
-┌──┐
-│  │
-├──┤
-│  │
-└──┘
+> ┌──┐
+> │  │
+> ├──┤
+> │  │
+> └──┘
 
 where
   issue issue.title "Lifespan is too short"
@@ -125,11 +125,11 @@ where
 assert
   issue issue.status open
 
-┌──┐
-│  │
-├──┤
-│  │
-└──┘
+> ┌──┐
+> │  │
+> ├──┤
+> │  │
+> └──┘
 
 where
   i issue.title "Lifespan is too short"
@@ -149,11 +149,11 @@ assert
   i issue.comment c
   i issue.status wontfix
 
-┌──┐
-│  │
-├──┤
-│  │
-└──┘
+> ┌──┐
+> │  │
+> ├──┤
+> │  │
+> └──┘
 
 where
   i issue.title title
@@ -165,11 +165,11 @@ select
 -- order by
 --   p asc
 
-┌───────┬───┬─────────────────────────┐
-│ i     │ p │ title                   │
-├───────┼───┼─────────────────────────┤
-│ # 111 │ 0 │ "Lifespan is too short" │
-└───────┴───┴─────────────────────────┘
+> ┌───────┬───┬─────────────────────────┐
+> │ i     │ p │ title                   │
+> ├───────┼───┼─────────────────────────┤
+> │ # 111 │ 0 │ "Lifespan is too short" │
+> └───────┴───┴─────────────────────────┘
 
 where
   batty user.name "Roy Batty"
@@ -178,11 +178,11 @@ where
 select
   i, title
 
-┌───────┬─────────────────────────┐
-│ i     │ title                   │
-├───────┼─────────────────────────┤
-│ # 111 │ "Lifespan is too short" │
-└───────┴─────────────────────────┘
+> ┌───────┬─────────────────────────┐
+> │ i     │ title                   │
+> ├───────┼─────────────────────────┤
+> │ # 111 │ "Lifespan is too short" │
+> └───────┴─────────────────────────┘
 
 where
   deckard user.name "Rick Deckard"
@@ -194,10 +194,10 @@ select
 
 -- Rick left no comments on this issue.
 
-┌───┬───────┐
-│ i │ title │
-├───┼───────┤
-└───┴───────┘
+> ┌───┬───────┐
+> │ i │ title │
+> ├───┼───────┤
+> └───┴───────┘
 
 where
   i issue.title "Lifespan is too short"
@@ -212,11 +212,11 @@ assert
 select
   c
 
-┌───────┐
-│ c     │
-├───────┤
-│ # 128 │
-└───────┘
+> ┌───────┐
+> │ c     │
+> ├───────┤
+> │ # 128 │
+> └───────┘
 
 where
   i issue.title "Lifespan is too short"
@@ -234,11 +234,11 @@ assert
 select
   c1, c2
 
-┌───────┬───────┐
-│ c1    │ c2    │
-├───────┼───────┤
-│ # 129 │ # 131 │
-└───────┴───────┘
+> ┌───────┬───────┐
+> │ c1    │ c2    │
+> ├───────┼───────┤
+> │ # 129 │ # 131 │
+> └───────┴───────┘
 
 where
   i issue.title "Lifespan is too short"
@@ -249,11 +249,11 @@ where
 select
   c, author, comment
 
-┌───────┬────────────────┬───────────────────────────────────────────────────────────────┐
-│ c     │ author         │ comment                                                       │
-├───────┼────────────────┼───────────────────────────────────────────────────────────────┤
-│ # 125 │ "Eldon Tyrell" │ "The light that burns twice as bright burns half as long."    │
-│ # 128 │ "Gaff"         │ "It\'s a shame she won\'t live. But then again, who does?"    │
-│ # 129 │ "Roy Batty"    │ "I\'ve seen things you people wouldn\'t believe."             │
-│ # 131 │ "Roy Batty"    │ "All those moments will be lost in time, like tears in rain." │
-└───────┴────────────────┴───────────────────────────────────────────────────────────────┘
+> ┌───────┬────────────────┬───────────────────────────────────────────────────────────────┐
+> │ c     │ author         │ comment                                                       │
+> ├───────┼────────────────┼───────────────────────────────────────────────────────────────┤
+> │ # 125 │ "Eldon Tyrell" │ "The light that burns twice as bright burns half as long."    │
+> │ # 128 │ "Gaff"         │ "It\'s a shame she won\'t live. But then again, who does?"    │
+> │ # 129 │ "Roy Batty"    │ "I\'ve seen things you people wouldn\'t believe."             │
+> │ # 131 │ "Roy Batty"    │ "All those moments will be lost in time, like tears in rain." │
+> └───────┴────────────────┴───────────────────────────────────────────────────────────────┘

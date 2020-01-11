@@ -15,20 +15,16 @@ class Block(NamedTuple):
 def segment(lines: Iterable[str]) -> Iterator[Block]:
     """
     Split the input lines in alternating sections of query and expecations.
-    Expectations can be recognized because they form a table with box-drawing
-    characters.
+    Expectations can be recognized because they start with "> ".
     """
     is_query = True
     query: List[str] = []
     output: List[str] = []
 
     for line in lines:
-        # Expected output starts with box drawing characters.
-        is_box = len(line) > 0 and unicodedata.category(line[0]) == 'So'
-
-        if is_box:
+        if line.startswith('> '):
             # A line of expected output.
-            output.append(line)
+            output.append(line[2:])
             continue
 
         elif len(output) > 0:
