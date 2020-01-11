@@ -53,13 +53,14 @@ pub enum Flow {
 
 /// A scan over an index.
 ///
-/// A scan may fill zero, one, or two variables depending on its kind.
+/// A scan may fill zero, one, or two variables depending on its kind. Depending
+/// on the index used, `slots[0]` and `slots[1]` can refer to the entity or
+/// value, as described in `Flow`.
 pub struct Scan {
     index: Index,
     flow: Flow,
-    entity: Slot,
     attribute: Aid,
-    value: Slot,
+    slots: [Slot; 2],
 }
 
 /// Determines how to fill a slot.
@@ -112,4 +113,74 @@ pub struct Plan {
     ///
     /// The selects are in the select order of the query; the tuple indices match.
     selects: Vec<Slot>,
+}
+
+impl Plan {
+    /// Assert invariants about slot initialization.
+    ///
+    /// * Check that scans only read from slots that were written to by earlier scans.
+    /// * Check that every slot is written to by at most one scan or constant.
+    /// * Check that every slot is written to by at least one scan or constant.
+    ///
+    /// Panics if any of the invariants is violated.
+    pub fn check_slot_initialization(&self) {
+        // For every slot, we store how it is initialized.
+        #[derive(Eq, Debug, PartialEq)]
+        enum Initialization {
+            /// Not initialized yet, safe to write, unsafe to read.
+            Uninitialized,
+            /// Initialized to a constant value.
+            Constant,
+            /// Initialized by the scan with the given scan number.
+            Scan(usize),
+        };
+        let mut initialization = Vec::with_capacity(self.slots.len());
+
+        for slot_def in &self.slots {
+            match slot_def.contents {
+                SlotContents::Variable { .. } => initialization.push(Initialization::Uninitialized),
+                SlotContents::Constant { .. } => initialization.push(Initialization::Constant),
+            }
+        }
+
+        for (i_scan, scan) in self.scans.iter().enumerate() {
+            let is_writes = match scan.flow {
+                Flow::OutOut => [true, true],
+                Flow::InOut => [false, true],
+                Flow::InIn => [false, false],
+            };
+
+            for (slot, &is_write) in scan.slots.as_ref().iter().zip(is_writes.as_ref()) {
+                assert!(
+                    (slot.0 as usize) < self.scans.len(),
+                    "Scan {} references non-existing slot {}.",
+                    i_scan, slot.0,
+                );
+                let init = &mut initialization[slot.0 as usize];
+
+                if is_write {
+                    assert_eq!(
+                        *init, Initialization::Uninitialized,
+                        "Scan {} writes to slot {}, which is already initialized by {:?}.",
+                        i_scan, slot.0, *init,
+                    );
+                    *init = Initialization::Scan(i_scan);
+                } else {
+                    assert!(
+                        *init != Initialization::Uninitialized,
+                        "Scan {} reads uninitialized slot {}.",
+                        i_scan, slot.0
+                    );
+                }
+            }
+        }
+
+        for (i_slot, init) in initialization.iter().enumerate() {
+            assert!(
+                *init != Initialization::Uninitialized,
+                "The plan does not initialize slot {}.",
+                i_slot,
+            );
+        }
+    }
 }
