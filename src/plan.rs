@@ -7,13 +7,12 @@
 
 //! Defines query plans.
 
-use datom::Aid;
+use datom::{Aid, Value};
+use types::Type;
 
-/// A placeholder variable in a query.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Var(pub u16);
-
-/// A slot stores the current value of a variable during evaluation.
+/// The index of a slot.
+///
+/// A slot stores the current value of a variable or constant during evaluation.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Slot(pub u16);
 
@@ -46,7 +45,7 @@ pub enum Index {
 ///   *write second*.
 ///
 /// * Test the existence of datoms. We read both *first* and *second*.
-pub enum Kind {
+pub enum Flow {
     OutOut,
     InOut,
     InIn,
@@ -57,8 +56,60 @@ pub enum Kind {
 /// A scan may fill zero, one, or two variables depending on its kind.
 pub struct Scan {
     index: Index,
-    kind: Kind,
-    entity: Var,
+    flow: Flow,
+    entity: Slot,
     attribute: Aid,
-    value: Var,
+    value: Slot,
+}
+
+/// Determines how to fill a slot.
+pub enum SlotContents {
+    /// A query variable that fills a slot in the query plan.
+    ///
+    /// In the query plan, slots are indentified by index, not by name. But for
+    /// debug printing, it is still useful to have the humand-meaningful name of
+    /// the query variable that this slot originated from.
+    Variable { name: String },
+
+    /// A constant that fills a slot in the query plan.
+    Constant { value: Value },
+}
+
+/// Defines how a slot is filled during evaluation.
+///
+/// A slot can contain either a constant, or the current value for a variable.
+/// Constants are filled once at the start of evaluation; variable slots can be
+/// assigned new values at every iteration.
+pub struct SlotDefinition {
+    /// How to fill this slot.
+    contents: SlotContents,
+
+    /// The type of the value in this slot.
+    datatype: Type
+}
+
+/// A query plan.
+///
+/// Like a query, a query plan specifies which values to find for a number of
+/// variables. But where a query only specifes *what* to find, the query plan
+/// specifies specifically *how* to find it.
+///
+/// A query plan defines a number of slots, that get filled with values. A slot
+/// definition determines how the slot is filled: either during evalutation, by
+/// a scan, or at the start of evaluation, for constants.
+///
+/// A query is always executed as a number of nested loops, one for each scan.
+/// Scans can read from slots that were written to by an earlier scan (one with
+/// a lower index). The innermost loop yields the result of the query.
+pub struct Plan {
+    /// The scans that produce the values for the variables.
+    scans: Vec<Scan>,
+
+    /// The slots that are needed during query evaluation.
+    slots: Vec<SlotDefinition>,
+
+    /// The slots to yield the values from in every iteration.
+    ///
+    /// The selects are in the select order of the query; the tuple indices match.
+    selects: Vec<Slot>,
 }
