@@ -7,8 +7,39 @@
 
 //! The planner translates queries into plans.
 
-use plan::{Flow, Index, Plan, Slot, SlotDefinition};
-use query::{Query, QueryValue, Var};
+use datom::Aid;
+use plan::{Flow, Index, Plan, Scan, Slot, SlotDefinition};
+use query::{Query, QueryAttribute, QueryValue, Var};
+
+/// Update a scan in-place to a different scan that fills the same slots.
+///
+/// Returns true when incremented to a new scan in the cycle, and false when we
+/// cycled back to the initial scan.
+fn next_scan(scan: &mut Scan) -> bool {
+    let (index, is_new) = match (&scan.flow, &scan.index) {
+        // For out-out, we can use all three indexes.
+        (Flow::OutOut, Index::Aevt) => (Index::Avet, true),
+        (Flow::OutOut, Index::Avet) => (Index::Eavt, true),
+        (Flow::OutOut, Index::Eavt) => (Index::Aevt, false),
+
+        // For in-in, we can use all three indexes too.
+        (Flow::InIn, Index::Aevt) => (Index::Avet, true),
+        (Flow::InIn, Index::Avet) => (Index::Eavt, true),
+        (Flow::InIn, Index::Eavt) => (Index::Aevt, false),
+
+        // For in-out, we need to keep the slot that is the input (either the
+        // entity or the value) the input, and the other one the output. There
+        // are two cycles here, one of length 2, and one of length 1.
+        (Flow::InOut, Index::Aevt) => (Index::Eavt, true),
+        (Flow::InOut, Index::Eavt) => (Index::Aevt, false),
+        (Flow::InOut, Index::Avet) => (Index::Avet, false),
+    };
+
+    // TODO: Fixup first/second to be entity/value after all.
+
+    scan.index = index;
+    is_new
+}
 
 pub struct Planner {
     /// The where statements in the query, with values mapped into slots.
@@ -23,6 +54,11 @@ pub struct Planner {
 
 impl Planner {
     /// Initialize a planner for the given query.
+    ///
+    /// Before the plan is available, the scans need to be initialized.
+    /// Separating this step from the constuctor allows the planner to be reused
+    /// for different permutations of the statements, at the cost of introducing
+    /// invalid states of the planner.
     pub fn new(query: &Query) -> Planner {
         let mut slots = Vec::new();
         let mut statements = Vec::with_capacity(query.where_statements.len());
@@ -55,7 +91,7 @@ impl Planner {
                     Slot((slots.len() - 1) as u16)
                 }
             };
-            statement.push((slot_entity, attribute, slot_value));
+            statements.push((slot_entity, attribute, slot_value));
             assert!(
                 slots.len() <= 0xffff,
                 "Can have at most 2^16 slots, slot index is u16."
@@ -83,7 +119,11 @@ impl Planner {
     /// implement the statement. In that case, we always choose the first one.
     /// Later calls to `next` can cycle through them to explore all possible
     /// plans.
-    fn initialize_scans(&mut self) {
+    pub fn initialize_scans(&mut self) {
+        // If there was a previous plan, clear its scans, because we are going
+        // to initialize them with new scans.
+        self.plan.scans.clear();
+
         // Track which slots are already defined (those we can read from), and
         // which slots still need to be initialized (those we need to plan).
         let mut slot_initialized = Vec::with_capacity(self.plan.slots.len());
@@ -114,7 +154,7 @@ impl Planner {
 
             let scan = Scan {
                 index: index,
-                flow: Flow,
+                flow: flow,
                 attribute: attribute,
                 slots: [first, second],
             };
@@ -125,5 +165,39 @@ impl Planner {
             slot_initialized[slot_entity.0 as usize] = true;
             slot_initialized[slot_value.0 as usize] = true;
         }
+    }
+
+    /// Get the current plan.
+    pub fn get_plan(&self) -> &Plan {
+        debug_assert_eq!(
+            self.plan.scans.len(), self.statements.len(),
+            "Planner can only expose the plan after initializing scans."
+        );
+        &self.plan
+    }
+
+    /// Advance to the next alternative of the plan.
+    ///
+    /// Returns whether a new plan was generated. If it was, it can be inspected
+    /// with `get_plan()`. Returns false when all plans have been exhausted.
+    pub fn next(&mut self) -> bool {
+        for scan in self.plan.scans.iter_mut() {
+            let is_new = next_scan(scan);
+            if is_new {
+                // The altered scan is one that we had not seen before.
+                // Therefore, the plan is also a new one. Return that.
+                return true;
+            }
+
+            // If the scan is not new, then we cycled back to the initial scan.
+            // But we can still try to cycle a different scan, in the next
+            // iteration. And for that different value, we can then try all
+            // options for the earlier scans too.
+        }
+
+        // If we ended up here, we tried incrementing every scan, but all of
+        // them cycled back to the initial one, which means we have exhausted
+        // all options.
+        false
     }
 }

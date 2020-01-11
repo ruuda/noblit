@@ -32,8 +32,8 @@ pub enum Index {
 /// | Index | First  | Second |
 /// |-------|--------|--------|
 /// | Aevt  | Entity | Value  |
-/// | Eavt  | Entity | Value  |
 /// | Avet  | Value  | Entity |
+/// | Eavt  | Entity | Value  |
 ///
 /// With the index, we can do three things:
 ///
