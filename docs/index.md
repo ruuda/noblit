@@ -52,7 +52,9 @@ simplicity of an append-only database with value semantics.
 
 In comparison to Datomic, Noblit puts more focus on static type safety. This
 makes schemas more rigid. On the one hand this impedes iterating quickly, but on
-the other hand it helps to provide data consistency in the long term.
+the other hand it helps to provide data consistency in the long term. Datomic
+is a distributed system running on the <abbr>JVM</abbr>, while Noblit is a small
+native library.
 
 Another attempt at an embedded database inspired by Datomic was [Mentat][mentat].
 Both Noblit and Mentat happen to be written in Rust. Mentat is a layer on top of
