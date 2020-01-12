@@ -14,6 +14,7 @@ use noblit::database;
 use noblit::datom::Value;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
+use noblit::permutation::Permutations;
 use noblit::planner::Planner;
 use noblit::query::{QueryAttribute, QueryValue};
 use noblit::query_plan::{Evaluator, QueryPlan};
@@ -54,18 +55,43 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     query.fix_attributes(&view);
 
     let mut planner = Planner::new(&query);
-    planner.initialize_scans();
+    let mut permutations = Permutations::new(query.where_statements.len());
+    let mut best_plan = None;
+    let mut worst_plan = None;
+    let mut best_cost = 0xffff_ffff_ffff_ffff;
+    let mut worst_cost = 0;
 
-    let mut plans = Vec::new();
     loop {
-        let plan = planner.get_plan().clone();
-        plans.push((plan.cost(), plan));
-        if !planner.next() { break }
+        planner.initialize_scans();
+
+        loop {
+            {
+                let plan = planner.get_plan();
+                let cost = plan.cost();
+
+                if cost < best_cost {
+                    best_cost = cost;
+                    best_plan = Some(plan.clone());
+                }
+                if cost > worst_cost {
+                    worst_cost = cost;
+                    worst_plan = Some(plan.clone());
+                }
+            }
+            if !planner.next() { break }
+        }
+
+        match permutations.next() {
+            Some((i, j)) => planner.statements.swap(i, j),
+            None => break,
+        }
     }
-    plans.sort_by_key(|&(cost, _)| cost);
-    for &(cost, ref plan) in &plans {
-        println!("Cost: {}", cost);
-        println!("{:?}\n", plan);
+
+    if let (Some(best), Some(worst)) = (best_plan, worst_plan) {
+        println!("Best cost: {}", best_cost);
+        println!("{:?}\n", best);
+        println!("Worst cost: {}", worst_cost);
+        println!("{:?}\n", worst);
     }
 }
 

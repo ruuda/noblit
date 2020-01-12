@@ -44,7 +44,8 @@ pub struct Planner {
     ///
     /// The triples are (entity, attribute, value) triples. For the entity and
     /// value, we store the slot where the value will reside during evaluation.
-    statements: Vec<(Slot, Aid, Slot)>,
+    /// TODO: Should not be public.
+    pub statements: Vec<(Slot, Aid, Slot)>,
 
     /// The plan that we are building.
     plan: Plan,
