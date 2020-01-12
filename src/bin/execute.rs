@@ -56,8 +56,17 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     let mut planner = Planner::new(&query);
     planner.initialize_scans();
 
-    // TODO: Enumerate all, estimate cost.
-    println!("{:?}", planner.get_plan());
+    let mut plans = Vec::new();
+    loop {
+        let plan = planner.get_plan().clone();
+        plans.push((plan.cost(), plan));
+        if !planner.next() { break }
+    }
+    plans.sort_by_key(|&(cost, _)| cost);
+    for &(cost, ref plan) in &plans {
+        println!("Cost: {}", cost);
+        println!("{:?}\n", plan);
+    }
 }
 
 /// Evaluate the mutation, return the datoms produced.

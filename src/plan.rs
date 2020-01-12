@@ -18,6 +18,7 @@ use datom::{Aid, Value};
 pub struct Slot(pub u16);
 
 /// The index to scan.
+#[derive(Clone)]
 pub enum Index {
     Aevt,
     Avet,
@@ -46,6 +47,7 @@ pub enum Index {
 ///   | Eavt  | Entity | Value  |
 ///
 /// * Test the existence of known datoms. We read both the *entity* and *value*.
+#[derive(Clone)]
 pub enum Flow {
     OutOut,
     InOut,
@@ -57,6 +59,7 @@ pub enum Flow {
 /// A scan may fill zero, one, or two variables depending on its kind. Depending
 /// on the flow and index used, the slots referenced by the entity and value can
 /// be inputs or outputs.
+#[derive(Clone)]
 pub struct Scan {
     pub index: Index,
     pub flow: Flow,
@@ -81,6 +84,7 @@ impl Scan {
 /// A slot can contain either a constant, or the current value for a variable.
 /// Constants are filled once at the start of evaluation; variable slots can be
 /// assigned new values at every iteration.
+#[derive(Clone)]
 pub enum SlotDefinition {
     /// A query variable that fills a slot in the query plan.
     ///
@@ -102,6 +106,7 @@ pub enum SlotDefinition {
 /// A query is executed as a number of nested loops, one for each scan. Scans
 /// can read from slots that were written to by an earlier scan (one with a
 /// lower index). The innermost loop yields the result of the query.
+#[derive(Clone)]
 pub struct Plan {
     /// The scans that fill the variable slots.
     ///
@@ -211,6 +216,51 @@ impl Plan {
     pub fn check_invariants(&self) {
         self.check_slot_initialization();
         self.check_select_in_bounds();
+    }
+
+    pub fn cost(&self) -> u64 {
+        let mut cost = 1;
+        for i_scan in (0..self.scans.len()).rev() {
+            let scan = &self.scans[i_scan];
+
+            let iters = match (&scan.flow, &scan.index) {
+                (Flow::OutOut, Index::Aevt) => 100,
+                (Flow::OutOut, Index::Avet) => 100,
+                (Flow::OutOut, Index::Eavt) => 1000,
+
+                (Flow::InIn, Index::Aevt) => 1,
+                (Flow::InIn, Index::Avet) => 1,
+                (Flow::InIn, Index::Eavt) => 1,
+
+                (Flow::InOut, Index::Aevt) => 1,
+                (Flow::InOut, Index::Eavt) => 1,
+                (Flow::InOut, Index::Avet) => 20,
+            };
+
+            let dislocal = match &scan.index {
+                Index::Aevt => 1,
+                Index::Avet => 1,
+                Index::Eavt => 10,
+            };
+
+            let discontinuous = if i_scan > 0 {
+                let prev = &self.scans[i_scan - 1];
+
+                match (&prev.index, &scan.index) {
+                    (Index::Eavt, Index::Eavt) if prev.entity == scan.entity => 1,
+                    (Index::Aevt, Index::Aevt) if prev.attribute == scan.attribute => 5,
+                    (Index::Avet, Index::Avet) if prev.attribute == scan.attribute => 5,
+                    (_, Index::Aevt) => 50,
+                    (_, Index::Avet) => 50,
+                    (_, Index::Eavt) => 40,
+                }
+            } else {
+                1
+            };
+
+            cost = discontinuous + (cost + dislocal) * iters;
+        }
+        cost
     }
 }
 
