@@ -220,7 +220,7 @@ impl Plan {
 
     /// A rather ad-hoc cost estimate. Should be replaced with something better.
     pub fn cost(&self) -> u64 {
-        use std::collections::{HashMap, HashSet};
+        use std::collections::HashSet;
         let mut aevt_attributes = HashSet::new();
         let mut avet_attributes = HashSet::new();
         let mut eavt_entities = HashSet::new();
