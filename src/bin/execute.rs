@@ -61,7 +61,7 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     let mut best_cost = 0xffff_ffff_ffff_ffff;
     let mut worst_cost = 0;
 
-    loop {
+    for _ in 0..10_000 {
         planner.initialize_scans();
 
         loop {

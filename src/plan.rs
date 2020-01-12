@@ -218,15 +218,54 @@ impl Plan {
         self.check_select_in_bounds();
     }
 
+    /// A rather ad-hoc cost estimate. Should be replaced with something better.
     pub fn cost(&self) -> u64 {
+        use std::collections::{HashMap, HashSet};
+        let mut aevt_attributes = HashSet::new();
+        let mut avet_attributes = HashSet::new();
+        let mut eavt_entities = HashSet::new();
+        let mut locality_penalties = Vec::new();
+
+        // For every scan, estimate a locality penalty. If the scan is over an
+        // index that we've used before (in an earlier scan), then at least the
+        // root of the tree will still be cached, so the scan is cheaper than
+        // when this is the first time we use that index. Furthermore, if we use
+        // the same part of the index (e.g. an eavt scan for the same entity
+        // that an earlier scan used), then locality is even better, so we
+        // reduce the penalty further.
+        for scan in &self.scans {
+            let penalty = match &scan.index {
+                Index::Eavt if eavt_entities.contains(&scan.entity) => 1,
+                Index::Eavt if eavt_entities.len() > 0 => {
+                    eavt_entities.insert(scan.entity); 90
+                }
+                Index::Eavt => { eavt_entities.insert(scan.entity); 100 }
+
+                Index::Aevt if aevt_attributes.contains(&scan.attribute) => 5,
+                Index::Aevt if aevt_attributes.len() > 0 => {
+                    aevt_attributes.insert(scan.attribute); 10
+                }
+                Index::Aevt => { aevt_attributes.insert(scan.attribute); 20 }
+
+                Index::Avet if avet_attributes.contains(&scan.attribute) => 10,
+                Index::Avet if avet_attributes.len() > 0 => {
+                    avet_attributes.insert(scan.attribute); 50
+                }
+                Index::Avet => { avet_attributes.insert(scan.attribute); 60 }
+            };
+            locality_penalties.push(penalty);
+        }
+
         let mut cost = 1;
+
         for i_scan in (0..self.scans.len()).rev() {
             let scan = &self.scans[i_scan];
+            let locality_penalty = locality_penalties[i_scan];
 
             let iters = match (&scan.flow, &scan.index) {
                 (Flow::OutOut, Index::Aevt) => 100,
                 (Flow::OutOut, Index::Avet) => 100,
-                (Flow::OutOut, Index::Eavt) => 1000,
+                (Flow::OutOut, Index::Eavt) => panic!("Using eavt for out-out is invalid"),
 
                 (Flow::InIn, Index::Aevt) => 1,
                 (Flow::InIn, Index::Avet) => 1,
@@ -237,28 +276,9 @@ impl Plan {
                 (Flow::InOut, Index::Avet) => 20,
             };
 
-            let dislocal = match &scan.index {
-                Index::Aevt => 1,
-                Index::Avet => 1,
-                Index::Eavt => 10,
-            };
+            // TODO: Add back continuity penalty.
 
-            let discontinuous = if i_scan > 0 {
-                let prev = &self.scans[i_scan - 1];
-
-                match (&prev.index, &scan.index) {
-                    (Index::Eavt, Index::Eavt) if prev.entity == scan.entity => 1,
-                    (Index::Aevt, Index::Aevt) if prev.attribute == scan.attribute => 5,
-                    (Index::Avet, Index::Avet) if prev.attribute == scan.attribute => 5,
-                    (_, Index::Aevt) => 50,
-                    (_, Index::Avet) => 50,
-                    (_, Index::Eavt) => 40,
-                }
-            } else {
-                1
-            };
-
-            cost = discontinuous + (cost + dislocal) * iters;
+            cost = locality_penalty + iters * cost
         }
         cost
     }
