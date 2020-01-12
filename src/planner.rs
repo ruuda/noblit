@@ -17,12 +17,12 @@ use query::{Query, QueryAttribute, QueryValue, Var};
 /// cycled back to the initial scan.
 fn next_scan(scan: &mut Scan) -> bool {
     let (index, is_new) = match (&scan.flow, &scan.index) {
-        // For out-out, we can use all three indexes.
+        // For out-out, we can use the attribute-leading indexes.
         (Flow::OutOut, Index::Aevt) => (Index::Avet, true),
-        (Flow::OutOut, Index::Avet) => (Index::Eavt, true),
-        (Flow::OutOut, Index::Eavt) => (Index::Aevt, false),
+        (Flow::OutOut, Index::Avet) => (Index::Aevt, false),
+        (Flow::OutOut, Index::Eavt) => panic!("Using eavt for out-out is invalid."),
 
-        // For in-in, we can use all three indexes too.
+        // For in-in, we can use all three indexes.
         (Flow::InIn, Index::Aevt) => (Index::Avet, true),
         (Flow::InIn, Index::Avet) => (Index::Eavt, true),
         (Flow::InIn, Index::Eavt) => (Index::Aevt, false),
