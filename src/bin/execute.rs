@@ -55,13 +55,18 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     query.fix_attributes(&view);
 
     let mut planner = Planner::new(&query);
+
+    // Print the initial plan.
+    planner.initialize_scans();
+    println!("{:?}", planner.get_plan());
+
     let mut permutations = Permutations::new(query.where_statements.len());
     let mut best_plan = None;
     let mut worst_plan = None;
     let mut best_cost = 0xffff_ffff_ffff_ffff;
     let mut worst_cost = 0;
 
-    for _ in 0..10_000 {
+    for _ in 0..1_000 {
         planner.initialize_scans();
 
         loop {
@@ -87,11 +92,14 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
         }
     }
 
+    // TODO: Add a debug mode that can print alternatives. This is not the right
+    // place for it.
     if let (Some(best), Some(worst)) = (best_plan, worst_plan) {
-        println!("Best cost: {}", best_cost);
-        println!("{:?}\n", best);
-        println!("Worst cost: {}", worst_cost);
-        println!("{:?}\n", worst);
+        // println!("Best cost: {}", best_cost);
+        // println!("{:?}\n", best);
+        // println!("Worst cost: {}", worst_cost);
+        // println!("{:?}\n", worst);
+        drop((best, worst));
     }
 }
 
