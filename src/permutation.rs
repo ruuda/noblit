@@ -7,53 +7,43 @@
 
 //! Support functionality to generate permutations.
 
-/// An struct to generate all permutations of the integers [0, n).
+/// A struct to generate all permutations on n elements.
 ///
-/// The generator implements the non-recursive version of Heap's algorithm.
+/// This is an iterator that yields the indices of the elements to swap. As it
+/// yields the swaps that generate the permutations, it yields `n! - 1` swaps.
+/// The first permutation is that with no swaps applied.
+///
+/// This iterator implements the non-recursive version of Heap's algorithm.
 pub struct Permutations {
-    indices: Vec<usize>,
     ks: Vec<usize>,
     i: usize,
-    first: bool,
 }
 
 impl Permutations {
-    /// Return an iterator over the integers 0 up to n, excluding n itself.
+    /// Return an iterator over swaps to generate all permutations on n elements.
     pub fn new(n: usize) -> Permutations {
-        let mut indices = Vec::with_capacity(n);
-        let mut ks = Vec::with_capacity(n);
-
-        for i in 0..n {
-            indices.push(i);
-            ks.push(0);
-        }
-
         Permutations {
-            indices: indices,
-            ks: ks,
+            ks: vec![0; n],
             i: 0,
-            first: true,
         }
     }
+}
+
+impl Iterator for Permutations {
+    type Item = (usize, usize);
 
     /// Return the next permutation, until all of them have been visited.
-    pub fn next(&mut self) -> Option<&[usize]> {
-        // The fisrt permutation is just the unpermuted indices.
-        if self.first {
-            self.first = false;
-            return Some(&self.indices);
-        }
-
-        while self.i < self.indices.len() {
+    fn next(&mut self) -> Option<(usize, usize)> {
+        while self.i < self.ks.len() {
             if self.ks[self.i] < self.i {
-                if self.i % 2 == 0 {
-                    self.indices.swap(0, self.i);
+                let result = if self.i % 2 == 0 {
+                    (0, self.i)
                 } else {
-                    self.indices.swap(self.ks[self.i], self.i);
-                }
+                    (self.ks[self.i], self.i)
+                };
                 self.ks[self.i] += 1;
                 self.i = 0;
-                return Some(&self.indices);
+                return Some(result);
             } else {
                 self.ks[self.i] = 0;
                 self.i += 1;
@@ -68,23 +58,57 @@ impl Permutations {
 mod test {
     use permutation::Permutations;
 
+    // To test the permutation iterator, we build a small struct that generates
+    // all permutations of 0..n, and test those.
+    struct IndexPermutations {
+        elements: Vec<usize>,
+        permutations: Permutations,
+        is_first: bool,
+    }
+
+    impl IndexPermutations {
+        pub fn new(n: usize) -> IndexPermutations {
+            IndexPermutations {
+                elements: (0..n).collect(),
+                permutations: Permutations::new(n),
+                is_first: true,
+            }
+        }
+
+        pub fn next(&mut self) -> Option<&[usize]> {
+            if self.is_first {
+                self.is_first = false;
+                Some(&self.elements)
+            } else {
+                match self.permutations.next() {
+                    Some((i, j)) => {
+                        self.elements.swap(i, j);
+                        Some(&self.elements)
+                    }
+                    None => None,
+                }
+            }
+        }
+    }
+
+
     #[test]
     pub fn permutations_is_correct_for_n_zero() {
-        let mut ps = Permutations::new(0);
+        let mut ps = IndexPermutations::new(0);
         assert_eq!(ps.next(), Some(&[][..]));
         assert_eq!(ps.next(), None);
     }
 
     #[test]
     pub fn permutations_is_correct_for_n_one() {
-        let mut ps = Permutations::new(1);
+        let mut ps = IndexPermutations::new(1);
         assert_eq!(ps.next(), Some(&[0][..]));
         assert_eq!(ps.next(), None);
     }
 
     #[test]
     pub fn permutations_is_correct_for_n_two() {
-        let mut ps = Permutations::new(2);
+        let mut ps = IndexPermutations::new(2);
         assert_eq!(ps.next(), Some(&[0, 1][..]));
         assert_eq!(ps.next(), Some(&[1, 0][..]));
         assert_eq!(ps.next(), None);
@@ -92,7 +116,7 @@ mod test {
 
     #[test]
     pub fn permutations_is_correct_for_n_three() {
-        let mut ps = Permutations::new(3);
+        let mut ps = IndexPermutations::new(3);
         assert_eq!(ps.next(), Some(&[0, 1, 2][..]));
         assert_eq!(ps.next(), Some(&[1, 0, 2][..]));
         assert_eq!(ps.next(), Some(&[2, 0, 1][..]));
@@ -104,7 +128,7 @@ mod test {
 
     #[test]
     pub fn permutations_is_correct_for_n_four() {
-        let mut ps = Permutations::new(4);
+        let mut ps = IndexPermutations::new(4);
         assert_eq!(ps.next(), Some(&[0, 1, 2, 3][..]));
         assert_eq!(ps.next(), Some(&[1, 0, 2, 3][..]));
         assert_eq!(ps.next(), Some(&[2, 0, 1, 3][..]));
@@ -141,7 +165,7 @@ mod test {
         // keep the test suite fast.
         for n in 0..=8 {
             let mut xs = HashSet::new();
-            let mut ps = Permutations::new(n);
+            let mut ps = IndexPermutations::new(n);
 
             // Check that no duplicate permutations are generated.
             while let Some(p) = ps.next() {
