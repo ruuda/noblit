@@ -8,6 +8,7 @@
 pub mod binary;
 pub mod database;
 pub mod datom;
+pub mod head;
 pub mod heap;
 pub mod htree;
 pub mod idgen;
@@ -15,11 +16,11 @@ pub mod index;
 pub mod memory_store;
 pub mod mutation;
 pub mod parse;
+pub mod permutation;
 pub mod query;
 pub mod store;
 pub mod temp_heap;
 pub mod types;
-pub mod permutation;
 
 // New, not yet supported, not feature complete, query plans.
 pub mod plan;
