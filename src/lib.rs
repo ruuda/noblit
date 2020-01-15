@@ -5,9 +5,6 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-// TODO: Remove once the API is fleshed out more. Or when this crate is turned
-// into a library.
-
 pub mod binary;
 pub mod database;
 pub mod datom;
