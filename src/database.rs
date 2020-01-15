@@ -11,10 +11,9 @@ use std::collections::HashSet;
 use std::io;
 
 use datom::{Eid, Aid, Value, Tid, Operation, Datom};
-use head::{Head, IndexRoots};
+use head::{Head, IdGen, IndexRoots};
 use heap::{CidBytes, self};
 use htree::HTree;
-use idgen::IdGen;
 use index::{DatomOrd, Aevt, Avet, Eavt};
 use store::{self};
 use temp_heap::{TempHeap, Temporaries};
