@@ -11,6 +11,7 @@
 //! to keep track of the root nodes of the indexes, and to track counters for
 //! generating new entity ids. This mutable state is called the *head*.
 
+use binary::{u64_from_le_bytes, u64_to_le_bytes, slice_8};
 use datom::{Eid, Tid};
 use store::PageId;
 
@@ -115,10 +116,39 @@ pub struct Head {
     pub id_gen: IdGen,
 }
 
+impl Head {
+    /// Deserialize a head from bytes.
+    pub fn from_bytes(buffer: &[u8; 40]) -> Head {
+        Head {
+            roots: IndexRoots {
+                eavt_root: PageId(u64_from_le_bytes(slice_8(&buffer[ 0.. 8]))),
+                aevt_root: PageId(u64_from_le_bytes(slice_8(&buffer[ 8..16]))),
+                avet_root: PageId(u64_from_le_bytes(slice_8(&buffer[16..24]))),
+            },
+            id_gen: IdGen {
+                next_even: u64_from_le_bytes(slice_8(&buffer[24..32])),
+                next_odd: u64_from_le_bytes(slice_8(&buffer[32..40])),
+            },
+        }
+    }
+
+    /// Serialize a head as bytes.
+    pub fn to_bytes(&self) -> [u8; 40] {
+        let mut result = [0_u8; 40];
+        result[ 0.. 8].copy_from_slice(&u64_to_le_bytes(self.roots.eavt_root.0));
+        result[ 8..16].copy_from_slice(&u64_to_le_bytes(self.roots.aevt_root.0));
+        result[16..24].copy_from_slice(&u64_to_le_bytes(self.roots.avet_root.0));
+        result[24..32].copy_from_slice(&u64_to_le_bytes(self.id_gen.next_even));
+        result[32..40].copy_from_slice(&u64_to_le_bytes(self.id_gen.next_odd));
+        result
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use head::IdGen;
     use datom::{Eid, Tid};
+    use head::{Head, IdGen, IndexRoots};
+    use store::PageId;
 
     enum IdGenResult {
         Tid(Tid),
@@ -218,6 +248,35 @@ mod test {
                 actual_gap,
                 allowed_gap,
             );
+        }
+    }
+
+    #[test]
+    fn head_to_from_bytes_roundtrips() {
+        let vs = [0, 0x1111, 0x2222_3333, 0x4444_5555_6666_7777];
+        for &a in &vs {
+            for &b in &vs {
+                for &c in &vs {
+                    for &d in &vs {
+                        for &e in &vs {
+                            let head = Head {
+                                roots: IndexRoots {
+                                    eavt_root: PageId(a),
+                                    aevt_root: PageId(b),
+                                    avet_root: PageId(c),
+                                },
+                                id_gen: IdGen {
+                                    next_even: d,
+                                    next_odd: e,
+                                },
+                            };
+                            let bytes = head.to_bytes();
+                            let head2 = Head::from_bytes(&bytes);
+                            assert_eq!(head, head2);
+                        }
+                    }
+                }
+            }
         }
     }
 }
