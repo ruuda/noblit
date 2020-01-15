@@ -34,6 +34,15 @@ pub fn u64_from_le_bytes(buffer: [u8; 8]) -> u64 {
 }
 
 #[inline]
+pub fn u16_to_le_bytes(x: u16) -> [u8; 2] {
+    // On Rust 1.32, could use u16::to_le_bytes instead.
+    [
+        (x >>  0) as u8,
+        (x >>  8) as u8,
+    ]
+}
+
+#[inline]
 pub fn u64_to_le_bytes(x: u64) -> [u8; 8] {
     // On Rust 1.32, could use u64::to_le_bytes instead.
     [

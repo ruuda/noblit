@@ -8,6 +8,7 @@
 pub mod binary;
 pub mod database;
 pub mod datom;
+pub mod disk;
 pub mod head;
 pub mod heap;
 pub mod htree;
