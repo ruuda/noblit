@@ -142,6 +142,16 @@ impl Head {
         result[32..40].copy_from_slice(&u64_to_le_bytes(self.id_gen.next_odd));
         result
     }
+
+    /// Return the max of the root page ids.
+    ///
+    /// As pages are written sequentially, the max page id is an upper bound on
+    /// the reachable pages.
+    pub fn max_page(&self) -> PageId {
+        self.roots.eavt_root
+            .max(self.roots.avet_root)
+            .max(self.roots.aevt_root)
+    }
 }
 
 #[cfg(test)]

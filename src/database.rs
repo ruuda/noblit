@@ -334,6 +334,11 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         &self.heap
     }
 
+    /// Return the current head.
+    pub fn get_head(&self) -> &Head {
+        &self.head
+    }
+
     /// View the current database and given temporaries together.
     pub fn view(&self, temporaries: Temporaries) -> View<Store, Heap> {
         View {

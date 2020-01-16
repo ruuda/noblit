@@ -18,8 +18,8 @@ use std::io;
 
 use binary::{u16_to_le_bytes, u64_to_le_bytes};
 use database::Database;
-use heap::Heap;
-use store::{Store, PageSize4096};
+use heap::{self};
+use store::{PageId, self};
 
 /// The magic bytes that indicate a Noblit database.
 ///
@@ -45,10 +45,14 @@ pub const SIGNATURE: [u8; 12] = *b"\x91Noblit\r\n\x1a\n\0";
 ///
 /// The packed format consists of a header, followed by the store file and heap
 /// file concatenated.
-pub fn write_packed(
-    _db: &Database<&dyn Store<Size = PageSize4096>, &dyn Heap>,
-    out: &mut dyn io::Write
-) -> io::Result<()> {
+pub fn write_packed<Store, Heap>(
+    db: &Database<Store, Heap>,
+    out: &mut dyn io::Write,
+    ) -> io::Result<()>
+where
+    Store: store::Store,
+    Heap: heap::Heap,
+{
     // Byte [0..12): The signature magic bytes.
     out.write_all(&SIGNATURE[..])?;
     // Byte [12..14): The 16-bit format version.
@@ -57,18 +61,34 @@ pub fn write_packed(
     // Then an unused padding byte.
     out.write_all(&[0, 0])?;
 
-    // TODO
-    let store_len = 100;
-    let heap_len = 100;
-    // Byte [16..24): The size of the store, in bytes.
-    out.write_all(&u64_to_le_bytes(store_len))?;
-    // Byte [24..32): The size of the heap, in bytes.
-    out.write_all(&u64_to_le_bytes(heap_len))?;
+    let head = db.get_head();
 
-    // Pad with zeros until we are aligned to 4k.
-    out.write_all(&[0; 4064])?;
+    // Byte [16..56): The 40-bit head.
+    out.write_all(&head.to_bytes()[..])?;
 
-    // TODO: Write store.
+    let max_page = head.max_page();
+    let page_size_in_bytes = <Store::Size as store::PageSize>::SIZE as u64;
+    let store_len_in_bytes = max_page.0 * page_size_in_bytes;
+    let heap_len_in_bytes = 100; // TODO: Read actual heap.
+
+    // Byte [56..64): The page size, in bytes.
+    out.write_all(&u64_to_le_bytes(page_size_in_bytes))?;
+    // Byte [64..72): The size of the store, in bytes.
+    out.write_all(&u64_to_le_bytes(store_len_in_bytes))?;
+    // Byte [72..80): The size of the heap, in bytes.
+    out.write_all(&u64_to_le_bytes(heap_len_in_bytes))?;
+
+    // Pad with zeros until we are aligned to the page size. We should be able
+    // to use a fixed-size slice here instead of a vec, but unfortunately that
+    // results in a compile error about an associated type not being found.
+    out.write_all(&vec![0; <Store::Size as store::PageSize>::SIZE - 80])?;
+
+    // Write all of the pages, one by one.
+    for page_id in 0..=max_page.0 {
+        let page = db.get_store().get(PageId(page_id));
+        out.write_all(page)?;
+    }
+
     // TODO: Write heap.
     Ok(())
 }
