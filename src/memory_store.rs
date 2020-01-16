@@ -48,6 +48,10 @@ impl<Size: PageSize> Store for MemoryStore<Size> {
 
         &self.buffer[begin..end]
     }
+
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> {
+        out.write_all(&self.buffer[..])
+    }
 }
 
 impl<Size: PageSize> StoreMut for MemoryStore<Size> {
@@ -153,6 +157,10 @@ impl HeapMut for MemoryHeap {
 impl SizedHeap for MemoryHeap {
     fn len(&self) -> u64 {
         self.buffer.len() as u64
+    }
+
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> {
+        out.write_all(&self.buffer[..])
     }
 }
 

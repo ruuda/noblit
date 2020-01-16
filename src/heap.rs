@@ -49,10 +49,13 @@ pub trait HeapMut: Heap {
     fn append_bytes(&mut self, value: &[u8]) -> io::Result<CidBytes>;
 }
 
-/// A heap that exposes the number of bytes it stores.
+/// A heap laid out as a byte array.
 pub trait SizedHeap: Heap {
     /// The size of the data in the heap, in bytes.
     fn len(&self) -> u64;
+
+    /// Serialize the entire heap to a sink.
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()>;
 }
 
 impl<'a, T: Heap> Heap for &'a T {
@@ -67,10 +70,12 @@ impl<'a, T: Heap> Heap for &'a mut T {
 
 impl<'a, T: SizedHeap> SizedHeap for &'a T {
     fn len(&self) -> u64 { (**self).len() }
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }
 
 impl<'a, T: SizedHeap> SizedHeap for &'a mut T {
     fn len(&self) -> u64 { (**self).len() }
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }
 
 /// Assert that the heap is well-formed, that all invariants hold.

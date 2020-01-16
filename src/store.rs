@@ -107,6 +107,9 @@ pub trait Store {
 
     /// Retrieve a page.
     fn get(&self, page: PageId) -> &[u8];
+
+    /// Serialize the entire store to a sink.
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()>;
 }
 
 /// A page store that can be appended to, in addition to reading from it.
@@ -119,16 +122,14 @@ pub trait StoreMut: Store {
 
 impl<'a, T: Store> Store for &'a T {
     type Size = T::Size;
-    fn get(&self, page: PageId) -> &[u8] {
-        (**self).get(page)
-    }
+    fn get(&self, page: PageId) -> &[u8] { (**self).get(page) }
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }
 
 impl<'a, T: Store> Store for &'a mut T {
     type Size = T::Size;
-    fn get(&self, page: PageId) -> &[u8] {
-        (**self).get(page)
-    }
+    fn get(&self, page: PageId) -> &[u8] { (**self).get(page) }
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }
 
 impl<'a, T: StoreMut> StoreMut for &'a mut T {

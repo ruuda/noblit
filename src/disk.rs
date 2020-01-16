@@ -18,8 +18,8 @@ use std::io;
 
 use binary::{u16_to_le_bytes, u64_to_le_bytes};
 use database::Database;
-use heap::{self};
-use store::{PageId, self};
+use heap;
+use store;
 
 /// The magic bytes that indicate a Noblit database.
 ///
@@ -51,7 +51,7 @@ pub fn write_packed<Store, Heap>(
     ) -> io::Result<()>
 where
     Store: store::Store,
-    Heap: heap::Heap,
+    Heap: heap::SizedHeap,
 {
     // Byte [0..12): The signature magic bytes.
     out.write_all(&SIGNATURE[..])?;
@@ -69,7 +69,7 @@ where
     let max_page = head.max_page();
     let page_size_in_bytes = <Store::Size as store::PageSize>::SIZE as u64;
     let store_len_in_bytes = max_page.0 * page_size_in_bytes;
-    let heap_len_in_bytes = 100; // TODO: Read actual heap.
+    let heap_len_in_bytes = db.get_heap().len();
 
     // Byte [56..64): The page size, in bytes.
     out.write_all(&u64_to_le_bytes(page_size_in_bytes))?;
@@ -83,13 +83,9 @@ where
     // results in a compile error about an associated type not being found.
     out.write_all(&vec![0; <Store::Size as store::PageSize>::SIZE - 80])?;
 
-    // Write all of the pages, one by one.
-    for page_id in 0..=max_page.0 {
-        let page = db.get_store().get(PageId(page_id));
-        out.write_all(page)?;
-    }
+    db.get_store().dump(out)?;
+    db.get_heap().dump(out)?;
 
-    // TODO: Write heap.
     Ok(())
 }
 
