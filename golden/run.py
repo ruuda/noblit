@@ -73,8 +73,6 @@ def main(fname: str) -> None:
                     break
 
                 result_lines.append(line_str)
-                # Echo the lines; '>' is ignored by TAP.
-                print('>', line_str, end='')
 
             # We should only interpret the output lines as meaningful output if
             # the executor is still behaving according to protocol. When it
@@ -85,10 +83,15 @@ def main(fname: str) -> None:
 
             is_good = True
             for actual_line, expected_line in zip_longest(result_lines, expected_lines):
-                if actual_line != expected_line:
-                    if is_good or expected_line is not None:
-                        # Print a diff of expected vs actual. ? is ignored by TAP.
-                        print('?', expected_line or '\n', end='')
+                if actual_line == expected_line:
+                    # Echo the lines; '>' is ignored by TAP.
+                    print('>', actual_line, end='')
+                else:
+                    # Print a diff of expected vs actual. + and - are ignored by TAP.
+                    if expected_line is not None:
+                        print('-', expected_line, end='')
+                    if actual_line is not None:
+                        print('+', actual_line, end='')
                     is_good = False
 
             if is_good:
