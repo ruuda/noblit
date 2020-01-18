@@ -44,7 +44,15 @@ unsafe fn transmute_slice<T, U>(ts: &[T]) -> &[U] {
     let byte_len = ts.len() * mem::size_of::<T>();
     let len = byte_len / mem::size_of::<U>();
     debug_assert_eq!(len * mem::size_of::<U>(), byte_len);
-    // TODO: Is it possible to assert alignment?
+
+    // TODO: Once we use Rust 1.36, we could use `align_offset` to assert the
+    // alignment safely. For now, we transmute the pointer to usize.
+    debug_assert_eq!(mem::size_of_val(&ptr), mem::size_of::<usize>());
+    let ptr_value: usize = mem::transmute(ptr);
+    debug_assert_eq!(
+        ptr_value % mem::align_of::<U>(), 0,
+        "Slice base pointer does not have alignment required for new element type."
+    );
 
     slice::from_raw_parts(mem::transmute(ptr), len)
 }
