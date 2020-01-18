@@ -47,3 +47,16 @@ script:
 
   # Build the documentation. This checks for dead links etc.
   - mkdocs build
+
+  # Run the Rust test suite under Miri to detect certain classes of undefined
+  # behavior. TODO: Also run the binaries and golden tests under Miri. There are
+  # two blockers for this:
+  # * Miri does not support selecting a binary (https://github.com/rust-lang/miri/issues/739)
+  # * Noblit assumes that Vec<u8> is 8-byte aligned. This assumption has so far
+  #   not been violated in practice, but in theory the assumption is invalid.
+  - rustup +nightly-2020-01-18 set profile minimal
+  - rustup +nightly-2020-01-18 component add miri
+  - cargo  +nightly-2020-01-18 clean
+  - cargo  +nightly-2020-01-18 miri setup
+  - cargo  +nightly-2020-01-18 miri test
+  - cargo  +nightly-2020-01-18 clean
