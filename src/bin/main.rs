@@ -212,6 +212,7 @@ fn main() {
         };
         query.fix_attributes(&mut view);
 
+        // TODO: Add getter to get the slice of selected types.
         let types = query.infer_types(&view).expect("Type error.");
         let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
 

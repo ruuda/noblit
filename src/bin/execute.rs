@@ -13,12 +13,12 @@ use noblit::binary::Cursor;
 use noblit::database;
 use noblit::datom::Value;
 use noblit::disk;
+use noblit::eval::Evaluator;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
 use noblit::permutation::Permutations;
 use noblit::planner::Planner;
 use noblit::query::{QueryAttribute, QueryValue};
-use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::PageSize4096;
 use noblit::temp_heap::Temporaries;
 use noblit::types::{Type, self};
@@ -34,7 +34,16 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
 
     // Resolve named attributes to id-based attributes, and plan the query.
     query.fix_attributes(&view);
-    let plan = QueryPlan::new(query, &view);
+
+    // TODO: Add getter to get the slice of selected types.
+    let types = query.infer_types(&view).expect("Type error.");
+    let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
+
+    // TODO: Add one-step wrapper that does not involve the manual
+    // initialization step.
+    let mut planner = Planner::new(&query);
+    planner.initialize_scans();
+    let plan = planner.get_plan();
 
     // Evaluate the query, and pretty-print the results in a table.
     let eval = Evaluator::new(&plan, &view);
@@ -43,9 +52,9 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
     types::draw_table(
         &mut stdout.lock(),
         view.heap(),
-        plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
+        plan.select.iter().enumerate().map(|(i, _)| plan.get_select_name(i)),
         rows.iter().map(|ref row| &row[..]),
-        &plan.select_types[..],
+        &select_types[..],
     ).unwrap();
 }
 
@@ -116,7 +125,13 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
         // Resolve named attributes to id-based attributes, and plan the read-only
         // part of the query.
         mutation.fix_attributes(&view);
-        let plan = QueryPlan::new(mutation.read_only_part(), &view);
+
+        let query = mutation.read_only_part();
+        let types = query.infer_types(&view).expect("Type error.");
+
+        let mut planner = Planner::new(&query);
+        planner.initialize_scans();
+        let plan = planner.get_plan();
 
         let mut rows_to_return = Vec::new();
 
@@ -161,17 +176,15 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
         }
 
         // Before we can print the results, we need to know the types of the
-        // selected variables. For bound variables, we can get them from the plan.
-        // For free variables, the type is always ref, because we create entities.
+        // selected variables. For bound variables, we can get them from type
+        // inference of the query. For free variables, the type is always ref,
+        // because we create entities.
         let mut select_types = Vec::with_capacity(mutation.select.len());
         for &v in mutation.select.iter() {
             let is_bound = (v.0 as usize) < mutation.bound_variables.len();
-            if is_bound {
-                let index = plan.mapping[v.0 as usize];
-                select_types.push(plan.variable_types[index.0 as usize]);
-            } else {
-                // Free variables are entities.
-                select_types.push(Type::Ref);
+            match is_bound {
+                true => select_types.push(types[v.0 as usize]),
+                false => select_types.push(Type::Ref),
             }
         }
 
