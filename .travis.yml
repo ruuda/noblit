@@ -6,6 +6,7 @@ language: nix
 
 cache:
   directories:
+  - $HOME/.cache/miri
   - $HOME/.cargo
   - $HOME/.rustup
   - $HOME/.stack
