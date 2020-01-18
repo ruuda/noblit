@@ -192,6 +192,8 @@ impl Value {
 
     pub fn from_eid(value: Eid) -> Value {
         // TODO: Do not assume that entity ids fit in 62 bits, handle spilling.
+        // TODO: Or actually, do assume it an document and validate that
+        // assumption everywhere.
         Value::from_u64_inline(value.0)
     }
 

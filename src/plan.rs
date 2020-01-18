@@ -54,6 +54,20 @@ pub enum Flow {
     InIn,
 }
 
+/// The combination of an index and flow.
+///
+/// While there are nine combinations of flow and index (one of which is
+/// invalid), there are only four possible entity-value flows: either can be an
+/// input or output. Evaluation is mostly concerned with this entity-value flow,
+/// and what particular index is producing the entity and value is not relevant.
+#[derive(Clone)]
+pub enum EntityValueFlow {
+    OutOut,
+    InOut,
+    OutIn,
+    InIn,
+}
+
 /// A scan over an index.
 ///
 /// A scan may fill zero, one, or two variables depending on its kind. Depending
@@ -75,6 +89,23 @@ impl Scan {
             Index::Aevt => [self.entity, self.value],
             Index::Avet => [self.value, self.entity],
             Index::Eavt => [self.entity, self.value],
+        }
+    }
+
+    /// Return whether entity and value are inputs or outputs.
+    pub fn entity_value_flow(&self) -> EntityValueFlow {
+        match (&self.flow, &self.index) {
+            (Flow::OutOut, Index::Eavt) => panic!("Using eavt for out-out is invalid"),
+            (Flow::OutOut, Index::Aevt) => EntityValueFlow::OutOut,
+            (Flow::OutOut, Index::Avet) => EntityValueFlow::OutOut,
+
+            (Flow::InOut, Index::Eavt) => EntityValueFlow::InOut,
+            (Flow::InOut, Index::Aevt) => EntityValueFlow::InOut,
+            (Flow::InOut, Index::Avet) => EntityValueFlow::OutIn,
+
+            (Flow::InIn, Index::Eavt) => EntityValueFlow::InIn,
+            (Flow::InIn, Index::Aevt) => EntityValueFlow::InIn,
+            (Flow::InIn, Index::Avet) => EntityValueFlow::InIn,
         }
     }
 }
