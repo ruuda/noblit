@@ -198,7 +198,7 @@ fn main() {
     // memory database.
     let mut db = match env::args().nth(1) {
         Some(fname) => {
-            let mut f = fs::File::open(fname).expect("Failed to open database file.");
+            let f = fs::File::open(fname).expect("Failed to open database file.");
             disk::read_packed(&mut io::BufReader::new(f)).expect("Failed to read database.")
         }
         None => {
