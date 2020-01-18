@@ -7,8 +7,8 @@ select
 > │ t    │ name             │
 > ├──────┼──────────────────┤
 > │ # 6  │ "db.type.bool"   │
-> │ # 9  │ "db.type.bytes"  │
 > │ # 7  │ "db.type.ref"    │
-> │ # 10 │ "db.type.string" │
 > │ # 8  │ "db.type.uint64" │
+> │ # 9  │ "db.type.bytes"  │
+> │ # 10 │ "db.type.string" │
 > └──────┴──────────────────┘

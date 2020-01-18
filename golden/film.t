@@ -148,7 +148,7 @@ select
 > ┌─────────────────────┐
 > │ name                │
 > ├─────────────────────┤
+> │ "Ridley Scott"      │
 > │ "Christopher Nolan" │
 > │ "Quentin Tarantino" │
-> │ "Ridley Scott"      │
 > └─────────────────────┘
