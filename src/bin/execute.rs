@@ -12,6 +12,7 @@ use std::io;
 use noblit::binary::Cursor;
 use noblit::database;
 use noblit::datom::Value;
+use noblit::disk;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
 use noblit::permutation::Permutations;
@@ -189,11 +190,24 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
 }
 
 fn main() {
-    // Construct an empty in-ememory database, and query engine on top.
-    let store: MemoryStore4096 = MemoryStore::new();
-    let heap = MemoryHeap::new();
+    use std::env;
+    use std::fs;
 
-    let mut db = Database::new(store, heap).unwrap();
+    // If a filename was provided on the command line, load that database into
+    // memory and use it as a starting point. If not, we start with an empty in-
+    // memory database.
+    let mut db = match env::args().nth(1) {
+        Some(fname) => {
+            let mut f = fs::File::open(fname).expect("Failed to open database file.");
+            disk::read_packed(&mut io::BufReader::new(f)).expect("Failed to read database.")
+        }
+        None => {
+            let store: MemoryStore4096 = MemoryStore::new();
+            let heap = MemoryHeap::new();
+            Database::new(store, heap).unwrap()
+        }
+    };
+
     let mut cursor = Cursor::new(io::stdin());
 
     loop {
