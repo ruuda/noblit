@@ -9,6 +9,7 @@ extern crate noblit;
 
 use noblit::database::Database;
 use noblit::datom::{Aid, Value};
+use noblit::eval;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::planner;
 use noblit::query;
@@ -211,23 +212,24 @@ fn main() {
         };
         query.fix_attributes(&mut view);
 
-        // TODO: Replace full eval with new plan, don't just print it.
+        let types = query.infer_types(&view).expect("Type error.");
+        let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
+
         let mut planner = planner::Planner::new(&query);
         planner.initialize_scans();
+        let plan = planner.get_plan();
         println!("Plan: \n{:?}", planner.get_plan());
 
-        let plan = QueryPlan::new(query, &view);
-
         println!("\nNamed entities with level:");
-        let eval = Evaluator::new(&plan, &view);
+        let eval = eval::Evaluator::new(&plan, &view);
         let rows: Vec<_> = eval.collect();
         let stdout = std::io::stdout();
         types::draw_table(
             &mut stdout.lock(),
             view.heap(),
-            plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
+            plan.select.iter().enumerate().map(|(i, _)| plan.get_select_name(i)),
             rows.iter().map(|ref row| &row[..]),
-            &plan.select_types[..],
+            &select_types[..],
         ).unwrap();
     }
 }

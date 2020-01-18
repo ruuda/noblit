@@ -145,3 +145,25 @@ impl<'a, Store: store::Store, Heap: heap::Heap> Evaluator<'a, Store, Heap> {
         }
     }
 }
+
+impl<'a, Store: store::Store, Heap: heap::Heap> Iterator for Evaluator<'a, Store, Heap> {
+    type Item = Box<[Value]>;
+
+    fn next(&mut self) -> Option<Box<[Value]>> {
+        let innermost_iter = self.plan.scans.len() - 1;
+        let had_next = self.increment(innermost_iter);
+
+        if had_next {
+            let selected_values: Vec<Value> = self
+                .plan
+                .select
+                .iter()
+                .map(|&v| self.slots[v.0 as usize])
+                .collect();
+
+            Some(selected_values.into_boxed_slice())
+        } else {
+            None
+        }
+    }
+}

@@ -249,6 +249,19 @@ impl Plan {
         self.check_select_in_bounds();
     }
 
+    /// Return the name of the variable selected by the `index`-th select.
+    pub fn get_select_name(&self, index: usize) -> &str {
+        let slot = self.select[index];
+        let slot_def = &self.slots[slot.0 as usize];
+        match slot_def {
+            // It is not just a programming error to try to select a constant;
+            // it is structurally impossible for queries to select one. If we
+            // try to select a constant, that is a bug in the planner.
+            SlotDefinition::Constant { .. } => panic!("Constants cannot be selected."),
+            SlotDefinition::Variable { ref name } => &name[..]
+        }
+    }
+
     /// A rather ad-hoc cost estimate. Should be replaced with something better.
     pub fn cost(&self) -> u64 {
         use std::collections::HashSet;
