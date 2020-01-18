@@ -25,7 +25,7 @@ use head::Head;
 use memory_store::{MemoryStore, MemoryHeap};
 use store;
 
-/// The magic bytes that indicate a Noblit database.
+/// The magic bytes that indicate a file is a Noblit database.
 ///
 /// The header is inspired by the header of the PNG format:
 ///
@@ -40,7 +40,7 @@ use store;
 /// * A null byte to pad to a multiple of 4 (not present in the PNG header).
 pub const SIGNATURE: [u8; 12] = *b"\x91Noblit\r\n\x1a\n\0";
 
-/// Write the database to a single file.
+/// Write the database as a single stream, in packed format.
 ///
 /// The packed format has the advantage that the entire database is a single
 /// file, which makes it easy to share and relocate. The downside of the packed
@@ -117,6 +117,16 @@ fn read_exact<R: io::Read>(mut input: R, len: usize) -> io::Result<Vec<u8>> {
     Ok(result)
 }
 
+/// Read a database from a single stream, in packed format.
+///
+/// This reads the entire database into memory. It is mostly useful for toy use
+/// cases.
+///
+/// The compile-time page size must match the page size of the file. In practice
+/// only page size 4096 should be used; the other page sizes exist only for use
+/// in tests and fuzzing, to test deeper trees, and uncover edge cases.
+/// Nonetheless, the page size is stored in the file, so we can confirm that it
+/// matches.
 pub fn read_packed<Size: store::PageSize>(
     mut input: &mut dyn io::Read
 ) -> io::Result<Database<MemoryStore<Size>, MemoryHeap>> {
