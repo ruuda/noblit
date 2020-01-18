@@ -71,8 +71,9 @@ where
     out.write_all(&head.to_bytes()[..])?;
 
     let max_page = head.max_page();
+    let num_pages = 1 + max_page.0;
     let page_size_in_bytes = <Store::Size as store::PageSize>::SIZE as u64;
-    let store_len_in_bytes = max_page.0 * page_size_in_bytes;
+    let store_len_in_bytes = num_pages * page_size_in_bytes;
     let heap_len_in_bytes = db.get_heap().len();
 
     // Byte [56..64): The page size, in bytes.
@@ -100,7 +101,9 @@ fn read_exact<R: io::Read>(mut input: R, len: usize) -> io::Result<Vec<u8>> {
     let mut result = Vec::with_capacity(len);
     let mut buffer = vec![0_u8; 4096];
     while result.len() < len {
-        let n_read = input.read(&mut buffer[..])?;
+        let n_left = len - result.len();
+        let n_take = buffer.len().min(n_left);
+        let n_read = input.read(&mut buffer[..n_take])?;
         result.extend_from_slice(&buffer[..n_read]);
 
         if n_read == 0 {
@@ -160,4 +163,64 @@ pub fn read_packed<Size: store::PageSize>(
     let heap = MemoryHeap::from_vec(heap_buffer);
     let db = Database::open(store, heap, head);
     Ok(db)
+}
+
+#[cfg(test)]
+mod test {
+    use std::io;
+
+    use database::Database;
+    use datom::{Datom, Eid, Aid, Tid, Value};
+    use disk::{read_packed, write_packed};
+    use memory_store::{MemoryStore, MemoryHeap};
+    use store::{PageSize, PageSize256, PageSize563, PageSize4096};
+    use temp_heap::Temporaries;
+
+    fn empty_database_write_read_packed_roundtrips<Size: PageSize>() {
+        // Set up an empty database.
+        let store: MemoryStore<Size> = MemoryStore::new();
+        let heap = MemoryHeap::new();
+        let db0 = Database::new(store, heap).unwrap();
+
+        // Write it to a buffer.
+        let mut buffer = Vec::new();
+        write_packed(&db0, &mut buffer).unwrap();
+
+        // Read a new in-memory database out of that buffer.
+        let db1 = read_packed::<Size>(&mut io::Cursor::new(buffer)).unwrap();
+
+        assert_eq!(db0.get_head(), db1.get_head());
+
+        // Assert that the contents of the EAVT indexes are idential.
+        let min = Datom::assert(Eid::min(), Aid::min(), Value::min(), Tid::min());
+        let max = Datom::assert(Eid::max(), Aid::max(), Value::max(), Tid::max());
+
+        let view0 = db0.view(Temporaries::new());
+        let eavt0 = view0.eavt().into_iter(&min, &max);
+        let view1 = db1.view(Temporaries::new());
+        let eavt1 = view1.eavt().into_iter(&min, &max);
+
+        for (d0, d1) in eavt0.zip(eavt1) {
+            // We compare datoms for bitwise equality. Often this is not what we
+            // want, because large values may need to be resolved. But in this
+            // case, we saved the database and loaded it back, so we expect a
+            // bitwise match.
+            assert_eq!(d0, d1);
+        }
+    }
+
+    #[test]
+    fn empty_database_write_read_packed_roundtrips_page_size_256() {
+        empty_database_write_read_packed_roundtrips::<PageSize256>();
+    }
+
+    #[test]
+    fn empty_database_write_read_packed_roundtrips_page_size_563() {
+        empty_database_write_read_packed_roundtrips::<PageSize563>();
+    }
+
+    #[test]
+    fn empty_database_write_read_packed_roundtrips_page_size_4096() {
+        empty_database_write_read_packed_roundtrips::<PageSize4096>();
+    }
 }
