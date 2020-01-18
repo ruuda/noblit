@@ -33,7 +33,7 @@ impl<Size: PageSize> MemoryStore<Size> {
         }
     }
 
-    /// Use a pre-populated vector as memory store.
+    /// Use a pre-populated vector as in-memory store.
     ///
     /// The length of the vector must be a multiple of the page size.
     pub fn from_vec(buffer: Vec<u8>) -> MemoryStore<Size> {
@@ -95,6 +95,13 @@ impl MemoryHeap {
     pub fn new() -> MemoryHeap {
         MemoryHeap {
             buffer: Vec::new(),
+        }
+    }
+
+    /// Use a pre-populated vector as in-memory heap.
+    pub fn from_vec(buffer: Vec<u8>) -> MemoryHeap {
+        MemoryHeap {
+            buffer: buffer
         }
     }
 }

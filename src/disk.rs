@@ -157,7 +157,7 @@ pub fn read_packed<Size: store::PageSize>(
     let heap_buffer = read_exact(&mut input, heap_size_in_bytes as usize)?;
 
     let store: MemoryStore<Size> = MemoryStore::from_vec(store_buffer);
-    let heap = unimplemented!("TODO: Read heap.");
-
-    Ok(unimplemented!("TODO: Construct DB."))
+    let heap = MemoryHeap::from_vec(heap_buffer);
+    let db = Database::open(store, heap, head);
+    Ok(db)
 }

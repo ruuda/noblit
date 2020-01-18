@@ -324,6 +324,21 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(db)
     }
 
+    /// Open an existing database.
+    pub fn open(store: Store, heap: Heap, head: Head) -> Database<Store, Heap> {
+        // TODO: Check that the builtins are consistent with the database that
+        // we are opening. All of them should be present. Having more of them is
+        // fine. Also, we should probably do a few basic sanity checks to ensure
+        // that the head and the store and heap are consistent.
+        let (builtins, _genesis_datoms, _genesis_consts) = Builtins::new();
+        Database {
+            builtins: builtins,
+            store: store,
+            heap: heap,
+            head: head,
+        }
+    }
+
     /// Return the inner store.
     pub fn get_store(&self) -> &Store {
         &self.store
