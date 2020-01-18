@@ -16,9 +16,13 @@
 
 use std::io;
 
-use binary::{u16_to_le_bytes, u64_to_le_bytes};
+use binary::{slice_2, slice_8};
+use binary::{u16_from_le_bytes, u16_to_le_bytes};
+use binary::{u64_from_le_bytes, u64_to_le_bytes};
 use database::Database;
 use heap;
+use head::Head;
+use memory_store::{MemoryStore, MemoryHeap};
 use store;
 
 /// The magic bytes that indicate a Noblit database.
@@ -63,7 +67,7 @@ where
 
     let head = db.get_head();
 
-    // Byte [16..56): The 40-bit head.
+    // Byte [16..56): The 40-byte head.
     out.write_all(&head.to_bytes()[..])?;
 
     let max_page = head.max_page();
@@ -89,3 +93,71 @@ where
     Ok(())
 }
 
+fn read_exact<R: io::Read>(mut input: R, len: usize) -> io::Result<Vec<u8>> {
+    // Note that this makes wasteful copies and does a pointless zero-
+    // initialization, but at this point performance is not a concern. We can
+    // optimize later if it turns out to be a bottleneck.
+    let mut result = Vec::with_capacity(len);
+    let mut buffer = vec![0_u8; 4096];
+    while result.len() < len {
+        let n_read = input.read(&mut buffer[..])?;
+        result.extend_from_slice(&buffer[..n_read]);
+
+        if n_read == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "Expected more bytes in read_exact.",
+            ));
+        }
+    }
+
+    Ok(result)
+}
+
+pub fn read_packed<Size: store::PageSize>(
+    mut input: &mut dyn io::Read
+) -> io::Result<Database<MemoryStore<Size>, MemoryHeap>> {
+    let mut buffer = [0_u8; 16];
+    input.read_exact(&mut buffer[..])?;
+
+    // TODO: Add a custom error type, and report an error, instead of panicing.
+
+    // Byte [0..12): The signature magic bytes.
+    assert_eq!(&buffer[0..12], &SIGNATURE[..]);
+    // Byte [12..14): The 16-bit format version.
+    assert_eq!(u16_from_le_bytes(slice_2(&buffer[12..14])), 1);
+    // Byte [14..16): The 8-bit format type. 0 indicates the packed format.
+    // Then an unused padding byte.
+    assert_eq!(buffer[14], 0); // Format type.
+    assert_eq!(buffer[15], 0); // Padding.
+
+    // Byte [16..56): The 40-byte head.
+    let mut buffer = [0_u8; 40];
+    input.read_exact(&mut buffer[..])?;
+    let head = Head::from_bytes(&buffer);
+
+    let mut buffer = [0_u8; 24];
+    input.read_exact(&mut buffer[..])?;
+    // Byte [56..64): The page size, in bytes.
+    let page_size_in_bytes = u64_from_le_bytes(slice_8(&buffer[0..8]));
+    // Byte [64..72): The size of the store, in bytes.
+    let store_size_in_bytes = u64_from_le_bytes(slice_8(&buffer[8..16]));
+    // Byte [72..80): The size of the heap, in bytes.
+    let heap_size_in_bytes = u64_from_le_bytes(slice_8(&buffer[16..24]));
+
+    assert_eq!(page_size_in_bytes as usize, Size::SIZE);
+
+    // Then we expect to find zero padding, up to the next multiple of the page
+    // size.
+    let mut buffer = vec![0_u8; Size::SIZE - 80];
+    input.read_exact(&mut buffer[..])?;
+    assert!(buffer.iter().all(|byte| *byte == 0));
+
+    let store_buffer = read_exact(&mut input, store_size_in_bytes as usize)?;
+    let heap_buffer = read_exact(&mut input, heap_size_in_bytes as usize)?;
+
+    let store: MemoryStore<Size> = MemoryStore::from_vec(store_buffer);
+    let heap = unimplemented!("TODO: Read heap.");
+
+    Ok(unimplemented!("TODO: Construct DB."))
+}

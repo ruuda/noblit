@@ -57,6 +57,17 @@ pub fn u64_to_le_bytes(x: u64) -> [u8; 8] {
     ]
 }
 
+/// Take the first 2 bytes out of a slice.
+///
+/// See also `slice_8`.
+#[inline(always)]
+pub fn slice_2(buffer: &[u8]) -> [u8; 2] {
+    [
+        buffer[0],
+        buffer[1],
+    ]
+}
+
 /// Take the first 8 bytes out of a slice.
 ///
 /// This function is a bit silly, but it is needed sometimes, because indexing

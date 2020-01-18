@@ -33,6 +33,24 @@ impl<Size: PageSize> MemoryStore<Size> {
         }
     }
 
+    /// Use a pre-populated vector as memory store.
+    ///
+    /// The length of the vector must be a multiple of the page size.
+    pub fn from_vec(buffer: Vec<u8>) -> MemoryStore<Size> {
+        let n_pages = (buffer.len() / Size::SIZE) as u64;
+        assert_eq!(
+            n_pages as usize * Size::SIZE, buffer.len(),
+            "Buffer length must be a multiple of the page size.",
+        );
+        MemoryStore {
+            buffer: buffer,
+            // n_pages-1 is the greatest used page id,
+            // so n_pages is the next fresh one.
+            fresh: n_pages,
+            _size_sentinel: PageSize::new(),
+        }
+    }
+
     pub fn as_bytes(&self) -> &[u8] {
         &self.buffer[..]
     }
