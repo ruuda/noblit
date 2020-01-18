@@ -183,7 +183,7 @@ mod test {
     use datom::{Datom, Eid, Aid, Tid, Value};
     use disk::{read_packed, write_packed};
     use memory_store::{MemoryStore, MemoryHeap};
-    use store::{PageSize, PageSize256, PageSize563, PageSize4096};
+    use store::{PageSize, PageSize256, PageSize568, PageSize4096};
     use temp_heap::Temporaries;
 
     fn empty_database_write_read_packed_roundtrips<Size: PageSize>() {
@@ -225,8 +225,8 @@ mod test {
     }
 
     #[test]
-    fn empty_database_write_read_packed_roundtrips_page_size_563() {
-        empty_database_write_read_packed_roundtrips::<PageSize563>();
+    fn empty_database_write_read_packed_roundtrips_page_size_568() {
+        empty_database_write_read_packed_roundtrips::<PageSize568>();
     }
 
     #[test]

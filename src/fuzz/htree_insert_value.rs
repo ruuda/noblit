@@ -107,7 +107,7 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
 }
 
 pub fn main(data: &[u8]) {
-    use store::{PageSize256, PageSize563, PageSize4096};
+    use store::{PageSize256, PageSize568, PageSize4096};
 
     let mut cursor = Cursor::new(data);
 
@@ -119,8 +119,8 @@ pub fn main(data: &[u8]) {
             let _ = run::<PageSize256>(cursor);
         }
         Some(1) => {
-            dprintln!("Page size: 563.");
-            let _ = run::<PageSize563>(cursor);
+            dprintln!("Page size: 568.");
+            let _ = run::<PageSize568>(cursor);
         }
         Some(2) => {
             dprintln!("Page size: 4096.");

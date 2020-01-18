@@ -74,8 +74,13 @@ pub trait PageSize {
 /// 256 bytes per page.
 pub struct PageSize256;
 
-/// 563 bytes per page.
-pub struct PageSize563;
+/// 568 bytes per page.
+///
+/// A 568-byte page can hold 13 datoms, the 2-byte header, and then it has 38
+/// bytes to spare. The size is deliberately not a power of two, to increase the
+/// chances of catching edge cases in tests. It is a multiple of 8 for alignment
+/// requirements, but it is a prime multiple of 8: 568 = 71 * 8.
+pub struct PageSize568;
 
 /// 4096 bytes per page.
 pub struct PageSize4096;
@@ -86,13 +91,10 @@ impl PageSize for PageSize256 {
     fn new() -> PageSize256 { PageSize256 }
 }
 
-// A 563-byte page can hold 13 datoms, the 2-byte header, and then it has 33
-// bytes to spare. The size is deliberately prime (and not a power of two) to
-// increase the chances of catching edge cases in tests.
-impl PageSize for PageSize563 {
-    const SIZE: usize = 563;
+impl PageSize for PageSize568 {
+    const SIZE: usize = 568;
     const CAPACITY: usize = 13;
-    fn new() -> PageSize563 { PageSize563 }
+    fn new() -> PageSize568 { PageSize568 }
 }
 
 impl PageSize for PageSize4096 {

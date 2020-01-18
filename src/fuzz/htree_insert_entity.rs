@@ -76,7 +76,7 @@ fn run<Size: PageSize>(full_data: &[u8]) {
 }
 
 pub fn main(data: &[u8]) {
-    use store::{PageSize256, PageSize563, PageSize4096};
+    use store::{PageSize256, PageSize568, PageSize4096};
 
     if data.len() == 0 { return }
 
@@ -88,8 +88,8 @@ pub fn main(data: &[u8]) {
             run::<PageSize256>(&data[1..]);
         }
         1 => {
-            dprintln!("Page size: 563.");
-            run::<PageSize563>(&data[1..]);
+            dprintln!("Page size: 568.");
+            run::<PageSize568>(&data[1..]);
         }
         2 => {
             dprintln!("Page size: 4096.");

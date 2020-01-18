@@ -966,7 +966,7 @@ mod test {
     use std::iter;
 
     use datom::{Aid, Datom, Eid, Tid, Value};
-    use store::{PageId, PageSize, PageSize256, PageSize563, PageSize4096, StoreMut};
+    use store::{PageId, PageSize, PageSize256, PageSize568, PageSize4096, StoreMut};
     use memory_store::{MemoryStore, MemoryHeap};
     use super::{HTree, Iter, Node, Cursor};
     use index::Eavt;
@@ -1010,7 +1010,7 @@ mod test {
             children: &child_ids[..],
         };
 
-        type Size = PageSize563;
+        type Size = PageSize568;
         let mut store1 = MemoryStore::<Size>::new();
         store1.write_page(&node.write::<Size>()).unwrap();
 
@@ -1039,7 +1039,7 @@ mod test {
             children: &child_ids[..],
         };
 
-        type Size = PageSize563;
+        type Size = PageSize568;
         let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         store.write_page(&node.write::<Size>()).unwrap();
@@ -1094,7 +1094,7 @@ mod test {
             children: &children2[..],
         };
 
-        type Size = PageSize563;
+        type Size = PageSize568;
         let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let p0 = store.write_page(&node0.write::<Size>()).unwrap();
@@ -1153,7 +1153,7 @@ mod test {
             children: &children2[..],
         };
 
-        type Size = PageSize563;
+        type Size = PageSize568;
         let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let p0 = store.write_page(&node0.write::<Size>()).unwrap();
@@ -1182,7 +1182,7 @@ mod test {
     fn tree_insert_accepts_new_datoms() {
         let make_datom = |i| Datom::assert(Eid(i), Aid::max(), Value::min(), Tid::max());
 
-        type Size = PageSize563;
+        type Size = PageSize568;
         let heap = MemoryHeap::new();
         let mut store = MemoryStore::<Size>::new();
         let node = Node::empty_of_level(0);

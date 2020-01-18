@@ -15,6 +15,9 @@ use store::{PageId, PageSize, Store, StoreMut};
 /// An in-memory page store, not backed by a file.
 pub struct MemoryStore<Size: PageSize> {
     /// The backing buffer.
+    ///
+    /// TODO: Add a mechanism to ensure 8-byte alignment of the buffer. In
+    /// practice it already is aligned correctly, but in theory it is not.
     buffer: Vec<u8>,
 
     /// The next unused page id.
