@@ -7,6 +7,7 @@
 
 extern crate noblit;
 
+use std::cmp::Ordering;
 use std::io;
 use std::time::{Duration, Instant};
 
@@ -17,7 +18,7 @@ use noblit::disk;
 use noblit::eval::Evaluator;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
-use noblit::permutation::Permutations;
+use noblit::plan::Plan;
 use noblit::planner::Planner;
 use noblit::query::{QueryAttribute, QueryValue};
 use noblit::store::PageSize4096;
@@ -71,6 +72,55 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     println!("{:?}", planner.get_plan());
 }
 
+struct PlanBench {
+    plan: Plan,
+    durations_ns: Vec<f64>,
+    duration_lo_ns: f64,
+    duration_hi_ns: f64,
+}
+
+impl PlanBench {
+    pub fn new(plan: Plan) -> PlanBench {
+        PlanBench {
+            plan: plan,
+            durations_ns: Vec::new(),
+            duration_lo_ns: 0.0,
+            duration_hi_ns: 1000.0,
+        }
+    }
+
+    pub fn observe(&mut self, duration: Duration) {
+        // Insert the new duration, keeping the vector sorted.
+        let duration_ns = duration.subsec_nanos() as f64 + 1e9 * (duration.as_secs() as f64);
+        match self.durations_ns.binary_search_by(|x| x.partial_cmp(&duration_ns).unwrap()) {
+            Ok(i) => self.durations_ns.insert(i, duration_ns),
+            Err(i) => self.durations_ns.insert(i, duration_ns),
+        };
+
+        // Compute the lower bound of a 99.7% confidence interval for the mean,
+        // and the mean itself. We cache it to ease sorting.
+        let (duration_lo_ns, duration_hi_ns) = match self.durations_ns.len() {
+            0 => (0.0, 1000.0),
+            n => {
+                self.durations_ns.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                let p05 = self.durations_ns[self.durations_ns.len() / 20];
+                let f = 1.0 / (n as f64).sqrt();
+                (p05 * (1.0 - f), p05 * (1.0 + f))
+            }
+        };
+        self.duration_lo_ns = duration_lo_ns;
+        self.duration_hi_ns = duration_hi_ns;
+    }
+
+    pub fn cmp(&self, other: &PlanBench) -> Ordering {
+        match self.duration_lo_ns.partial_cmp(&other.duration_lo_ns).unwrap() {
+            Ordering::Less => Ordering::Less,
+            Ordering::Greater => Ordering::Greater,
+            Ordering::Equal => self.duration_hi_ns.partial_cmp(&other.duration_hi_ns).unwrap(),
+        }
+    }
+}
+
 fn optimize_query(cursor: &mut Cursor, database: &Database) {
     let mut temporaries = Temporaries::new();
     let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
@@ -78,59 +128,48 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     query.fix_attributes(&view);
 
     let mut planner = Planner::new(&query);
-
-    // Print the initial plan.
     planner.initialize_scans();
 
-    let mut best_plan = None;
-    let mut min_duration = Duration::from_secs(600);
-    let mut all_durations = Vec::new();
+    let mut benches = Vec::new();
 
-    planner.initialize_scans();
+    loop {
+        benches.push(PlanBench::new(planner.get_plan().clone()));
+        if !planner.next() { break }
+    }
 
-    for _ in 0..50 {
-        loop {
-            {
-                let plan = planner.get_plan();
-                let mut durations = Vec::with_capacity(5);
-
-                for _ in 0..30 {
+    while benches[0].duration_hi_ns - benches[0].duration_lo_ns > 100.0 {
+        for _ in 0..1000 {
+            benches.sort_by(|a, b| a.cmp(b));
+            for &i in &[5, 1, 0] {
+                let pb = &mut benches[i];
+                let duration = {
                     let start = Instant::now();
-                    let eval = Evaluator::new(&plan, &view);
+                    let eval = Evaluator::new(&pb.plan, &view);
                     let _count = eval.count();
                     let end = Instant::now();
-                    let duration = end.duration_since(start);
-                    durations.push(duration);
-                }
-
-                // Take the p33 duration.
-                durations.sort();
-                let duration = durations[10];
-
-                if duration < min_duration {
-                    min_duration = duration;
-                    best_plan = Some(plan.clone());
-                    println!("IMPROVE {:?}", min_duration);
-                }
-
-                all_durations.push(duration);
+                    end.duration_since(start)
+                };
+                pb.observe(duration);
             }
+        }
 
-            if !planner.next() { break }
+        benches.sort_by(|a, b| a.cmp(b));
+        println!();
+        for &i in &[0, 1, 2, benches.len() / 5, benches.len() - 1] {
+            let pb = &benches[i];
+            println!(
+                "#{:2}: {:.3} us  ({:.3} us .. {:.3} us) (n = {})",
+                i + 1,
+                (pb.duration_lo_ns + pb.duration_hi_ns) * 0.5e-3,
+                pb.duration_lo_ns * 1e-3,
+                pb.duration_hi_ns * 1e-3,
+                pb.durations_ns.len(),
+            );
         }
     }
 
-    if let Some(best) = best_plan {
-        println!("Minimum time: {:?}", min_duration);
-        println!("{:?}\n", best);
-        all_durations.sort();
-        let p10 = all_durations[all_durations.len() * 1 / 10];
-        let p50 = all_durations[all_durations.len() * 5 / 10];
-        let p90 = all_durations[all_durations.len() * 9 / 10];
-        println!("p10 time: {:?}", p10);
-        println!("p50 time: {:?}", p50);
-        println!("p90 time: {:?}", p90);
-    }
+    println!("\n#1:\n{:?}", benches[0].plan);
+    println!("\n#2:\n{:?}", benches[1].plan);
 }
 
 /// Evaluate the mutation, return the datoms produced.
