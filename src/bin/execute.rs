@@ -221,7 +221,9 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
 
     let mut open = Vec::new();
     let mut candidates = Vec::new();
+    let mut fastest_at_depth = Vec::new();
     open.push(PartialQuery::new(&query));
+    fastest_at_depth.push(Duration::from_secs(0));
 
     while let Some(base) = open.pop() {
         if base.is_done() {
@@ -233,6 +235,16 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             break
         }
 
+        // For every number of included statements, keep track of the fastest
+        // way of doing that many statements. We use this later to bail out
+        // early when we try something at that depth that is obviously worse.
+        if base.include.len() >= fastest_at_depth.len() {
+            fastest_at_depth.push(base.duration);
+        } else {
+            let fastest = &mut fastest_at_depth[base.include.len()];
+            *fastest = base.duration.min(*fastest);
+        }
+
         println!(
             "[{}/{}] [{} open] Candidate {:?}",
             base.include.len(),
@@ -241,8 +253,14 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             base.duration,
         );
 
+        let record = if fastest_at_depth.len() > base.include.len() + 1 {
+            fastest_at_depth[base.include.len() + 1]
+        } else {
+            Duration::from_secs(600)
+        };
+
         base.expand(&mut candidates);
-        for mut candidate in candidates.drain(..) {
+        'expand: for mut candidate in candidates.drain(..) {
             let partial_query = candidate.as_query(&query);
             let mut planner = Planner::new(&partial_query);
             planner.initialize_scans();
@@ -250,12 +268,22 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
 
             let mut duration = Duration::from_secs(600);
 
-            for _ in 0..500 {
+            for i in 0..500 {
                 let start = Instant::now();
                 let eval = Evaluator::new(&plan, &view);
                 let _count = eval.count();
                 let end = Instant::now();
                 duration = duration.min(end.duration_since(start));
+
+                // If it is clear that this candidate is a lot slower than the
+                // fastest known candidate at that depth, there is no point in
+                // exploring further; cut off and go to the next candidate then.
+                if duration > record * 100 {
+                    continue 'expand;
+                }
+                if duration > record * 5 && i > 10 {
+                    continue 'expand;
+                }
             }
 
             candidate.duration = duration;
