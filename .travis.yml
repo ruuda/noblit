@@ -13,6 +13,13 @@ cache:
   - $TRAVIS_BUILD_DIR/client/haskell/.stack-work
   - $TRAVIS_BUILD_DIR/examples/.stack-work
 
+before_cache:
+  # Building Miri produces files in the "incremental" directory. Even if
+  # everything was still cached and the build is a no-op, it writes new,
+  # different files. That triggers Travis to upload the full cache, which takes
+  # a long time. Delete these files, they are not useful.
+  - rm -fr $HOME/.cache/miri/target/debug/incremental
+
 before_install:
   # Bring all the tools from the pinned build environment into the PATH.
   - export PATH=$(nix-build --no-out-link)/bin:$PATH
