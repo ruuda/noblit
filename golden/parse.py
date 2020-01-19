@@ -91,12 +91,19 @@ class Statement(NamedTuple):
             raise ValueError('Invalid value in statement.')
 
 
+class Mode(Enum):
+    READ = 0
+    WRITE = 1
+    EXPLAIN = 2
+    OPTIMIZE = 3
+
+
 class Query(NamedTuple):
     variable_names: List[str]
     where_statements: List[Statement]
     assertions: List[Statement]
     select: List[Var]
-    explain: bool
+    mode: Mode
 
     def __str__(self) -> str:
         """
@@ -131,12 +138,8 @@ class Query(NamedTuple):
         """
         Serialize the query to a binary format that Noblit can read.
         """
-        # 1-byte query type: 0 for a read, 1 for a write, 2 for explain.
-        if self.explain:
-            yield u8(2)
-        else:
-            type_ = 0 if len(self.assertions) == 0 else 1
-            yield u8(type_)
+        # 1-byte query type.
+        yield u8(self.mode.value)
 
         # 2-byte number of variables, followed by length-prefixed names.
         yield u16_le(len(self.variable_names))
@@ -255,7 +258,7 @@ def parse_query(lines: Iterable[str]) -> Query:
     statements: List[Statement] = []
     assertions: List[Statement] = []
     select: List[Var] = []
-    explain = False
+    mode = Mode.READ
 
     for line in lines:
         if line.strip() == '' or line.strip().startswith('--'):
@@ -279,21 +282,26 @@ def parse_query(lines: Iterable[str]) -> Query:
 
         elif state == State.INIT and line == 'explain\n':
             # Allow an "explain" prefix on queries.
-            explain = True
+            mode = Mode.EXPLAIN
+
+        elif state == State.INIT and line == 'optimize\n':
+            # Allow an "optimize" prefix on queries.
+            mode = Mode.OPTIMIZE
 
         else:
             # Interpret anything else as a state change.
             state = parse_state(line)
 
-    if explain:
-        assert len(assertions) == 0, '"Explain" is not supported with assertions.'
+            if state == State.ASSERT:
+                assert mode == Mode.READ, f'Assert is not supported with {mode}.'
+                mode = Mode.WRITE
 
     return Query(
         variable_names=variables.names(),
         where_statements=statements,
         assertions=assertions,
         select=select,
-        explain=explain,
+        mode=mode,
     )
 
 

@@ -64,11 +64,22 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     let view = database.view(temporaries);
     query.fix_attributes(&view);
 
+    // Print the initial plan.
+    let mut planner = Planner::new(&query);
+    planner.initialize_scans();
+    println!("{:?}", planner.get_plan());
+}
+
+fn optimize_query(cursor: &mut Cursor, database: &Database) {
+    let mut temporaries = Temporaries::new();
+    let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
+    let view = database.view(temporaries);
+    query.fix_attributes(&view);
+
     let mut planner = Planner::new(&query);
 
     // Print the initial plan.
     planner.initialize_scans();
-    println!("{:?}", planner.get_plan());
 
     let mut permutations = Permutations::new(query.where_statements.len());
     let mut best_plan = None;
@@ -228,6 +239,7 @@ fn main() {
             Ok(0) => run_query(&mut cursor, &db),
             Ok(1) => run_mutation(&mut cursor, &mut db),
             Ok(2) => explain_query(&mut cursor, &db),
+            Ok(3) => optimize_query(&mut cursor, &db),
             Ok(n) => panic!("Unsupported operation: {}", n),
             // EOF is actually expected. At EOF, we are done.
             Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
