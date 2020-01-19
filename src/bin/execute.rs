@@ -20,7 +20,7 @@ use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::parse;
 use noblit::plan::Plan;
 use noblit::planner::Planner;
-use noblit::query::{QueryAttribute, QueryValue};
+use noblit::query::{QueryAttribute, QueryValue, Statement, Query};
 use noblit::store::PageSize4096;
 use noblit::temp_heap::Temporaries;
 use noblit::types::{Type, self};
@@ -121,7 +121,7 @@ impl PlanBench {
     }
 }
 
-fn optimize_query(cursor: &mut Cursor, database: &Database) {
+fn _micro_optimize_query(cursor: &mut Cursor, database: &Database) {
     let mut temporaries = Temporaries::new();
     let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
     let view = database.view(temporaries);
@@ -170,6 +170,101 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
 
     println!("\n#1:\n{:?}", benches[0].plan);
     println!("\n#2:\n{:?}", benches[1].plan);
+}
+
+#[derive(Clone)]
+struct PartialQuery {
+    /// Duration of running the query with `include` statements included.
+    duration: Duration,
+    include: Vec<Statement>,
+    exclude: Vec<Statement>,
+}
+
+impl PartialQuery {
+    fn new(query: &Query) -> PartialQuery {
+        PartialQuery {
+            duration: Duration::from_secs(0),
+            include: Vec::new(),
+            exclude: query.where_statements.clone(),
+        }
+    }
+
+    fn as_query(&self, query: &Query) -> Query {
+        Query {
+            variable_names: query.variable_names.clone(),
+            where_statements: self.include.clone(),
+            select: Vec::new(),
+        }
+    }
+
+    fn is_done(&self) -> bool {
+        self.exclude.len() == 0
+    }
+
+    fn expand(&self, into: &mut Vec<PartialQuery>) {
+        assert!(self.exclude.len() > 0);
+
+        for i in 0..self.exclude.len() {
+            let mut partial = self.clone();
+            let stmt = partial.exclude.remove(i);
+            partial.include.push(stmt);
+            into.push(partial);
+        }
+    }
+}
+
+fn optimize_query(cursor: &mut Cursor, database: &Database) {
+    let mut temporaries = Temporaries::new();
+    let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
+    let view = database.view(temporaries);
+    query.fix_attributes(&view);
+
+    let mut open = Vec::new();
+    let mut candidates = Vec::new();
+    open.push(PartialQuery::new(&query));
+
+    while let Some(base) = open.pop() {
+        if base.is_done() {
+            let final_query = base.as_query(&query);
+            let mut planner = Planner::new(&final_query);
+            planner.initialize_scans();
+            let plan = planner.get_plan();
+            println!("Duration: {:?}\nPlan:\n{:?}", base.duration, plan);
+            break
+        }
+
+        println!(
+            "[{}/{}] [{} open] Candidate {:?}",
+            base.include.len(),
+            base.include.len() + base.exclude.len(),
+            open.len(),
+            base.duration,
+        );
+
+        base.expand(&mut candidates);
+        for mut candidate in candidates.drain(..) {
+            let partial_query = candidate.as_query(&query);
+            let mut planner = Planner::new(&partial_query);
+            planner.initialize_scans();
+            let plan = planner.get_plan();
+
+            let mut duration = Duration::from_secs(600);
+
+            for _ in 0..500 {
+                let start = Instant::now();
+                let eval = Evaluator::new(&plan, &view);
+                let _count = eval.count();
+                let end = Instant::now();
+                duration = duration.min(end.duration_since(start));
+            }
+
+            candidate.duration = duration;
+            open.push(candidate);
+        }
+
+        // Sort candidates by descending duration; we pop from the end.
+        open.sort_by(|a, b| b.duration.cmp(&a.duration));
+    }
 }
 
 /// Evaluate the mutation, return the datoms produced.
