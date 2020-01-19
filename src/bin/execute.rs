@@ -82,67 +82,54 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     // Print the initial plan.
     planner.initialize_scans();
 
-    let mut permutations = Permutations::new(query.where_statements.len());
     let mut best_plan = None;
-    let mut worst_plan = None;
     let mut min_duration = Duration::from_secs(600);
-    let mut max_duration = Duration::from_secs(0);
+    let mut all_durations = Vec::new();
 
-    for _ in 0..1_000 {
-        planner.initialize_scans();
+    planner.initialize_scans();
 
-        'perm: loop {
+    for _ in 0..50 {
+        loop {
             {
                 let plan = planner.get_plan();
                 let mut durations = Vec::with_capacity(5);
 
-                for _ in 0..5 {
+                for _ in 0..30 {
                     let start = Instant::now();
                     let eval = Evaluator::new(&plan, &view);
                     let _count = eval.count();
                     let end = Instant::now();
                     let duration = end.duration_since(start);
                     durations.push(duration);
-
-                    // If we hit a slow run, don't bother investigating this
-                    // permutation further.
-                    if duration > min_duration * 10 {
-                        println!("SKIP {:?}", duration);
-                        break 'perm;
-                    }
                 }
 
-                // Take the median duration.
+                // Take the p33 duration.
                 durations.sort();
-                let duration = durations[2];
+                let duration = durations[10];
 
                 if duration < min_duration {
                     min_duration = duration;
                     best_plan = Some(plan.clone());
                     println!("IMPROVE {:?}", min_duration);
                 }
-                if duration > max_duration {
-                    max_duration = duration;
-                    worst_plan = Some(plan.clone());
-                }
-            }
 
-            println!("Min: {:?}, max: {:?}", min_duration, max_duration);
+                all_durations.push(duration);
+            }
 
             if !planner.next() { break }
         }
-
-        match permutations.next() {
-            Some((i, j)) => planner.statements.swap(i, j),
-            None => break,
-        }
     }
 
-    if let (Some(best), Some(worst)) = (best_plan, worst_plan) {
+    if let Some(best) = best_plan {
         println!("Minimum time: {:?}", min_duration);
         println!("{:?}\n", best);
-        println!("Max time: {:?}", max_duration);
-        println!("{:?}\n", worst);
+        all_durations.sort();
+        let p10 = all_durations[all_durations.len() * 1 / 10];
+        let p50 = all_durations[all_durations.len() * 5 / 10];
+        let p90 = all_durations[all_durations.len() * 9 / 10];
+        println!("p10 time: {:?}", p10);
+        println!("p50 time: {:?}", p50);
+        println!("p90 time: {:?}", p90);
     }
 }
 
