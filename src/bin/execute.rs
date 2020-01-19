@@ -8,6 +8,7 @@
 extern crate noblit;
 
 use std::io;
+use std::time::{Duration, Instant};
 
 use noblit::binary::Cursor;
 use noblit::database;
@@ -84,26 +85,50 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     let mut permutations = Permutations::new(query.where_statements.len());
     let mut best_plan = None;
     let mut worst_plan = None;
-    let mut best_cost = 0xffff_ffff_ffff_ffff;
-    let mut worst_cost = 0;
+    let mut min_duration = Duration::from_secs(600);
+    let mut max_duration = Duration::from_secs(0);
 
     for _ in 0..1_000 {
         planner.initialize_scans();
 
-        loop {
+        'perm: loop {
             {
                 let plan = planner.get_plan();
-                let cost = plan.cost();
+                let mut durations = Vec::with_capacity(5);
 
-                if cost < best_cost {
-                    best_cost = cost;
-                    best_plan = Some(plan.clone());
+                for _ in 0..5 {
+                    let start = Instant::now();
+                    let eval = Evaluator::new(&plan, &view);
+                    let _count = eval.count();
+                    let end = Instant::now();
+                    let duration = end.duration_since(start);
+                    durations.push(duration);
+
+                    // If we hit a slow run, don't bother investigating this
+                    // permutation further.
+                    if duration > min_duration * 10 {
+                        println!("SKIP {:?}", duration);
+                        break 'perm;
+                    }
                 }
-                if cost > worst_cost {
-                    worst_cost = cost;
+
+                // Take the median duration.
+                durations.sort();
+                let duration = durations[2];
+
+                if duration < min_duration {
+                    min_duration = duration;
+                    best_plan = Some(plan.clone());
+                    println!("IMPROVE {:?}", min_duration);
+                }
+                if duration > max_duration {
+                    max_duration = duration;
                     worst_plan = Some(plan.clone());
                 }
             }
+
+            println!("Min: {:?}, max: {:?}", min_duration, max_duration);
+
             if !planner.next() { break }
         }
 
@@ -113,14 +138,11 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
         }
     }
 
-    // TODO: Add a debug mode that can print alternatives. This is not the right
-    // place for it.
     if let (Some(best), Some(worst)) = (best_plan, worst_plan) {
-        // println!("Best cost: {}", best_cost);
-        // println!("{:?}\n", best);
-        // println!("Worst cost: {}", worst_cost);
-        // println!("{:?}\n", worst);
-        drop((best, worst));
+        println!("Minimum time: {:?}", min_duration);
+        println!("{:?}\n", best);
+        println!("Max time: {:?}", max_duration);
+        println!("{:?}\n", worst);
     }
 }
 
