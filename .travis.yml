@@ -20,6 +20,9 @@ before_cache:
   # a long time. Delete these files, they are not useful.
   - rm -fr $HOME/.cache/miri/target/debug/incremental
 
+  # The Stack database also changes even no code changes, do not cache it either.
+  - rm $HOME/.stack/stack.sqlite3
+
 before_install:
   # Bring all the tools from the pinned build environment into the PATH.
   - export PATH=$(nix-build --no-out-link)/bin:$PATH
