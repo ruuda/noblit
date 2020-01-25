@@ -7,7 +7,6 @@
 
 extern crate noblit;
 
-use std::cmp::Ordering;
 use std::io;
 use std::time::{Duration, Instant};
 
@@ -72,106 +71,6 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     println!("{:?}", planner.get_plan());
 }
 
-struct PlanBench {
-    plan: Plan,
-    durations_ns: Vec<f64>,
-    duration_lo_ns: f64,
-    duration_hi_ns: f64,
-}
-
-impl PlanBench {
-    pub fn new(plan: Plan) -> PlanBench {
-        PlanBench {
-            plan: plan,
-            durations_ns: Vec::new(),
-            duration_lo_ns: 0.0,
-            duration_hi_ns: 1000.0,
-        }
-    }
-
-    pub fn observe(&mut self, duration: Duration) {
-        // Insert the new duration, keeping the vector sorted.
-        let duration_ns = duration.subsec_nanos() as f64 + 1e9 * (duration.as_secs() as f64);
-        match self.durations_ns.binary_search_by(|x| x.partial_cmp(&duration_ns).unwrap()) {
-            Ok(i) => self.durations_ns.insert(i, duration_ns),
-            Err(i) => self.durations_ns.insert(i, duration_ns),
-        };
-
-        // Compute the lower bound of a 99.7% confidence interval for the mean,
-        // and the mean itself. We cache it to ease sorting.
-        let (duration_lo_ns, duration_hi_ns) = match self.durations_ns.len() {
-            0 => (0.0, 1000.0),
-            n => {
-                self.durations_ns.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                let p05 = self.durations_ns[self.durations_ns.len() / 20];
-                let f = 1.0 / (n as f64).sqrt();
-                (p05 * (1.0 - f), p05 * (1.0 + f))
-            }
-        };
-        self.duration_lo_ns = duration_lo_ns;
-        self.duration_hi_ns = duration_hi_ns;
-    }
-
-    pub fn cmp(&self, other: &PlanBench) -> Ordering {
-        match self.duration_lo_ns.partial_cmp(&other.duration_lo_ns).unwrap() {
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Equal => self.duration_hi_ns.partial_cmp(&other.duration_hi_ns).unwrap(),
-        }
-    }
-}
-
-fn _micro_optimize_query(cursor: &mut Cursor, database: &Database) {
-    let mut temporaries = Temporaries::new();
-    let mut query = parse::parse_query(cursor, &mut temporaries).expect("Failed to parse query.");
-    let view = database.view(temporaries);
-    query.fix_attributes(&view);
-
-    let mut planner = Planner::new(&query);
-    planner.initialize_scans();
-
-    let mut benches = Vec::new();
-
-    loop {
-        benches.push(PlanBench::new(planner.get_plan().clone()));
-        if !planner.next() { break }
-    }
-
-    while benches[0].duration_hi_ns - benches[0].duration_lo_ns > 100.0 {
-        for _ in 0..1000 {
-            benches.sort_by(|a, b| a.cmp(b));
-            for &i in &[5, 1, 0] {
-                let pb = &mut benches[i];
-                let duration = {
-                    let start = Instant::now();
-                    let eval = Evaluator::new(&pb.plan, &view);
-                    let _count = eval.count();
-                    let end = Instant::now();
-                    end.duration_since(start)
-                };
-                pb.observe(duration);
-            }
-        }
-
-        benches.sort_by(|a, b| a.cmp(b));
-        println!();
-        for &i in &[0, 1, 2, benches.len() / 5, benches.len() - 1] {
-            let pb = &benches[i];
-            println!(
-                "#{:2}: {:.3} us  ({:.3} us .. {:.3} us) (n = {})",
-                i + 1,
-                (pb.duration_lo_ns + pb.duration_hi_ns) * 0.5e-3,
-                pb.duration_lo_ns * 1e-3,
-                pb.duration_hi_ns * 1e-3,
-                pb.durations_ns.len(),
-            );
-        }
-    }
-
-    println!("\n#1:\n{:?}", benches[0].plan);
-    println!("\n#2:\n{:?}", benches[1].plan);
-}
-
 /// The minimum of a number of duration measurements.
 #[derive(Clone)]
 struct MinDuration {
@@ -220,6 +119,14 @@ struct PartialQuery {
     duration: MinDuration,
     include: Vec<Statement>,
     exclude: Vec<Statement>,
+
+    /// The possible plans for the query with `include` statements included.
+    ///
+    /// Also the times to run them. For the partial query, we are interested in
+    /// the most efficient micro-plan. In other words, for a given statement
+    /// order, we want to use the choose the indexes for each scan such that the
+    /// total query time is minimized.
+    plans: Vec<(Plan, MinDuration)>,
 }
 
 impl PartialQuery {
@@ -228,6 +135,7 @@ impl PartialQuery {
             duration: MinDuration::new(),
             include: Vec::new(),
             exclude: query.where_statements.clone(),
+            plans: Vec::new(),
         }
     }
 
@@ -243,14 +151,34 @@ impl PartialQuery {
         self.exclude.len() == 0
     }
 
-    fn expand(&self, into: &mut Vec<PartialQuery>) {
+    fn expand(&self, into: &mut Vec<PartialQuery>, full_query: &Query) {
         assert!(self.exclude.len() > 0);
 
         for i in 0..self.exclude.len() {
-            let mut partial = self.clone();
-            let stmt = partial.exclude.remove(i);
-            partial.include.push(stmt);
-            partial.duration = MinDuration::new();
+            // Build a new partial query that includes one more statement.
+            let mut exclude = self.exclude.clone();
+            let mut include = self.include.clone();
+            let stmt = exclude.remove(i);
+            include.push(stmt);
+
+            let mut partial = PartialQuery {
+                include: include,
+                exclude: exclude,
+                duration: MinDuration::new(),
+                plans: Vec::new(),
+            };
+
+            // Generate all possible query plans for this given statement order.
+            let query = partial.as_query(&full_query);
+            let mut planner = Planner::new(&query);
+            planner.initialize_scans();
+
+            loop {
+                let plan = planner.get_plan().clone();
+                partial.plans.push((plan, MinDuration::new()));
+                if !planner.next() { break }
+            }
+
             into.push(partial);
         }
     }
@@ -271,15 +199,13 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     // duration". Higher numbers give us more accurate results, but we hit
     // diminishing results quickly. The goal is to rank plans, so we only need
     // enough accuracy to tell which plan is faster with some confidence.
-    let min_iters: u32 = 1000;
+    let min_iters: u32 = 5000;
 
     while let Some(mut candidate) = open.pop() {
         if candidate.is_done() && candidate.duration.num_samples >= min_iters {
-            let final_query = candidate.as_query(&query);
-            let mut planner = Planner::new(&final_query);
-            planner.initialize_scans();
-            let plan = planner.get_plan();
-            println!("Duration: {:?}\nPlan:\n{:?}", candidate.duration.min_duration, plan);
+            let (ref plan, ref duration) = candidate.plans[candidate.plans.len() - 1];
+            println!("\nOptimization complete.");
+            println!("Duration: {:?}\n{:?}", duration.min_duration, plan);
             break
         }
 
@@ -292,6 +218,15 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
                 candidate.duration.min_duration,
                 candidate.duration.num_samples,
             );
+
+            for &(ref plan, ref plan_duration) in candidate.plans.iter().rev() {
+                println!(
+                    "  Micro {:.1} µs .. {:?} (n={})",
+                    plan_duration.estimate_lower_bound_ns() * 1e-3,
+                    plan_duration.min_duration,
+                    plan_duration.num_samples,
+                );
+            }
 
             // Print the best 3 alternatives too, so we can see where the
             // ranking is focussing.
@@ -308,30 +243,42 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             // looking at is really the best one, expand it. We add all the
             // child nodes in the tree to the open set, and this candidate one
             // is now considered closed.
-            candidate.expand(&mut open);
+            candidate.expand(&mut open, &query);
         } else {
             // If this base ranks as the current most promising candidate, but
             // we don't have sufficient samples to prove it, do more one more
             // measurement to increase our confidence.
 
-            let partial_query = candidate.as_query(&query);
-            let mut planner = Planner::new(&partial_query);
-            planner.initialize_scans();
-            let plan = planner.get_plan();
+            let (plan, mut plan_duration) = candidate.plans.pop().unwrap();
 
-            let start = Instant::now();
-            let eval = Evaluator::new(&plan, &view);
-            let _count = eval.count();
-            let end = Instant::now();
+            let duration = {
+                let start = Instant::now();
+                let eval = Evaluator::new(&plan, &view);
+                let _count = eval.count();
+                let end = Instant::now();
+                end.duration_since(start)
+            };
 
-            candidate.duration.observe(end.duration_since(start));
+            // Record durations for the micro-plan and macro-plan. For a given
+            // statement order, the minimum duration is the minimium duration of
+            // the fastest micro-plan.
+            plan_duration.observe(duration);
+            candidate.duration.observe(duration);
+
+            candidate.plans.push((plan, plan_duration));
+            candidate.plans.sort_by(|a, b| {
+                let a_ns = a.1.estimate_lower_bound_ns();
+                let b_ns = b.1.estimate_lower_bound_ns();
+                b_ns.partial_cmp(&a_ns).unwrap()
+            });
+
             open.push(candidate);
         }
 
         // Sort candidates by descending duration; we pop from the end. We don't
         // really need to sort, we only need the best candidate, so a binary
         // heap would suffice. But sorting is fast enough anyway for now.
-        open.sort_by( |a, b| {
+        open.sort_by(|a, b| {
             let a_ns = a.duration.estimate_lower_bound_ns();
             let b_ns = b.duration.estimate_lower_bound_ns();
             b_ns.partial_cmp(&a_ns).unwrap()
