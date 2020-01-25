@@ -265,8 +265,16 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     let mut open = Vec::new();
     open.push(PartialQuery::new(&query));
 
+    // The minimum number of timing measurements we need to have done for a
+    // particular plan, before we are confident enough about its timing to
+    // accept the minimum observed duration over all iterations as the "true
+    // duration". Higher numbers give us more accurate results, but we hit
+    // diminishing results quickly. The goal is to rank plans, so we only need
+    // enough accuracy to tell which plan is faster with some confidence.
+    let min_iters: u32 = 1000;
+
     while let Some(mut candidate) = open.pop() {
-        if candidate.is_done() && candidate.duration.num_samples >= 500 {
+        if candidate.is_done() && candidate.duration.num_samples >= min_iters {
             let final_query = candidate.as_query(&query);
             let mut planner = Planner::new(&final_query);
             planner.initialize_scans();
@@ -275,7 +283,7 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             break
         }
 
-        if candidate.include.len() == 0 || candidate.duration.num_samples >= 500 {
+        if candidate.include.len() == 0 || candidate.duration.num_samples >= min_iters {
             println!(
                 "[{}/{}] [{} open] Candidate {:?} (n={})",
                 candidate.include.len(),
@@ -284,6 +292,17 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
                 candidate.duration.min_duration,
                 candidate.duration.num_samples,
             );
+
+            // Print the best 3 alternatives too, so we can see where the
+            // ranking is focussing.
+            for c in open.iter().rev().take(3) {
+                println!(
+                    "  {:.1} µs .. {:?} (n={})",
+                    c.duration.estimate_lower_bound_ns() * 1e-3,
+                    c.duration.min_duration,
+                    c.duration.num_samples,
+                );
+            }
 
             // If we've taken enough samples to know that the candidate we are
             // looking at is really the best one, expand it. We add all the
@@ -309,7 +328,9 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             open.push(candidate);
         }
 
-        // Sort candidates by descending duration; we pop from the end.
+        // Sort candidates by descending duration; we pop from the end. We don't
+        // really need to sort, we only need the best candidate, so a binary
+        // heap would suffice. But sorting is fast enough anyway for now.
         open.sort_by( |a, b| {
             let a_ns = a.duration.estimate_lower_bound_ns();
             let b_ns = b.duration.estimate_lower_bound_ns();
