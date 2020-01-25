@@ -113,7 +113,11 @@ impl MinDuration {
     }
 }
 
-#[derive(Clone)]
+struct TimedPlan {
+    duration: MinDuration,
+    plan: Plan,
+}
+
 struct PartialQuery {
     /// Duration of running the query with `include` statements included.
     duration: MinDuration,
@@ -126,7 +130,7 @@ struct PartialQuery {
     /// the most efficient micro-plan. In other words, for a given statement
     /// order, we want to use the choose the indexes for each scan such that the
     /// total query time is minimized.
-    plans: Vec<(Plan, MinDuration)>,
+    plans: Vec<TimedPlan>,
 }
 
 impl PartialQuery {
@@ -174,8 +178,11 @@ impl PartialQuery {
             planner.initialize_scans();
 
             loop {
-                let plan = planner.get_plan().clone();
-                partial.plans.push((plan, MinDuration::new()));
+                let tp = TimedPlan {
+                    duration: MinDuration::new(),
+                    plan: planner.get_plan().clone(),
+                };
+                partial.plans.push(tp);
                 if !planner.next() { break }
             }
 
@@ -199,17 +206,30 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     // duration". Higher numbers give us more accurate results, but we hit
     // diminishing results quickly. The goal is to rank plans, so we only need
     // enough accuracy to tell which plan is faster with some confidence.
-    let min_iters: u32 = 5000;
+    let min_iters_expand: u32 = 2_000;
+    let min_iters_final: u32 = 5_000;
 
     while let Some(mut candidate) = open.pop() {
-        if candidate.is_done() && candidate.duration.num_samples >= min_iters {
-            let (ref plan, ref duration) = candidate.plans[candidate.plans.len() - 1];
-            println!("\nOptimization complete.");
-            println!("Duration: {:?}\n{:?}", duration.min_duration, plan);
+        if candidate.is_done() && candidate.plans[0].duration.num_samples >= min_iters_final {
+            println!(
+                "\nOptimization complete.",
+            );
+            for timed_plan in &candidate.plans {
+                println!(
+                    "  Micro {:.1} µs .. {:?} (n={})",
+                    timed_plan.duration.estimate_lower_bound_ns() * 1e-3,
+                    timed_plan.duration.min_duration,
+                    timed_plan.duration.num_samples,
+                );
+            }
+            println!("\nPlan:\n{:?}", candidate.plans[0].plan);
             break
         }
 
-        if candidate.include.len() == 0 || candidate.duration.num_samples >= min_iters {
+        let can_expand = candidate.exclude.len() > 0;
+        let must_expand = candidate.include.len() == 0;
+
+        if must_expand || (can_expand && candidate.duration.num_samples >= min_iters_expand) {
             println!(
                 "[{}/{}] [{} open] Candidate {:?} (n={})",
                 candidate.include.len(),
@@ -219,12 +239,12 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
                 candidate.duration.num_samples,
             );
 
-            for &(ref plan, ref plan_duration) in candidate.plans.iter().rev() {
+            for timed_plan in &candidate.plans {
                 println!(
                     "  Micro {:.1} µs .. {:?} (n={})",
-                    plan_duration.estimate_lower_bound_ns() * 1e-3,
-                    plan_duration.min_duration,
-                    plan_duration.num_samples,
+                    timed_plan.duration.estimate_lower_bound_ns() * 1e-3,
+                    timed_plan.duration.min_duration,
+                    timed_plan.duration.num_samples,
                 );
             }
 
@@ -249,11 +269,9 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             // we don't have sufficient samples to prove it, do more one more
             // measurement to increase our confidence.
 
-            let (plan, mut plan_duration) = candidate.plans.pop().unwrap();
-
             let duration = {
                 let start = Instant::now();
-                let eval = Evaluator::new(&plan, &view);
+                let eval = Evaluator::new(&candidate.plans[0].plan, &view);
                 let _count = eval.count();
                 let end = Instant::now();
                 end.duration_since(start)
@@ -262,14 +280,15 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
             // Record durations for the micro-plan and macro-plan. For a given
             // statement order, the minimum duration is the minimium duration of
             // the fastest micro-plan.
-            plan_duration.observe(duration);
+            candidate.plans[0].duration.observe(duration);
             candidate.duration.observe(duration);
 
-            candidate.plans.push((plan, plan_duration));
+            // Sort plans in the candidate by ascending duration, so the best
+            // plan is at index 0.
             candidate.plans.sort_by(|a, b| {
-                let a_ns = a.1.estimate_lower_bound_ns();
-                let b_ns = b.1.estimate_lower_bound_ns();
-                b_ns.partial_cmp(&a_ns).unwrap()
+                let a_ns = a.duration.estimate_lower_bound_ns();
+                let b_ns = b.duration.estimate_lower_bound_ns();
+                a_ns.partial_cmp(&b_ns).unwrap()
             });
 
             open.push(candidate);
