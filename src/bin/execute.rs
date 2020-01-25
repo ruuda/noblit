@@ -172,10 +172,52 @@ fn _micro_optimize_query(cursor: &mut Cursor, database: &Database) {
     println!("\n#2:\n{:?}", benches[1].plan);
 }
 
+/// The minimum of a number of duration measurements.
+#[derive(Clone)]
+struct MinDuration {
+    min_duration: Duration,
+    num_samples: u32,
+}
+
+impl MinDuration {
+    fn new() -> MinDuration {
+        MinDuration {
+            min_duration: Duration::from_secs(0),
+            num_samples: 0,
+        }
+    }
+
+    /// Observe a new duration measurement.
+    fn observe(&mut self, duration: Duration) {
+        if self.num_samples == 0 {
+            self.min_duration = duration;
+            self.num_samples = 1;
+        } else {
+            self.min_duration = self.min_duration.min(duration);
+            self.num_samples += 1;
+        }
+    }
+
+    /// Return a probablistic lower bound on the minimum duration.
+    ///
+    /// Returns the current minimum scaled by `(1 - 1 / sqrt(n))`. As the number
+    /// of samples goes to infinity, the returned value goes to the minimum.
+    fn estimate_lower_bound_ns(&self) -> f64 {
+        let duration_ns
+            = self.min_duration.subsec_nanos() as f64
+            + (self.min_duration.as_secs() as f64) * 1e-9;
+
+        match self.num_samples {
+            0 => 0.0,
+            n => duration_ns * (1.0 - (n as f64).sqrt().recip())
+        }
+    }
+}
+
 #[derive(Clone)]
 struct PartialQuery {
     /// Duration of running the query with `include` statements included.
-    duration: Duration,
+    duration: MinDuration,
     include: Vec<Statement>,
     exclude: Vec<Statement>,
 }
@@ -183,7 +225,7 @@ struct PartialQuery {
 impl PartialQuery {
     fn new(query: &Query) -> PartialQuery {
         PartialQuery {
-            duration: Duration::from_secs(0),
+            duration: MinDuration::new(),
             include: Vec::new(),
             exclude: query.where_statements.clone(),
         }
@@ -208,6 +250,7 @@ impl PartialQuery {
             let mut partial = self.clone();
             let stmt = partial.exclude.remove(i);
             partial.include.push(stmt);
+            partial.duration = MinDuration::new();
             into.push(partial);
         }
     }
@@ -220,78 +263,58 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     query.fix_attributes(&view);
 
     let mut open = Vec::new();
-    let mut candidates = Vec::new();
-    let mut fastest_at_depth = Vec::new();
     open.push(PartialQuery::new(&query));
-    fastest_at_depth.push(Duration::from_secs(0));
 
-    while let Some(base) = open.pop() {
-        if base.is_done() {
-            let final_query = base.as_query(&query);
+    while let Some(mut candidate) = open.pop() {
+        if candidate.is_done() && candidate.duration.num_samples >= 500 {
+            let final_query = candidate.as_query(&query);
             let mut planner = Planner::new(&final_query);
             planner.initialize_scans();
             let plan = planner.get_plan();
-            println!("Duration: {:?}\nPlan:\n{:?}", base.duration, plan);
+            println!("Duration: {:?}\nPlan:\n{:?}", candidate.duration.min_duration, plan);
             break
         }
 
-        // For every number of included statements, keep track of the fastest
-        // way of doing that many statements. We use this later to bail out
-        // early when we try something at that depth that is obviously worse.
-        if base.include.len() >= fastest_at_depth.len() {
-            fastest_at_depth.push(base.duration);
+        if candidate.include.len() == 0 || candidate.duration.num_samples >= 500 {
+            println!(
+                "[{}/{}] [{} open] Candidate {:?} (n={})",
+                candidate.include.len(),
+                candidate.include.len() + candidate.exclude.len(),
+                open.len(),
+                candidate.duration.min_duration,
+                candidate.duration.num_samples,
+            );
+
+            // If we've taken enough samples to know that the candidate we are
+            // looking at is really the best one, expand it. We add all the
+            // child nodes in the tree to the open set, and this candidate one
+            // is now considered closed.
+            candidate.expand(&mut open);
         } else {
-            let fastest = &mut fastest_at_depth[base.include.len()];
-            *fastest = base.duration.min(*fastest);
-        }
+            // If this base ranks as the current most promising candidate, but
+            // we don't have sufficient samples to prove it, do more one more
+            // measurement to increase our confidence.
 
-        println!(
-            "[{}/{}] [{} open] Candidate {:?}",
-            base.include.len(),
-            base.include.len() + base.exclude.len(),
-            open.len(),
-            base.duration,
-        );
-
-        let record = if fastest_at_depth.len() > base.include.len() + 1 {
-            fastest_at_depth[base.include.len() + 1]
-        } else {
-            Duration::from_secs(600)
-        };
-
-        base.expand(&mut candidates);
-        'expand: for mut candidate in candidates.drain(..) {
             let partial_query = candidate.as_query(&query);
             let mut planner = Planner::new(&partial_query);
             planner.initialize_scans();
             let plan = planner.get_plan();
 
-            let mut duration = Duration::from_secs(600);
+            let start = Instant::now();
+            let eval = Evaluator::new(&plan, &view);
+            let _count = eval.count();
+            let end = Instant::now();
 
-            for i in 0..500 {
-                let start = Instant::now();
-                let eval = Evaluator::new(&plan, &view);
-                let _count = eval.count();
-                let end = Instant::now();
-                duration = duration.min(end.duration_since(start));
-
-                // If it is clear that this candidate is a lot slower than the
-                // fastest known candidate at that depth, there is no point in
-                // exploring further; cut off and go to the next candidate then.
-                if duration > record * 100 {
-                    continue 'expand;
-                }
-                if duration > record * 5 && i > 10 {
-                    continue 'expand;
-                }
-            }
-
-            candidate.duration = duration;
+            candidate.duration.observe(end.duration_since(start));
             open.push(candidate);
         }
 
         // Sort candidates by descending duration; we pop from the end.
-        open.sort_by(|a, b| b.duration.cmp(&a.duration));
+        open.sort_by( |a, b| {
+            let a_ns = a.duration.estimate_lower_bound_ns();
+            let b_ns = b.duration.estimate_lower_bound_ns();
+            b_ns.partial_cmp(&a_ns).unwrap()
+        });
     }
 }
 
