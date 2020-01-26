@@ -20,3 +20,4 @@ nav:
     - Files: files.md
     - Trees: htree.md
     - Execution: execution.md
+    - Query optimization: query-optimization.md

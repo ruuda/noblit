@@ -70,8 +70,6 @@ to minimize the number of loop iterations.
 
 ## Query optimization
 
-*Vaporware warning: This is only and idea, it has not been implemented.*
-
 Noblit does provide a query optimizer. Unlike traditional relational databases,
 optimization is an explicit operation, it is not implicitly part of every query.
 With the burden of runtime query plan optimization out of the way, Noblit can
@@ -107,3 +105,6 @@ optimization is not always possible or desirable.
  * There is no way to optimize generated or partially generated queries. What
    you *can* do though, is optimize a few generated queries, and use the lessons
    learned to tweak the generator.
+
+The internals of the query optimizer are outlined in the [Query
+optimization](query-optimization.md) chapter.
