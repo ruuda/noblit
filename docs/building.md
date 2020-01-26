@@ -15,7 +15,7 @@ Nix environment is used for <abbr>CI</abbr>, so it is actively tested.
 
 There are three ways to use the build environment:
 
- * Enter a shell in which all build tools are available with `nix run`.
+ * Enter a shell in which all build tools are available with `nix run -c $SHELL`.
  * Prefix all commands with `nix run -c`.
  * Bring the binaries into your <abbr>PATH</abbr> with
     `export PATH=$(nix-build --no-out-link)/bin:$PATH`.

@@ -14,12 +14,12 @@ Noblit stores thee kinds of data on disk:
 
 Because Noblit is an append-only database, transactions only add new datoms.
 Datoms are only stored in indexes (the indexes are *covering*), but they may
-reference large values on the heap. The indexes are persistent data structures,
-in the sense that data is immutable once written, but we can construct a new
-index that shares most of its nodes with a previous version. Indexes are trees
-that consist of nodes. The index file is an append-only collection of nodes. The
-head points to the latest roots of the index trees, and it stores the counters
-for allocating entity ids. The head is the only part of Noblit that is updated
+reference large values on the heap. Indexes are trees that consist of nodes. The
+indexes are persistent data structures, in the sense that data is immutable once
+written, but we can construct a new index that shares most of its nodes with a
+previous version. The index file is an append-only collection of nodes. The head
+points to the latest roots of the index trees, and it stores the counters for
+allocating entity ids. The head is the only part of Noblit that is updated
 in place, the other files are append-only.
 
 Committing a transaction is a three-stage process:
