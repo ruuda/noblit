@@ -26,8 +26,8 @@ There are three kinds of scan in Noblit:
    known value in the <abbr>AVET</abbr> index).
  * **An existence test.** Such a scan can be used to test if a datom exists in
    the database when both the entity and value are known. If it does not exists,
-   the loop associated with this can will have zero iterations, and the result
-   of the entire query becomes empty.
+   the loop associated with this scan will have zero iterations (for a given
+   iteration of the outer loops).
 
 The variables in a statement determine which scan is used:
 
