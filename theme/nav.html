@@ -1,7 +1,5 @@
 {% if nav_item.active -%}
-› <a href="{{ nav_item.url|url }}"{%
-    if nav_item.is_page and nav_item.meta.mono_title %} class="mono"{% endif
-  %}>{{ nav_item.title }}</a>
+› <a href="{{ nav_item.url|url }}">{{ nav_item.title }}</a>
   {% if nav_item.children -%}
     {% for nav_item in nav_item.children -%}
       {% include "nav.html" -%}
