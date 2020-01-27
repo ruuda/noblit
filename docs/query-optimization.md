@@ -74,7 +74,22 @@ tree, and the algorithm reaches a leaf node quickly.
 
 ## Optimizing scans
 
-Also called *micro-optimization*. TODO: Write.
+Some scans can be serviced by multiple indexes. For example, for a partial index
+scan that finds the value of an attribute for a given entity, we could use
+either <abbr>EAVT</abbr> or <abbr>AEVT</abbr>. For a given statement order, the
+goal of scan optimization is to find the best index to use for each statement.
+
+Unlike statement order optimization, there is no property that allows us to find
+a good solution incrementally. Because of locality interactions between scans,
+we need to consider the query plan as a whole.
+
+The current approach is to just try all possibilities. It is exponential, but
+not nearly as bad as permutations of statements. A statement can be serviced by
+1, 2, or 3 possible indexes, so the number of options tends to be in the dozens,
+which is quite doable.
+
+This will surely blow up if you enter a ridiculously long query. Perhaps
+deleting the micro-optimizer is the best remedy.
 
 ## Explore-exploit
 
