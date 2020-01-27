@@ -93,4 +93,9 @@ deleting the micro-optimizer is the best remedy.
 
 ## Explore-exploit
 
-TODO: Justify min * (1 - 1/sqrt(n)) ordering.
+*This section has not been written yet. The gist of it is:*
+
+ * Benchmarking is hard.
+ * Take the minimum.
+ * Justify min * (1 - 1/sqrt(n)) ordering.
+ * Probablistic, so not shortest path, but no problem, we only want a good path.
