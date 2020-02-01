@@ -1,9 +1,2 @@
-[package]
-name = "noblit"
-version = "0.0.0"
-authors = ["Ruud van Asseldonk <dev@veniogames.com>"]
-
-[lib]
-# Build a C dynamic and static library, and a Rust library for when using from
-# Rust directly.
-crate-type = ["cdylib", "staticlib", "rlib"]
+[workspace]
+members = ["noblit", "libnoblit"]

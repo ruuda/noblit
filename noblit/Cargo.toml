@@ -1,0 +1,9 @@
+[package]
+name = "noblit"
+version = "0.0.0"
+authors = ["Ruud van Asseldonk <dev@veniogames.com>"]
+
+[lib]
+# This crate concerns the implementation, and its Rust API. There is a separate
+# C API on top of this crate, in the ../libnoblit directory.
+crate-type = ["rlib"]
