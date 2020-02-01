@@ -10,3 +10,9 @@ noblit = { path = "../noblit" }
 # Build a C dynamic and static library.
 crate-type = ["cdylib", "staticlib"]
 name = "noblit"
+
+# Because this crate is called "noblit" just like the Rust crate (in order to
+# make the output files "libnoblit.so" and "libnoblit.a"), the docs conflict.
+# But API docs for the C API should be handled elsewhere either way, so that is
+# not a problem.
+doc = false
