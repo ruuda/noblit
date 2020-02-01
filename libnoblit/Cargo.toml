@@ -16,3 +16,7 @@ name = "noblit"
 # But API docs for the C API should be handled elsewhere either way, so that is
 # not a problem.
 doc = false
+
+# The unwind panics are unsafe across FFI boundaries, so make panics abort the
+# process instead. Panics are for unrecoverable errors anyway.
+panic = "abort"

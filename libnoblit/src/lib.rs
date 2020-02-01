@@ -29,7 +29,7 @@ pub enum Database {
     // and report an error for unsupported cases.
 }
 
-fn noblit_read_packed_impl(fname: &OsStr) -> Box<Database> {
+fn noblit_db_read_packed_impl(fname: &OsStr) -> Box<Database> {
     // TODO: Proper error handling.
     let f = fs::File::open(fname).expect("Failed to open database file.");
     let db = disk::read_packed(&mut io::BufReader::new(f)).expect("Failed to read database.");
@@ -47,6 +47,6 @@ pub unsafe extern fn noblit_db_free(db: *mut Database) {
 pub unsafe extern fn noblit_db_read_packed(fname: *const u8, fname_len: usize) -> *mut Database {
     let fname_bytes = slice::from_raw_parts(fname, fname_len);
     let fname_osstr = OsStr::from_bytes(fname_bytes);
-    let db_wrapper = noblit_read_packed_impl(fname_osstr);
+    let db_wrapper = noblit_db_read_packed_impl(fname_osstr);
     Box::into_raw(db_wrapper)
 }
