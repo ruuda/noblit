@@ -73,6 +73,7 @@ script:
   # * Miri does not support selecting a binary (https://github.com/rust-lang/miri/issues/739)
   # * Noblit assumes that Vec<u8> is 8-byte aligned. This assumption has so far
   #   not been violated in practice, but in theory the assumption is invalid.
+  - cd $TRAVIS_BUILD_DIR/noblit
   - cargo +nightly-2020-01-18 clean
   - cargo +nightly-2020-01-18 miri test
   - cargo +nightly-2020-01-18 clean
