@@ -58,7 +58,8 @@ script:
   - cd $TRAVIS_BUILD_DIR
 
   # Typecheck the Python code.
-  - mypy --strict golden/run.py
+  - mypy --strict client/python
+  - mypy --strict golden
 
   # Check the goldens.
   - prove --exec golden/run.py golden
