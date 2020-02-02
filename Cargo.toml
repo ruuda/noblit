@@ -1,2 +1,11 @@
 [workspace]
 members = ["noblit", "libnoblit"]
+
+# The unwind panics are unsafe across FFI boundaries, so make panics abort the
+# process instead. Panics are for unrecoverable errors anyway, and even in Rust-
+# only code, unwind always caused more trouble than it solved for me.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
