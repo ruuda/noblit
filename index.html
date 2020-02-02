@@ -120,9 +120,6 @@
     margin-top: 3.5rem;
     margin-bottom: 1.6rem;
   }
-  h3 {
-    margin-bottom: 1.42rem;
-  }
   code {
     font-family: 'Roboto Mono', monospace;
     font-size: 0.84rem;
@@ -151,7 +148,8 @@
   a > code,
   h3 > code,
   li > code,
-  td > code {
+  td > code,
+  dt > code {
     background-color: #f0f0f0;
     padding: 0.13rem;
     padding-left: 0.3rem;
@@ -160,8 +158,8 @@
     line-height: 1rem;
   }
   h3 {
-    margin-top: 2.29rem;
-    margin-bottom: 0.89rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.8rem;
   }
   h3 > code {
     margin-left: -0.1rem;
@@ -170,7 +168,7 @@
     color: #36d;
     text-decoration: none;
   }
-  p, ul, ol, pre, table {
+  p, ul, ol, dl, pre, table {
     /* Same space as line height, leave exactly one line blank. */
     margin-bottom: 1.7rem;
   }
@@ -205,6 +203,14 @@
     display: block;
     padding-top: 1em;
     padding-bottom: 1em;
+  }
+  dl {
+    display: grid;
+    grid-template-columns: 1fr 4fr;
+    grid-column-gap: 2em;
+  }
+  dl dt {
+    text-align: right;
   }
   #main ul li:before {
     color: #555;
@@ -255,6 +261,7 @@
     grid-area: 1 / 1 / 2 / 3;
     border-right: 1px solid #eee;
     background-color: #fafafa;
+    color: #78a;
   }
   aside nav {
     margin-top: 9rem;
@@ -265,7 +272,7 @@
     margin-right: -1px;
   }
   aside a {
-    color: #78a;
+    color: inherit;
   }
   aside .toc-section {
     font-weight: 700;
@@ -278,9 +285,9 @@
     padding-bottom: 1.1rem;
   }
   aside li.toc-section {
-    padding-top: 1.7rem;
+    margin-top: 1.7rem;
   }
-  aside li.toc-section a {
+  aside li.toc-section {
     color: #36d;
   }
   aside li.current, aside li ul {
@@ -288,7 +295,7 @@
     padding-left: 1em;
     margin-left: -1em;
   }
-  aside .current a {
+  aside li.toc-chapter.current {
     font-weight: 600;
   }
   aside li.toc-heading {
@@ -322,13 +329,25 @@
     aside nav {
       margin-left: 4em;
       margin-top: 1.7em;
+      margin-right: 0;
       float: none;
+      width: auto;
     }
     #main {
       padding-bottom: 1.7em;
     }
+    /* Now that the TOC is full-width, adding the border on the right to
+       highlight the active page is not as clear anymore, it can be far away.
+       The current chapter is still in boldface, but that does not work for
+       section indexes. So point a guillemet at it as well. */
     aside li.current, aside li ul {
       border-right: 0px none;
+      position: relative;
+    }
+    aside li.current:before {
+      content: '\203a';
+      position: absolute;
+      left: 0;
     }
   }
 
@@ -362,8 +381,9 @@
     <div id="main">
       <nav id="breadcrumbs">
         <a href=".">Noblit</a>
-        › <a href=".">Overview</a>
-  <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
+        
+         › <a href=".">Overview</a> 
+        <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
       </nav>
       <article>
         <h1 id="noblit">Noblit</h1>
@@ -472,30 +492,56 @@ unmaintained, Noblit is vaporware.</p>
       <nav>
         <ul>
         <li class="toc-section"><a href=".">Overview</a></li>
-          <li class="toc-section"><a href="data-model/">Concepts</a></li>
-          <li class="toc-chapter
+          <li class="toc-section
+            "><a href="data-model/">Concepts</a></li>
+          
+            <li class="toc-chapter
               "><a href="data-model/">Data model</a></li>
+            
             <li class="toc-chapter
               "><a href="query/">Query</a></li>
+            
             <li class="toc-chapter
               "><a href="query-planning/">Query planning</a></li>
-            <li class="toc-section"><a href="examples/bug-tracker/">Examples</a></li>
-          <li class="toc-chapter
+            <li class="toc-section
+            "><a href="examples/bug-tracker/">Examples</a></li>
+          
+            <li class="toc-chapter
               "><a href="examples/bug-tracker/">Bug tracker</a></li>
-            <li class="toc-section"><a href="building/">Development</a></li>
-          <li class="toc-chapter
+            <li class="toc-section
+            "><a href="reference/rust/">Reference</a></li>
+          
+            <li class="toc-chapter
+              "><a href="reference/rust/">Rust API reference</a></li>
+            
+            <li class="toc-chapter
+              "><a href="reference/c/">C API reference</a></li>
+            <li class="toc-section
+            "><a href="building/">Development</a></li>
+          
+            <li class="toc-chapter
               "><a href="building/">Building</a></li>
+            
             <li class="toc-chapter
               "><a href="golden-tests/">Golden tests</a></li>
+            
+            <li class="toc-chapter
+              "><a href="fuzz-tests/">Fuzz tests</a></li>
+            
             <li class="toc-chapter
               "><a href="resources/">Resources</a></li>
-            <li class="toc-section"><a href="files/">Internals</a></li>
-          <li class="toc-chapter
+            <li class="toc-section
+            "><a href="files/">Internals</a></li>
+          
+            <li class="toc-chapter
               "><a href="files/">Files</a></li>
+            
             <li class="toc-chapter
               "><a href="htree/">Trees</a></li>
+            
             <li class="toc-chapter
               "><a href="execution/">Execution</a></li>
+            
             <li class="toc-chapter
               "><a href="query-optimization/">Query optimization</a></li>
             </ul>

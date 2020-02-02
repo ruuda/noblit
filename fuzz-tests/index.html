@@ -9,7 +9,7 @@
   -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Files — Noblit</title>
+  <title>Fuzz tests — Noblit</title>
   <link href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,500" rel="stylesheet">
   <style>
   /* The Inter font family, see https://rsms.me/inter.
@@ -381,104 +381,26 @@
     <div id="main">
       <nav id="breadcrumbs">
         <a href="..">Noblit</a>
-         › <a href="./">Internals</a> 
-         › <a href="./">Files</a> 
+         › <a href="../building/">Development</a> 
+         › <a href="./">Fuzz tests</a> 
         <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
       </nav>
       <article>
-        <h1 id="files">Files</h1>
-<p><em>Vaporware warning: much of the content below is hypothetical. Currently Noblit
-does not persist anything to disk at all.</em></p>
-<p>Noblit stores thee kinds of data on disk:</p>
-<ul>
-<li><a href="#the-heap">The <em>heap</em></a> of large values (integers larger than 62 bits, and
-   byte strings longer than 7 bytes).</li>
-<li><a href="#the-indexes">The <em>indexes</em></a> that store datoms in sorted order.</li>
-<li><a href="#the-head">The <em>head</em></a> with the most recent tree roots, and id counters.</li>
-</ul>
-<h2 id="accretion">Accretion</h2>
-<p>Because Noblit is an append-only database, transactions only add new datoms.
-Datoms are only stored in indexes (the indexes are <em>covering</em>), but they may
-reference large values on the heap. Indexes are trees that consist of nodes. The
-indexes are persistent data structures, in the sense that data is immutable once
-written, but we can construct a new index that shares most of its nodes with a
-previous version. The index file is an append-only collection of nodes. The head
-points to the latest roots of the index trees, and it stores the counters for
-allocating entity ids. The head is the only part of Noblit that is updated
-in place, the other files are append-only.</p>
-<p>Committing a transaction is a three-stage process:</p>
-<ol>
-<li>Append any new large values to the heap file, and sync the heap.</li>
-<li>Add datoms to the indexes. This produces one or more new tree nodes per
-    index. Append the new nodes to the index file, and sync it.</li>
-<li>Write the new head, and sync it.</li>
-</ol>
-<p>By making the head update atomic, the entire transaction becomes atomic. If the
-commit fails at some point before the new head is written, the old head is still
-valid, and it points to valid data. New data may have been appended, but that
-data is not yet referenced.</p>
-<h2 id="the-indexes">The Indexes</h2>
-<p>The indexes in Noblit store datoms in sorted order. There are three indexes:</p>
-<ul>
-<li><strong>Eavt</strong>: sorted by entity, attribute, value, and transaction.</li>
-<li><strong>Aevt</strong>: sorted by attribute, entity, value, and transaction.</li>
-<li><strong>Avet</strong>: sorted by attribute, value, entity, and transaction.</li>
-</ul>
-<p>See also <a href="https://docs.datomic.com/cloud/query/raw-index-access.html">Datomic's index documentation</a>, which formed the
-inspiration for Noblit. Note that unlike Datomic, Noblit does not have a Vaet
-(value, attribute, entity, transaction) index. This is because attributes in
-Noblit are strongly typed. A query such as “list all attributes that this entity
-has” is impossible to express in Noblit, because the values associated with the
-attribute may not have the same type.</p>
-<p>Each index stores all datoms in full. A datom is 32 bytes. Small values are
-stored inline in the datom, large values (integers larger than 62 bits and byte
-strings longer than 7 bytes) are stored on the value heap, with the datom
-containing the index into the value heap.</p>
-<p>Noblit stores indexes as <a href="../htree/">hitchhiker trees</a>, a variation on immutable
-B-trees which reduces write amplification. Noblit accumulates new datoms in
-memory first. At the end of a transaction it flushes those at once to the disk
-as new tree nodes, which may share child nodes with the previous tree. To
-prevent unreachable nodes from accumulating, trees need to be compacted
-occasionally though a copying garbage collection process. Unreachable nodes
-are not recycled to ensure immutability of written files: new data is only ever
-appended at the end. This simplifies caching.</p>
-<h2 id="the-head">The Head</h2>
-<p>For every index, the head stores the page id of the root of the tree for that
-index. Furthermore, the head stores the counters for id allocation.</p>
-<p>TODO: The head should store the size of the index file and heap file, so that it
-can truncate them after a failed transaction.</p>
-<h2 id="the-heap">The Heap</h2>
-<p>The heap is a file that contains <em>large values</em>: integers larger than 62 bytes
-and byte strings longer than 7 bytes. Because Noblit is an append-only database
-that never removes data, storing a value on the heap is a simple bump-pointer
-allocation; the heap only grows.</p>
-<p>The heap stores two kinds of values:</p>
-<ul>
-<li>64-bit integers which don't fit into 62 bytes. They are stored as-is, in 8
-   bytes, big endian. (TODO: It should be little endian.)</li>
-<li>Byte strings longer than 7 bytes. Note that e.g. strings are also stored as
-   byte strings; it is the schema that specifies that those bytes should be
-   interpreted as a <abbr>UTF-8</abbr> encoded string. Byte strings are
-   length-prefixed with a 64-bit length. The address of a byte string is the
-   offset of its length prefix, so its data can be found at the offset 8 bytes
-   higher.</li>
-</ul>
-<p>Values on the value heap are aligned to 8 bytes.</p>
-<p>The heap is not checksummed. (Nor the indexes for that matter.) If you do not
-trust your storage medium, use a file system or virtual block device that can
-detect and report integrity problems.</p>
-<p>The value heap might store duplicates. Because values are immutable once stored,
-deduplication is safe. If a Datom contains a value that already exists on the
-heap, it is safe to reference the existing value, rather than storing it again
-on the heap. Noblit may do this, but identifying duplicates is not free, hence
-Noblit may store the same value twice.</p>
-<p>TODO: Persist a hash table of values too, to identify duplicates? Not really,
-can read heap at startup, although that does not scale, persistent hash table
-may be needed.</p>
+        <h1 id="fuzz-tests">Fuzz tests</h1>
+<p>Noblits internals are tested thoroughly through fuzz testing. Noblit uses
+structure-aware fuzzing to generate sequences of calls to internal
+<abbr>API</abbr>s, after which all invariants are checked. See the code in the
+<code>fuzz</code> directory.</p>
+<p>TODO: Expand these docs.</p>
+<p>TODO: Add more traditional fuzzer, for the parser of the binary query format.</p>
+<p>TODO: Add a structure-aware fuzzer for the higher-level <abbr>API</abbr>, in
+addition to those that focus on internals. Maybe just against the C interface.</p>
+<p>TODO: Add an abstraction for <abbr>IO</abbr>, and an implementation that that
+can inject errors based on the fuzz input.</p>
       </article>
       <nav id="nav-prev-next">
-        <a id="nav-prev" href="../resources/" title="Resources">Previous</a>
-        <a id="nav-next" href="../htree/" title="Trees">Next</a>
+        <a id="nav-prev" href="../golden-tests/" title="Golden tests">Previous</a>
+        <a id="nav-next" href="../resources/" title="Resources">Next</a>
         </nav>
       </div>
     <aside>
@@ -519,22 +441,16 @@ may be needed.</p>
               "><a href="../golden-tests/">Golden tests</a></li>
             
             <li class="toc-chapter
-              "><a href="../fuzz-tests/">Fuzz tests</a></li>
+               current"><a href="./">Fuzz tests</a></li>
             
             <li class="toc-chapter
               "><a href="../resources/">Resources</a></li>
             <li class="toc-section
-            "><a href="./">Internals</a></li>
+            "><a href="../files/">Internals</a></li>
           
             <li class="toc-chapter
-               current"><a href="./">Files</a></li>
-            <li><ul>
-                <li class="toc-heading"><a href="#accretion">Accretion</a></li>
-                <li class="toc-heading"><a href="#the-indexes">The Indexes</a></li>
-                <li class="toc-heading"><a href="#the-head">The Head</a></li>
-                <li class="toc-heading"><a href="#the-heap">The Heap</a></li>
-                </ul></li>
-               
+              "><a href="../files/">Files</a></li>
+            
             <li class="toc-chapter
               "><a href="../htree/">Trees</a></li>
             
