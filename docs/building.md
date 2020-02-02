@@ -8,10 +8,10 @@ yet exist._
 
 ## Build tools
 
-A build environment in which all required build tools are available can be
-created with [Nix][nix]. The repository contains a `default.nix` file that
-defines the environment. All build tools are pinned for reproducibility. The
-Nix environment is used for <abbr>CI</abbr>, so it is actively tested.
+[Nix][nix] can set up a build environment in which all required build tools are
+available. The repository contains a `default.nix` file that defines the
+environment. All build tools are pinned for reproducibility. The Nix environment
+is used for <abbr>CI</abbr>, so it is actively tested.
 
 There are three ways to use the build environment:
 
@@ -40,12 +40,14 @@ To build:
 
 This will have produced three libraries:
 
- * `libnoblit.so`, for dynamic linking against the <abbr>C ABI</abbr>.
- * `libnoblit.a`, for static linking against the <abbr>C ABI</abbr>.
+ * `libnoblit.so`, for dynamic linking against the C interface.
+ * `libnoblit.a`, for static linking against the C interface.
  * `libnoblit.rlib`, for use in Rust programs.
 
-TODO: What about C headers?
-TODO: How to use in an application?
+If you need a header file, a script can generate one from the
+[C interface documentation](reference/c.md):
+
+    $ libnoblit/gen_header.py > noblit.h
 
 ## Haskell client
 
@@ -61,16 +63,20 @@ TODO: How to use in an application?
 
 ## Python client
 
-The Python client library does not yet exist.
+The Python client is located in `client/python`. It loads `libnoblit.so` using
+Python’s `ctypes` module. If loading fails for the unqualified path, the library
+tries to load from `target/debug` and `target/release` to aid local development.
+Python code does not need to be compiled, but it can be typechecked by
+[Mypy][mypy]:
+
+    $ mypy --strict client/python
+
+[mypy]: https://mypy.readthedocs.io/en/stable/
 
 ## Rust client
 
-The Rust client library does not yet exist.
-
-## Fuzz tests
-
-Noblits internals are tested thoroughly through fuzz testing. See the `fuzz`
-directory.
-
-TODO: Expand these docs.
-TODO: Should this be its own chapter?
+Rust programs can use the `noblit` crate in the `noblit` directory directly,
+although that exposes internals, and building queries is neithere convenient
+nor type safe. It would be nice to add a layer on top that hides most of the
+internals and exposes a more user-focused interface, but such a Rust client
+does not yet exist.

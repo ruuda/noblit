@@ -18,6 +18,7 @@ nav:
   - Development:
     - Building: building.md
     - Golden tests: golden-tests.md
+    - Fuzz tests: fuzz-tests.md
     - Resources: resources.md
   - Internals:
     - Files: files.md
