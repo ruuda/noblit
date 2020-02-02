@@ -70,7 +70,7 @@ script:
   # Generate the C header, then compile it to a precompiled header with GCC.
   # This acts as a basic sanity check on the documentation.
   - libnoblit/gen_header.py > noblit.h
-  - gcc -Wall -Werror noblit.h
+  - gcc -Wall -Werror -c noblit.h
 
   # Check that all exported symbols are documented, and that all documented
   # symbols are exported.
