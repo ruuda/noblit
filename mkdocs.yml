@@ -12,6 +12,9 @@ nav:
     - Query planning: query-planning.md
   - Examples:
     - Bug tracker: examples/bug-tracker.md
+  - Reference:
+    - Rust API reference: reference/rust.md
+    - C API reference: reference/c.md
   - Development:
     - Building: building.md
     - Golden tests: golden-tests.md
