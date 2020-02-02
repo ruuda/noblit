@@ -3,14 +3,14 @@
 Below are some resources that were helpful or inspiring for the development of
 Noblit. Some of them were not directly useful, but simply interesting.
 
- * [Deconstructing the Database][deconstr], a talk about Datomic and its data model
- * [The Datomic Data Model][datamodel], from the Datomic documentation
- * [LevelDB implementation notes][leveldb], from the LevelDB documentation
- * [InfluxDB Storage Engine Internals][influxdb], a talk by Paul Dix
- * [What You Always Wanted to Know About Datalog][datalog], a paper on Datalog
- * [Unofficial Guide to Datomic Internals][unofficial], a blog post on Datomic internals
- * [SQLite: A Database for the Edge of the Network][edge], a talk about SQLite internals
- * [The CMU database group Youtube channel][cmu], with recorded lectures of their database courses
+ * [Deconstructing the Database][deconstr] — a talk about Datomic and its data model
+ * [The Datomic Data Model][datamodel] — from the Datomic documentation
+ * [LevelDB implementation notes][leveldb] — from the LevelDB documentation
+ * [InfluxDB Storage Engine Internals][influxdb] — a talk about storage in a time series database
+ * [What You Always Wanted to Know About Datalog][datalog] — a paper on Datalog
+ * [Unofficial Guide to Datomic Internals][unofficial] — a blog post on Datomic internals
+ * [SQLite: A Database for the Edge of the Network][edge] — a talk about SQLite internals
+ * [The CMU database group channel][cmu] — recorded lectures from their database courses
 
 [cmu]:        https://www.youtube.com/channel/UCHnBsf2rH-K7pn09rb3qvkA
 [datalog]:    https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf
