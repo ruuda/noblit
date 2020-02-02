@@ -14,3 +14,10 @@ __pycache__
 
 # Built documentation.
 /site
+
+# Generated C header and precompiled C header.
+noblit.h
+noblit.h.gch
+
+# Prove state (so it can run failed tests first).
+.prove

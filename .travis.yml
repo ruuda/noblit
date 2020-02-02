@@ -62,6 +62,11 @@ script:
   - mypy --strict golden
   - mypy --strict libnoblit
 
+  # Generate the C header, then compile it to a precompiled header with GCC.
+  # This acts as a basic sanity check on the documentation.
+  - libnoblit/gen_header.py > noblit.h
+  - gcc noblit.h
+
   # Check the goldens.
   - prove --exec golden/run.py golden
 

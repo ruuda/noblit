@@ -4,6 +4,7 @@ in
   pkgs.buildEnv {
     name = "noblit-devenv";
     paths = [
+      pkgs.gcc     # For checking the generated C header.
       pkgs.mkdocs  # For building documentation.
       pkgs.mypy    # For typechecking the Python code.
       pkgs.perl    # The "prove" test harness is part of Perl.
