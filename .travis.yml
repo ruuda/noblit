@@ -60,6 +60,7 @@ script:
   # Typecheck the Python code.
   - mypy --strict client/python
   - mypy --strict golden
+  - mypy --strict libnoblit
 
   # Check the goldens.
   - prove --exec golden/run.py golden

@@ -1,11 +1,10 @@
 #ifndef _NOBLIT_H_
 #define _NOBLIT_H_
 
-// See docs/reference.md for the API documentation.
+/* This file was generated from docs/reference/c.md by libnoblit/gen_header.py. */
 
 typedef struct Noblit noblit_t;
-void noblit_db_free(noblit_t* db);
-
 noblit_t* noblit_db_read_packed(uint8_t const* fname, size_t fname_len);
+void noblit_db_free(noblit_t* db);
 
 #endif
