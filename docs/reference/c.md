@@ -34,6 +34,42 @@ getters for the error details in case of an error. TODO: Implement this.
 
 [rust-result]: https://doc.rust-lang.org/std/result/enum.Result.html
 
+## noblit_result_t
+
+    typedef uint32_t noblit_result_t;
+
+Noblit functions return status codes. A zero return value means success, other
+values indicate failure. The status codes map to `noblit::error::Error` in Rust.
+If a function returns a non-zero status code,
+[`noblit_get_last_error`](#noblit_get_last_error) will return a string that
+contains the full error message.
+
+    #define NOBLIT_OK 0
+    #define NOBLIT_IO_ERROR 1
+
+## noblit_slice_t
+
+    typedef struct noblit_slice {
+      uint8_t const* data;
+      size_t len;
+    } noblit_struct_t;
+
+A view into an immutable byte array owned by Noblit.
+
+## noblit_get_last_error
+
+    noblit_slice_t
+    noblit_get_last_error(noblit_t const* db);
+
+If the last call to a function that returns [`noblit_result_t`](#noblit_result_t)
+returned a nonzero status code, this function returns the full error message
+string as <abbr>UTF-8</abbr> bytes, excluding null terminator.
+
+The slice pointed to is valid until the next call to a Noblit function. If the
+message is needed for after that, the caller needs to `memcpy` it elsewhere. If
+a C-style null terminated string is desired, the caller needs to copy it into a
+buffer one longer than the slice, to accomodate the null terminator.
+
 ## noblit_db_read_packed
 
     noblit_t*

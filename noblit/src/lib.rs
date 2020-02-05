@@ -9,6 +9,7 @@ pub mod binary;
 pub mod database;
 pub mod datom;
 pub mod disk;
+pub mod error;
 pub mod eval;
 pub mod head;
 pub mod heap;
