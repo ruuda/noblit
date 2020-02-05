@@ -149,7 +149,8 @@
   h3 > code,
   li > code,
   td > code,
-  dt > code {
+  dt > code,
+  dd > code {
     background-color: #f0f0f0;
     padding: 0.13rem;
     padding-left: 0.3rem;
@@ -280,6 +281,10 @@
   aside ul {
     margin-bottom: 0;
   }
+  aside li {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   aside li ul {
     padding-top: 0.6rem;
     padding-bottom: 1.1rem;
@@ -400,7 +405,7 @@ across <abbr>FFI</abbr> boundaries, and it minimizes ownership transfer across
 to fuzz the remaining <abbr>API</abbr>.</p>
 <p>The Python and Haskell client libraries are built upon the C interface.</p>
 <h2 id="noblit_t">noblit_t</h2>
-<pre><code>typedef struct Noblit noblit_t;
+<pre><code>typedef struct noblit noblit_t;
 </code></pre>
 <p>An opaque database handle. Internally, this structure contains a
 <code>noblit::Database</code>, with type parameters fixed to one of three cases:</p>
@@ -415,10 +420,42 @@ to fuzz the remaining <abbr>API</abbr>.</p>
 occurred, if any. In Rust, errors are tracked through the <a href="https://doc.rust-lang.org/std/result/enum.Result.html"><code>Result</code></a>
 type, and these are returned to the C interface as a status code, with separate
 getters for the error details in case of an error. TODO: Implement this.</p>
-<h2 id="noblit_db_read_packed">noblit_db_read_packed</h2>
-<pre><code>noblit_t*
-noblit_db_read_packed(uint8_t const* fname, size_t fname_len);
+<h2 id="noblit_result_t">noblit_result_t</h2>
+<pre><code>typedef uint32_t noblit_result_t;
 </code></pre>
+<p>Noblit functions return status codes. A zero return value means success, other
+values indicate failure. The status codes map to <code>noblit::error::Error</code> in Rust.
+If a function returns a non-zero status code,
+<a href="#noblit_get_last_error"><code>noblit_get_last_error</code></a> will return a string that
+contains the full error message.</p>
+<pre><code>#define NOBLIT_OK 0
+#define NOBLIT_IO_ERROR 1
+</code></pre>
+<h2 id="noblit_slice_t">noblit_slice_t</h2>
+<pre><code>typedef struct noblit_slice {
+  uint8_t const* data;
+  size_t len;
+} noblit_slice_t;
+</code></pre>
+<p>A view into an immutable byte array owned by Noblit.</p>
+<h2 id="noblit_get_last_error">noblit_get_last_error</h2>
+<pre><code>noblit_slice_t
+noblit_get_last_error(noblit_t const* db);
+</code></pre>
+<p>If the last call to a function that returns <a href="#noblit_result_t"><code>noblit_result_t</code></a>
+returned a nonzero status code, this function returns the full error message
+string as <abbr>UTF-8</abbr> bytes, excluding null terminator.</p>
+<p>The slice pointed to is valid until the next call to a Noblit function. If the
+message is needed for after that, the caller needs to <code>memcpy</code> it elsewhere. If
+a C-style null terminated string is desired, the caller needs to copy it into a
+buffer one longer than the slice, to accomodate the null terminator.</p>
+<h2 id="noblit_open_packed_in_memory">noblit_open_packed_in_memory</h2>
+<pre><code>noblit_t*
+noblit_open_packed_in_memory(uint8_t const* fname, size_t fname_len);
+</code></pre>
+<p>Load a database from a file in packed format into memory. The resulting database
+is mutable, but mutations are applied to the in-memory database. The file that
+it was loaded from is left untouched.</p>
 <dl>
   <dt>fname</dt>
   <dd>
@@ -436,14 +473,13 @@ noblit_db_read_packed(uint8_t const* fname, size_t fname_len);
   <dt>return value</dt>
   <dd>
     A pointer to a database struct.
-    The pointer should be treated as an opaque pointer,
-    Should be treated as an opaque
+    The pointer should be treated as an opaque pointer.
   </dd>
 </dl>
 
-<h2 id="noblit_db_free">noblit_db_free</h2>
+<h2 id="noblit_close">noblit_close</h2>
 <pre><code>void
-noblit_db_free(noblit_t* db);
+noblit_close(noblit_t* db);
 </code></pre>
 <p>Close the database, release associated resources, and deallocate the <code>noblit_t</code>
 struct.</p>
@@ -483,8 +519,11 @@ struct.</p>
                current"><a href="./">C API reference</a></li>
             <li><ul>
                 <li class="toc-heading"><a href="#noblit_t">noblit_t</a></li>
-                <li class="toc-heading"><a href="#noblit_db_read_packed">noblit_db_read_packed</a></li>
-                <li class="toc-heading"><a href="#noblit_db_free">noblit_db_free</a></li>
+                <li class="toc-heading"><a href="#noblit_result_t">noblit_result_t</a></li>
+                <li class="toc-heading"><a href="#noblit_slice_t">noblit_slice_t</a></li>
+                <li class="toc-heading"><a href="#noblit_get_last_error">noblit_get_last_error</a></li>
+                <li class="toc-heading"><a href="#noblit_open_packed_in_memory">noblit_open_packed_in_memory</a></li>
+                <li class="toc-heading"><a href="#noblit_close">noblit_close</a></li>
                 </ul></li>
                <li class="toc-section
             "><a href="../../building/">Development</a></li>
