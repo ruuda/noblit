@@ -74,7 +74,7 @@ pub unsafe extern fn noblit_get_last_error(db: *const Context) -> noblit_slice_t
     }
 }
 
-fn noblit_db_read_packed_impl(fname: &OsStr) -> Box<Context> {
+fn noblit_open_packed_in_memory_impl(fname: &OsStr) -> Box<Context> {
     // TODO: Proper error handling.
     let f = fs::File::open(fname).expect("Failed to open database file.");
     let db = disk::read_packed(&mut io::BufReader::new(f)).expect("Failed to read database.");
@@ -86,15 +86,15 @@ fn noblit_db_read_packed_impl(fname: &OsStr) -> Box<Context> {
 }
 
 #[no_mangle]
-pub unsafe extern fn noblit_db_free(db: *mut Context) {
+pub unsafe extern fn noblit_close(db: *mut Context) {
     // Take back ownership of the box, and drop that box when it goes out of scope.
     let _ = Box::from_raw(db);
 }
 
 #[no_mangle]
-pub unsafe extern fn noblit_db_read_packed(fname: *const u8, fname_len: usize) -> *mut Context {
+pub unsafe extern fn noblit_open_packed_in_memory(fname: *const u8, fname_len: usize) -> *mut Context {
     let fname_bytes = slice::from_raw_parts(fname, fname_len);
     let fname_osstr = OsStr::from_bytes(fname_bytes);
-    let db_wrapper = noblit_db_read_packed_impl(fname_osstr);
+    let db_wrapper = noblit_open_packed_in_memory_impl(fname_osstr);
     Box::into_raw(db_wrapper)
 }

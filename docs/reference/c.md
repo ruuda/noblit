@@ -70,10 +70,14 @@ message is needed for after that, the caller needs to `memcpy` it elsewhere. If
 a C-style null terminated string is desired, the caller needs to copy it into a
 buffer one longer than the slice, to accomodate the null terminator.
 
-## noblit_db_read_packed
+## noblit_open_packed_in_memory
 
     noblit_t*
-    noblit_db_read_packed(uint8_t const* fname, size_t fname_len);
+    noblit_open_packed_in_memory(uint8_t const* fname, size_t fname_len);
+
+Load a database from a file in packed format into memory. The resulting database
+is mutable, but mutations are applied to the in-memory database. The file that
+it was loaded from is left untouched.
 
 <dl>
   <dt>fname</dt>
@@ -91,15 +95,14 @@ buffer one longer than the slice, to accomodate the null terminator.
   <dt>return value</dt>
   <dd>
     A pointer to a database struct.
-    The pointer should be treated as an opaque pointer,
-    Should be treated as an opaque
+    The pointer should be treated as an opaque pointer.
   </dd>
 </dl>
 
-## noblit_db_free
+## noblit_close
 
     void
-    noblit_db_free(noblit_t* db);
+    noblit_close(noblit_t* db);
 
 Close the database, release associated resources, and deallocate the `noblit_t`
 struct.

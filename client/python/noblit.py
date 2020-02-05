@@ -34,10 +34,10 @@ def ensure_lib() -> CDLL:
     if _LIB is None:
         _LIB = load_lib()
 
-        _LIB.noblit_db_read_packed.argtypes = [c_char_p, c_size_t]
-        _LIB.noblit_db_read_packed.restype = c_void_p
-        _LIB.noblit_db_free.argtypes = [c_void_p]
-        _LIB.noblit_db_free.restype = None
+        _LIB.noblit_open_packed_in_memory.argtypes = [c_char_p, c_size_t]
+        _LIB.noblit_open_packed_in_memory.restype = c_void_p
+        _LIB.noblit_close.argtypes = [c_void_p]
+        _LIB.noblit_close.restype = None
 
     return _LIB
 
@@ -47,15 +47,15 @@ class Database:
         self._db = db
 
     @staticmethod
-    def read_packed(fname: bytes) -> Database:
+    def open_packed_in_memory(fname: bytes) -> Database:
         lib = ensure_lib()
-        db = lib.noblit_db_read_packed(fname, len(fname))
+        db = lib.noblit_open_packed_in_memory(fname, len(fname))
         return Database(db)
 
     def __del__(self) -> None:
         lib = ensure_lib()
-        lib.noblit_db_free(self._db)
+        lib.noblit_close(self._db)
 
 
-db = Database.read_packed(b'../mindec/mindec.ndb')
+db = Database.open_packed_in_memory(b'../mindec/mindec.ndb')
 print(db)
