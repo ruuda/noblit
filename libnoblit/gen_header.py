@@ -28,10 +28,11 @@ def extract_decls(lines: Iterable[str]) -> Iterable[str]:
         # Include content from code blocks, and join multiple lines, until the
         # semicolon terminator.
         if line.startswith('    '):
-            declaration.append(line.strip())
+            declaration.append(line[4:].rstrip())
 
-            if ';' in line:
+            if any(end in line for end in (';', '#define', '{')):
                 yield ' '.join(declaration)
+                declaration = []
 
 
 def get_decls_from_docs() -> List[str]:

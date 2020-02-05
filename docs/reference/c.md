@@ -16,7 +16,7 @@ The Python and Haskell client libraries are built upon the C interface.
 
 ## noblit_t
 
-    typedef struct Noblit noblit_t;
+    typedef struct noblit noblit_t;
 
 An opaque database handle. Internally, this structure contains a
 `noblit::Database`, with type parameters fixed to one of three cases:
@@ -52,7 +52,7 @@ contains the full error message.
     typedef struct noblit_slice {
       uint8_t const* data;
       size_t len;
-    } noblit_struct_t;
+    } noblit_slice_t;
 
 A view into an immutable byte array owned by Noblit.
 
