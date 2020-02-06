@@ -73,22 +73,17 @@ buffer one longer than the slice, to accomodate the null terminator.
 ## noblit_open_packed_in_memory
 
     noblit_t*
-    noblit_open_packed_in_memory(uint8_t const* fname, size_t fname_len);
+    noblit_open_packed_in_memory(int fd);
 
 Load a database from a file in packed format into memory. The resulting database
 is mutable, but mutations are applied to the in-memory database. The file that
-it was loaded from is left untouched.
+it was loaded from is left untouched when the database is mutated.
 
 <dl>
-  <dt>fname</dt>
+  <dt>fd</dt>
   <dd>
-    Character array with the file name to open.
-    Should not include a null terminator.
-    Borrowed immutably for the duration of the call.
-  </dd>
-  <dt>fname_len</dt>
-  <dd>
-    Length of the file name array in bytes.
+    File descriptor of the file to read from. The file descriptor is borrowed
+    mutably for the duration of the call.
   </dd>
 </dl>
 <dl>

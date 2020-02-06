@@ -6,8 +6,8 @@
 # A copy of the License has been included in the root of the repository.
 from __future__ import annotations
 
-from ctypes import CDLL, cdll, c_char_p, c_size_t, c_void_p
-from typing import Optional, NamedTuple
+from ctypes import CDLL, cdll, c_char_p, c_size_t, c_void_p, c_int
+from typing import IO, Optional, NamedTuple
 
 _LIB: Optional[CDLL] = None
 
@@ -34,7 +34,7 @@ def ensure_lib() -> CDLL:
     if _LIB is None:
         _LIB = load_lib()
 
-        _LIB.noblit_open_packed_in_memory.argtypes = [c_char_p, c_size_t]
+        _LIB.noblit_open_packed_in_memory.argtypes = [c_int]
         _LIB.noblit_open_packed_in_memory.restype = c_void_p
         _LIB.noblit_close.argtypes = [c_void_p]
         _LIB.noblit_close.restype = None
@@ -47,9 +47,9 @@ class Database:
         self._db = db
 
     @staticmethod
-    def open_packed_in_memory(fname: bytes) -> Database:
+    def open_packed_in_memory(dbfile: IO[bytes]) -> Database:
         lib = ensure_lib()
-        db = lib.noblit_open_packed_in_memory(fname, len(fname))
+        db = lib.noblit_open_packed_in_memory(dbfile.fileno())
         return Database(db)
 
     def __del__(self) -> None:
@@ -57,5 +57,6 @@ class Database:
         lib.noblit_close(self._db)
 
 
-db = Database.open_packed_in_memory(b'../mindec/mindec.ndb')
-print(db)
+with open('../mindec/mindec.ndb', 'rb') as f:
+    db = Database.open_packed_in_memory(f)
+    print(db)

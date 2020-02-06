@@ -7,11 +7,9 @@
 
 extern crate noblit;
 
-use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::os::unix::ffi::OsStrExt;
-use std::slice;
+use std::os::raw::c_int;
 use std::string::ToString;
 
 use noblit::database;
@@ -74,10 +72,8 @@ pub unsafe extern fn noblit_get_last_error(db: *const Context) -> noblit_slice_t
     }
 }
 
-fn noblit_open_packed_in_memory_impl(fname: &OsStr) -> Box<Context> {
-    // TODO: Proper error handling.
-    let f = fs::File::open(fname).expect("Failed to open database file.");
-    let db = disk::read_packed(&mut io::BufReader::new(f)).expect("Failed to read database.");
+fn noblit_open_packed_in_memory_impl(file: &mut fs::File) -> Box<Context> {
+    let db = disk::read_packed(&mut io::BufReader::new(file)).expect("Failed to read database.");
     let context = Context {
         db: FixedDatabase::InMemory(db),
         last_error: None,
@@ -92,9 +88,13 @@ pub unsafe extern fn noblit_close(db: *mut Context) {
 }
 
 #[no_mangle]
-pub unsafe extern fn noblit_open_packed_in_memory(fname: *const u8, fname_len: usize) -> *mut Context {
-    let fname_bytes = slice::from_raw_parts(fname, fname_len);
-    let fname_osstr = OsStr::from_bytes(fname_bytes);
-    let db_wrapper = noblit_open_packed_in_memory_impl(fname_osstr);
-    Box::into_raw(db_wrapper)
+pub unsafe extern fn noblit_open_packed_in_memory(fd: c_int) -> *mut Context {
+    use std::os::unix::io::{FromRawFd, IntoRawFd};
+    // Turn the foreign file handle into a Rust File, read the database from it.
+    let mut file = fs::File::from_raw_fd(fd);
+    let context = noblit_open_packed_in_memory_impl(&mut file);
+    // We only borrow the foreign file, so the File::drop should not close it.
+    // Turning the file back into the foreign file descriptor prevents the drop.
+    let _ = file.into_raw_fd();
+    Box::into_raw(context)
 }
