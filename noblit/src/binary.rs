@@ -89,38 +89,33 @@ pub fn slice_8(buffer: &[u8]) -> [u8; 8] {
     ]
 }
 
-/// A reader that remembers its offset.
+/// Newtype wrapper for `dyn io::Read`.
 pub struct Cursor {
     reader: Box<dyn io::Read>,
-    offset: usize,
 }
 
 impl Cursor {
     pub fn new<R: 'static + io::Read>(reader: R) -> Cursor {
         Cursor {
             reader: Box::new(reader),
-            offset: 0,
         }
     }
 
     pub fn take_u8(&mut self) -> io::Result<u8> {
         let mut buffer = [0];
         self.reader.read_exact(&mut buffer[..])?;
-        self.offset += buffer.len();
         Ok(buffer[0])
     }
 
     pub fn take_u16_le(&mut self) -> io::Result<u16> {
         let mut buffer = [0, 0];
         self.reader.read_exact(&mut buffer[..])?;
-        self.offset += buffer.len();
         Ok(u16_from_le_bytes(buffer))
     }
 
     pub fn take_u64_le(&mut self) -> io::Result<u64> {
         let mut buffer = [0, 0, 0, 0, 0, 0, 0, 0];
         self.reader.read_exact(&mut buffer[..])?;
-        self.offset += buffer.len();
         Ok(u64_from_le_bytes(buffer))
     }
 
@@ -128,7 +123,6 @@ impl Cursor {
         use std::iter;
         let mut buffer: Vec<u8> = iter::repeat(0).take(len).collect();
         self.reader.read_exact(&mut buffer[..])?;
-        self.offset += len;
         Ok(buffer)
     }
 

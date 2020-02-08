@@ -9,7 +9,7 @@
 
 use std::io;
 
-use datom::{Value};
+use datom::Value;
 use binary::Cursor;
 use query::{Query, QueryAttribute, QueryValue, Statement, Var};
 use mutation::Mutation;
