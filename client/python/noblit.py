@@ -15,14 +15,18 @@ def load_lib() -> CDLL:
     """
     Load libnoblit.so.
     """
+    last_exc = None
+
     # TODO: How to clean this up to make it usable in practice?
     for prefix in ('', 'target/debug/', 'target/release'):
         try:
             return cdll.LoadLibrary(prefix + 'libnoblit.so')
+
         except OSError as exc:
+            last_exc = exc
             pass
 
-    raise exc
+    raise last_exc
 
 
 def ensure_lib() -> CDLL:
