@@ -13,10 +13,13 @@
 //! trait objects lead to intractable types in many places, that need nontrivial
 //! conversion (e.g. from `dyn StoreMut` to `dyn Store`).
 
-use noblit::database;
+use std::os::raw::c_void;
 
+use noblit::database;
 use noblit::memory_store::{MemoryHeap, MemoryStore};
 use noblit::store::PageSize4096;
+
+use super::Context;
  
 type MemoryStore4096 = MemoryStore<PageSize4096>;
 
@@ -24,6 +27,29 @@ pub enum Database {
     Memory(database::Database<MemoryStore4096, MemoryHeap>),
     // In the future, with file-backed store and heap, there would be more
     // entries here.
+}
+
+/// A value, with context whose database this value was created from.
+///
+/// The context is stored such that we can dispatch on the type of the database
+/// in it to determine the type of the value. The context field is first, such
+/// that a pointer to a `Contextual<T>` can be treated as a pointer to a `*mut
+/// Context` without knowing what `T` is yet.
+#[repr(C)]
+pub struct Contextual<T> {
+    context: *mut Context,
+    value: T
+}
+
+impl<T> Contextual<T> {
+    /// Pack up the given value in a box with context, return a void pointer.
+    pub unsafe fn new(context: *mut Context, value: T) -> *mut c_void {
+        let boxed_context = Box::new(Contextual {
+            context: context,
+            value: value,
+        });
+        Box::into_raw(boxed_context) as *mut c_void
+    }
 }
 
 /// Call the generic function `f` on database `db`.
@@ -37,9 +63,25 @@ pub enum Database {
 /// This is a higher-kinded type that we can't express in Rust, so we resort to
 /// a macro instead.
 macro_rules! with_database {
-    ($db: expr, $f: ident) => {
-        match *$db {
-            Database::Memory(ref db) => $f(db),
+    ($ctx: ident, $f: expr) => {
+        let result = match (*$ctx).db {
+            mono::Database::Memory(ref db) => $f(db),
+        };
+        match result {
+            Ok(()) => 0,
+            Err(err) => (*$ctx).observe_error(err),
         }
+    };
+}
+
+macro_rules! with_context {
+    ($contextual: ident, $f: expr) => {
+        // The contextual struct stores a pointer to the context as its first
+        // field, so we can treat a pointer to it as a pointer to `*const Context`.
+        let ctx: &Context = &**($contextual as *const *const Context);
+        with_database!(ctx, |db| {
+            let contextual: &mut Contextual<_> = &*($contextual as *mut Contextual<_>);
+            $f(db, contextual.value)
+        });
     };
 }

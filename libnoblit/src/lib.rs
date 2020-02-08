@@ -7,19 +7,30 @@
 
 extern crate noblit;
 
+#[macro_use]
 mod mono;
 
 use std::fs;
 use std::io;
-use std::os::raw::c_int;
+use std::os::raw::{c_int, c_void};
+use std::slice;
 use std::string::ToString;
 
+use noblit::binary::Cursor;
+use noblit::database::View;
 use noblit::database;
 use noblit::disk;
 use noblit::error::Error;
+use noblit::eval;
+use noblit::heap;
+use noblit::parse;
+use noblit::plan::Plan;
+use noblit::planner::Planner;
 use noblit::store::PageSize4096;
 use noblit::store;
-use noblit::heap;
+use noblit::temp_heap::Temporaries;
+
+use mono::Contextual;
 
 /// Wraps a `noblit::Database` for use through the C API.
 ///
@@ -39,6 +50,69 @@ impl Context {
         match err {
             Error::IoError(..) => 1,
         }
+    }
+}
+
+pub struct Evaluator<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
+    view: Box<View<'a, Store, Heap>>,
+    plan: Box<Plan>,
+    eval: eval::Evaluator<'a, Store, Heap>,
+}
+
+/// Identity function on `Evaluator`.
+///
+/// The only point of this function is to trigger type inference to infer the
+/// types of the store and heap on the evaluator, given a database reference.
+/// This ensures that after passing an evaluator through the FFI, which erases
+/// its type, we can get back the type later, if we have a typed database
+/// reference.
+unsafe fn id_evaluator<'a, Store: store::Store, Heap: heap::Heap>(
+    db: &database::Database<Store, Heap>,
+    eval: &'a Evaluator<'a, Store, Heap>,
+) -> &'a Evaluator<'a, Store, Heap> {
+    eval
+}
+
+pub fn noblit_query_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap>(
+    db: &'a database::Database<Store, Heap>,
+    query_bytes: &'b [u8]
+) -> Evaluator<'a, Store, Heap> {
+    let mut temporaries = Temporaries::new();
+    let mut cursor = Cursor::from_bytes(query_bytes);
+    let mut query = parse::parse_query(&mut cursor, &mut temporaries).expect("Failed to parse query.");
+    let view = Box::new(db.view(temporaries));
+
+    // Resolve named attributes to id-based attributes, and plan the query.
+    query.fix_attributes(&view);
+
+    // TODO: Add getter to get the slice of selected types.
+    let types = query.infer_types(&view).expect("Type error.");
+    let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
+
+    let plan = Box::new(Planner::plan(&query));
+
+    // Get references to the plan and view inside the boxes. Usually in Rust
+    // code, these would live on the stack, along with the evaluator itself,
+    // and the borrow checker ensures that the borrows of the plan and the
+    // view remain valid as long as the evaluator exists. But here in FFI,
+    // we can't put these things on the stack if we want the evaluator to
+    // outlive this call (which is needed so the foreign caller can call
+    // next on it). Ideally, they would live in the frame of the foreign
+    // caller, but doing so is not easy from non-C languages, and we clutter
+    // the API with pointers to implementation details. So to make the API
+    // harder to abuse, we instead put everything on the heap, where we have
+    // control over the lifetimes. The borrow checker can no longer help us
+    // here, we need to manually make sure to drop the evaluator before
+    // dropping the plan and view.
+    let (plan_ptr, view_ptr) = unsafe {
+        (&*(&*plan as *const Plan), &*(&*view as *const View<_, _>))
+    };
+
+
+    Evaluator {
+        view: view,
+        plan: plan,
+        eval: eval::Evaluator::new(plan_ptr, view_ptr),
     }
 }
 
@@ -89,4 +163,19 @@ pub unsafe extern fn noblit_open_packed_in_memory(fd: c_int) -> *mut Context {
     // Turning the file back into the foreign file descriptor prevents the drop.
     let _ = file.into_raw_fd();
     Box::into_raw(context)
+}
+
+#[no_mangle]
+pub unsafe extern fn noblit_query(
+    ctx: *mut Context,
+    query: *const u8,
+    query_len: usize,
+    out_eval: *mut *mut c_void
+) {
+    let query_bytes = slice::from_raw_parts(query, query_len);
+    with_database!(ctx, |db| {
+        let evaluator = noblit_query_impl(db, query_bytes);
+        *out_eval = Contextual::new(ctx, evaluator);
+        Ok(())
+    });
 }
