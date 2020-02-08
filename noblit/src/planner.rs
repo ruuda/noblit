@@ -44,14 +44,24 @@ pub struct Planner {
     ///
     /// The triples are (entity, attribute, value) triples. For the entity and
     /// value, we store the slot where the value will reside during evaluation.
-    /// TODO: Should not be public.
-    pub statements: Vec<(Slot, Aid, Slot)>,
+    statements: Vec<(Slot, Aid, Slot)>,
 
     /// The plan that we are building.
     plan: Plan,
 }
 
 impl Planner {
+    /// Plan the query.
+    ///
+    /// This is a convenience wrapper that performs all steps needed to plan the
+    /// query. Individual steps are also exposed through `Planner::new()` and
+    /// other methods.
+    pub fn plan(query: &Query) -> Plan {
+        let mut planner = Planner::new(query);
+        planner.initialize_scans();
+        planner.plan
+    }
+
     /// Initialize a planner for the given query.
     ///
     /// Before the plan is available, the scans need to be initialized.

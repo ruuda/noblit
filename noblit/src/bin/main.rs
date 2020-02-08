@@ -13,9 +13,9 @@ use noblit::eval;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::planner;
 use noblit::query;
-use noblit::query_plan::{Evaluator, QueryPlan};
 use noblit::store::{PageSize4096};
 use noblit::temp_heap::Temporaries;
+use noblit::eval::Evaluator;
 use noblit::types;
 
 fn main() {
@@ -118,12 +118,12 @@ fn main() {
         };
         query.fix_attributes(&view);
 
-        // TODO: Replace full eval with new plan, don't just print it.
-        let mut planner = planner::Planner::new(&query);
-        planner.initialize_scans();
-        println!("Plan: \n{:?}", planner.get_plan());
+        // TODO: Add getter to get the slice of selected types.
+        let types = query.infer_types(&view).expect("Type error.");
+        let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
 
-        let plan = QueryPlan::new(query, &view);
+        let plan  = planner::Planner::plan(&query);
+        println!("Plan: \n{:?}", plan);
 
         println!("\nAll attributes:");
         let eval = Evaluator::new(&plan, &view);
@@ -132,9 +132,9 @@ fn main() {
         types::draw_table(
             &mut stdout.lock(),
             view.heap(),
-            plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
+            plan.select.iter().enumerate().map(|(i, _)| plan.get_select_name(i)),
             rows.iter().map(|ref row| &row[..]),
-            &plan.select_types[..],
+            &select_types[..],
         ).unwrap();
     }
 
@@ -163,12 +163,12 @@ fn main() {
         };
         query.fix_attributes(&mut view);
 
-        // TODO: Replace full eval with new plan, don't just print it.
-        let mut planner = planner::Planner::new(&query);
-        planner.initialize_scans();
-        println!("Plan: \n{:?}", planner.get_plan());
+        // TODO: Add getter to get the slice of selected types.
+        let types = query.infer_types(&view).expect("Type error.");
+        let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
 
-        let plan = QueryPlan::new(query, &view);
+        let plan = planner::Planner::plan(&query);
+        println!("Plan: \n{:?}", plan);
 
         println!("\nAll types:");
         let eval = Evaluator::new(&plan, &view);
@@ -177,9 +177,9 @@ fn main() {
         types::draw_table(
             &mut stdout.lock(),
             view.heap(),
-            plan.select.iter().map(|&v| &plan.variable_names[v.0 as usize][..]),
+            plan.select.iter().enumerate().map(|(i, _)| plan.get_select_name(i)),
             rows.iter().map(|ref row| &row[..]),
-            &plan.select_types[..],
+            &select_types[..],
         ).unwrap();
     }
 
@@ -216,10 +216,8 @@ fn main() {
         let types = query.infer_types(&view).expect("Type error.");
         let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
 
-        let mut planner = planner::Planner::new(&query);
-        planner.initialize_scans();
-        let plan = planner.get_plan();
-        println!("Plan: \n{:?}", planner.get_plan());
+        let plan = planner::Planner::plan(&query);
+        println!("Plan: \n{:?}", plan);
 
         println!("\nNamed entities with level:");
         let eval = eval::Evaluator::new(&plan, &view);

@@ -40,11 +40,7 @@ fn run_query(cursor: &mut Cursor, database: &Database) {
     let types = query.infer_types(&view).expect("Type error.");
     let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
 
-    // TODO: Add one-step wrapper that does not involve the manual
-    // initialization step.
-    let mut planner = Planner::new(&query);
-    planner.initialize_scans();
-    let plan = planner.get_plan();
+    let plan = Planner::plan(&query);
 
     // Evaluate the query, and pretty-print the results in a table.
     let eval = Evaluator::new(&plan, &view);
@@ -65,10 +61,8 @@ fn explain_query(cursor: &mut Cursor, database: &Database) {
     let view = database.view(temporaries);
     query.fix_attributes(&view);
 
-    // Print the initial plan.
-    let mut planner = Planner::new(&query);
-    planner.initialize_scans();
-    println!("{:?}", planner.get_plan());
+    let plan = Planner::plan(&query);
+    println!("{:?}", plan);
 }
 
 /// The minimum of a number of duration measurements.
@@ -321,9 +315,7 @@ fn run_mutation(cursor: &mut Cursor, database: &mut Database) {
         let query = mutation.read_only_part();
         let types = query.infer_types(&view).expect("Type error.");
 
-        let mut planner = Planner::new(&query);
-        planner.initialize_scans();
-        let plan = planner.get_plan();
+        let plan = Planner::plan(&query);
 
         let mut rows_to_return = Vec::new();
 
