@@ -142,7 +142,17 @@ impl Cursor {
 
 #[cfg(test)]
 mod test {
-    use binary::{u64_from_le_bytes, u64_to_le_bytes};
+    use binary::{u16_from_le_bytes, u16_to_le_bytes, u64_from_le_bytes, u64_to_le_bytes};
+
+    #[test]
+    fn u16_to_from_le_bytes_roundtrips() {
+        // Test 5 powers of 9 that span almost the full u16 range.
+        let mut v = 1;
+        for _ in 0..5 {
+            v = v * 9;
+            assert_eq!(v, u16_from_le_bytes(u16_to_le_bytes(v)));
+        }
+    }
 
     #[test]
     fn u64_to_from_le_bytes_roundtrips() {
