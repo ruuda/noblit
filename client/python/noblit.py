@@ -26,6 +26,9 @@ def load_lib() -> CDLL:
             last_exc = exc
             pass
 
+    # If we get here, we should have either returned or stored an exception,
+    # but Mypy does not know that.
+    assert last_exc is not None
     raise last_exc
 
 
