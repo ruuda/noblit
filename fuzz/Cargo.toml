@@ -8,7 +8,7 @@ publish = false
 cargo-fuzz = true
 
 [dependencies]
-noblit = { path = ".." }
+noblit = { path = "../noblit" }
 libfuzzer-sys = "0.3.0"
 
 # Prevent this from interfering with workspaces.
