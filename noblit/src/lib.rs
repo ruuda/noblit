@@ -19,17 +19,12 @@ pub mod memory_store;
 pub mod mutation;
 pub mod parse;
 pub mod permutation;
+pub mod plan;
+pub mod planner;
 pub mod query;
 pub mod store;
 pub mod temp_heap;
 pub mod types;
-
-// New, not yet supported, not feature complete, query plans.
-pub mod plan;
-pub mod planner;
-
-// Deprecated implementation that was at least working.
-pub mod query_plan;
 
 
 // TODO: I can guard this with #[cfg(fuzzing)] and #[cfg(test)] to keep it
