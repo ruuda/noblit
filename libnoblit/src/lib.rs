@@ -7,6 +7,8 @@
 
 extern crate noblit;
 
+mod mono;
+
 use std::fs;
 use std::io;
 use std::os::raw::c_int;
@@ -19,23 +21,12 @@ use noblit::store::PageSize4096;
 use noblit::store;
 use noblit::heap;
 
-type DynStore = Box<dyn store::Store<Size = PageSize4096>>;
-type DynHeap = Box<dyn heap::Heap>;
-type DynStoreMut = Box<dyn store::StoreMut<Size = PageSize4096>>;
-type DynHeapMut = Box<dyn heap::HeapMut>;
-
-/// Dynamic dispatch version of `noblit::Database`, either mutable or immutable.
-enum Database {
-    Immutable(database::Database<DynStore, DynHeap>),
-    Mutable(database::Database<DynStoreMut, DynHeapMut>),
-}
-
 /// Wraps a `noblit::Database` for use through the C API.
 ///
 /// This struct is referred to as `noblit_t` in the C API reference.
 pub struct Context {
     /// The database to manage.
-    db: Database,
+    db: mono::Database,
 
     /// If the last call returned an error, this contains the formatted message.
     last_error: Option<String>,
@@ -76,7 +67,7 @@ pub unsafe extern fn noblit_get_last_error(db: *const Context) -> noblit_slice_t
 fn noblit_open_packed_in_memory_impl(file: &mut fs::File) -> Box<Context> {
     let db = disk::read_packed(&mut io::BufReader::new(file)).expect("Failed to read database.");
     let context = Context {
-        db: Database::Mutable(db.into_dyn_mut()),
+        db: mono::Database::Memory(db),
         last_error: None,
     };
     Box::new(context)
