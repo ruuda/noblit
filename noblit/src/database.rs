@@ -324,6 +324,28 @@ impl<Store: store::Store, Heap: heap::Heap> Database<Store, Heap> {
         Ok(db)
     }
 
+    /// Erase type arguments at the cost of virtual dispatch.
+    pub fn into_dyn(self) -> Database<
+        Box<dyn store::Store<Size = Store::Size>>,
+        Box<dyn heap::Heap>,
+    > where
+        Store: 'static,
+        Heap: 'static,
+    {
+        Database::open(Box::new(self.store), Box::new(self.heap), self.head)
+    }
+
+    /// Erase type arguments at the cost of virtual dispatch.
+    pub fn into_dyn_mut(self) -> Database<
+        Box<dyn store::StoreMut<Size = Store::Size>>,
+        Box<dyn heap::HeapMut>,
+    > where
+        Store: store::StoreMut + 'static,
+        Heap: heap::HeapMut + 'static,
+    {
+        Database::open(Box::new(self.store), Box::new(self.heap), self.head)
+    }
+
     /// Open an existing database.
     pub fn open(store: Store, heap: Heap, head: Head) -> Database<Store, Heap> {
         // TODO: Check that the builtins are consistent with the database that

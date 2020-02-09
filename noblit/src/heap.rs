@@ -68,12 +68,22 @@ impl<'a, T: Heap> Heap for &'a mut T {
     fn get_bytes(&self, offset: CidBytes) -> &[u8] { (**self).get_bytes(offset) }
 }
 
+impl<'a, T: Heap + ?Sized> Heap for Box<T> {
+    fn get_u64(&self, offset: CidInt) -> u64 { (**self).get_u64(offset) }
+    fn get_bytes(&self, offset: CidBytes) -> &[u8] { (**self).get_bytes(offset) }
+}
+
 impl<'a, T: SizedHeap> SizedHeap for &'a T {
     fn len(&self) -> u64 { (**self).len() }
     fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }
 
 impl<'a, T: SizedHeap> SizedHeap for &'a mut T {
+    fn len(&self) -> u64 { (**self).len() }
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
+}
+
+impl<'a, T: SizedHeap + ?Sized> SizedHeap for Box<T> {
     fn len(&self) -> u64 { (**self).len() }
     fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }

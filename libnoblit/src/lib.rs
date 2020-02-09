@@ -15,18 +15,19 @@ use std::string::ToString;
 use noblit::database;
 use noblit::disk;
 use noblit::error::Error;
-use noblit::memory_store::{MemoryHeap, MemoryStore};
 use noblit::store::PageSize4096;
+use noblit::store;
+use noblit::heap;
 
-type MemoryStore4096 = MemoryStore<PageSize4096>;
+type DynStore = Box<dyn store::Store<Size = PageSize4096>>;
+type DynHeap = Box<dyn heap::Heap>;
+type DynStoreMut = Box<dyn store::StoreMut<Size = PageSize4096>>;
+type DynHeapMut = Box<dyn heap::HeapMut>;
 
-/// Fixes the type parameters of `noblit::Database` to a few predetermined cases.
-enum FixedDatabase {
-    /// An in-memory database (mutable).
-    InMemory(database::Database<MemoryStore4096, MemoryHeap>),
-    // TODO: In the future we can add variants for immutable on-disk
-    // and mutable on-disk here. FFI functions then have to dispatch on it,
-    // and report an error for unsupported cases.
+/// Dynamic dispatch version of `noblit::Database`, either mutable or immutable.
+enum Database {
+    Immutable(database::Database<DynStore, DynHeap>),
+    Mutable(database::Database<DynStoreMut, DynHeapMut>),
 }
 
 /// Wraps a `noblit::Database` for use through the C API.
@@ -34,7 +35,7 @@ enum FixedDatabase {
 /// This struct is referred to as `noblit_t` in the C API reference.
 pub struct Context {
     /// The database to manage.
-    db: FixedDatabase,
+    db: Database,
 
     /// If the last call returned an error, this contains the formatted message.
     last_error: Option<String>,
@@ -75,7 +76,7 @@ pub unsafe extern fn noblit_get_last_error(db: *const Context) -> noblit_slice_t
 fn noblit_open_packed_in_memory_impl(file: &mut fs::File) -> Box<Context> {
     let db = disk::read_packed(&mut io::BufReader::new(file)).expect("Failed to read database.");
     let context = Context {
-        db: FixedDatabase::InMemory(db),
+        db: Database::Mutable(db.into_dyn_mut()),
         last_error: None,
     };
     Box::new(context)

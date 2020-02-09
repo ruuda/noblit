@@ -134,7 +134,19 @@ impl<'a, T: Store> Store for &'a mut T {
     fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
 }
 
+impl<'a, T: Store + ?Sized> Store for Box<T> {
+    type Size = T::Size;
+    fn get(&self, page: PageId) -> &[u8] { (**self).get(page) }
+    fn dump(&self, out: &mut dyn io::Write) -> io::Result<()> { (**self).dump(out) }
+}
+
 impl<'a, T: StoreMut> StoreMut for &'a mut T {
+    fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> {
+        (**self).write_page(page)
+    }
+}
+
+impl<'a, T: StoreMut + ?Sized> StoreMut for Box<T> {
     fn write_page(&mut self, page: &[u8]) -> io::Result<PageId> {
         (**self).write_page(page)
     }
