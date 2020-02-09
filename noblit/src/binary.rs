@@ -89,15 +89,21 @@ pub fn slice_8(buffer: &[u8]) -> [u8; 8] {
     ]
 }
 
-/// Newtype wrapper for `dyn io::Read`.
-pub struct Cursor {
-    reader: Box<dyn io::Read>,
+/// Newtype wrapper for `dyn io::Read` with a limited lifetime.
+pub struct Cursor<'a> {
+    reader: Box<dyn 'a + io::Read>,
 }
 
-impl Cursor {
-    pub fn new<R: 'static + io::Read>(reader: R) -> Cursor {
+impl<'a> Cursor<'a> {
+    pub fn new<R: 'a + io::Read>(reader: R) -> Cursor<'a> {
         Cursor {
             reader: Box::new(reader),
+        }
+    }
+
+    pub fn from_bytes(bytes: &'a [u8]) -> Cursor<'a> {
+        Cursor {
+            reader: Box::new(io::Cursor::new(bytes)),
         }
     }
 
