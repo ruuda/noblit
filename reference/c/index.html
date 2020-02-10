@@ -478,6 +478,48 @@ noblit_close(noblit_t* db);
 </code></pre>
 <p>Close the database, release associated resources, and deallocate the <code>noblit_t</code>
 struct.</p>
+<h2 id="noblit_evaluator_t">noblit_evaluator_t</h2>
+<pre><code>typedef struct noblit_query noblit_evaluator_t;
+</code></pre>
+<p>A query evaluator.</p>
+<h2 id="noblit_query_open">noblit_query_open</h2>
+<pre><code>noblit_result_t
+noblit_query_open(
+    noblit_t *const db,
+    uint8_t *const query,
+    size_t query_len,
+    noblit_evaluator_t** evaluator
+);
+</code></pre>
+<p>Parse and plan a query, produce an evaluator to iterate the results.</p>
+<dl>
+  <dt>db</dt>
+  <dd>
+    Database to query. The database remains borrowed for as long as the
+    evaluator exists; it should not be referenced until the matching
+    <a href="#noblit_query_close"><code>noblit_query_close</code></a>.
+  </dd>
+  <dt>query</dt>
+  <dd>
+    Buffer that contains the query in binary format. The query buffer is
+    borrowed for the duration of the call, Noblit does not reference it after
+    the call returns. See also <code>noblit::binary</code> module for the binary
+    format reference. TODO: Document it properly.
+  </dd>
+  <dt>query_len</dt>
+  <dd>Length of the query buffer in bytes.</dd>
+  <dt>evaluator</dt>
+  <dd>
+    Out parameter for the resulting evaluator. When the function returns 0,
+    <code>*evaluator</code> will contain a pointer to the evaluator.
+  <dd>
+</dl>
+
+<h2 id="noblit_query_close">noblit_query_close</h2>
+<pre><code>void
+noblit_query_close(noblit_evaluator_t* evaluator);
+</code></pre>
+<p>Take ownership of the evaluator and deallocate it.</p>
       </article>
       <nav id="nav-prev-next">
         <a id="nav-prev" href="../rust/" title="Rust API reference">Previous</a>
@@ -519,6 +561,9 @@ struct.</p>
                 <li class="toc-heading"><a href="#noblit_get_last_error">noblit_get_last_error</a></li>
                 <li class="toc-heading"><a href="#noblit_open_packed_in_memory">noblit_open_packed_in_memory</a></li>
                 <li class="toc-heading"><a href="#noblit_close">noblit_close</a></li>
+                <li class="toc-heading"><a href="#noblit_evaluator_t">noblit_evaluator_t</a></li>
+                <li class="toc-heading"><a href="#noblit_query_open">noblit_query_open</a></li>
+                <li class="toc-heading"><a href="#noblit_query_close">noblit_query_close</a></li>
                 </ul></li>
                <li class="toc-section
             "><a href="../../building/">Development</a></li>
