@@ -26,7 +26,6 @@ use noblit::heap;
 use noblit::parse;
 use noblit::plan::Plan;
 use noblit::planner::Planner;
-use noblit::store::PageSize4096;
 use noblit::store;
 use noblit::temp_heap::Temporaries;
 
@@ -44,7 +43,12 @@ pub struct Context {
 }
 
 impl Context {
-    /// Set `self.error` to the error message, return the associated error code.
+    /// Clear `self.last_error`.
+    fn clear_error(&mut self) {
+        self.last_error = None;
+    }
+
+    /// Set `self.last_error` to the error message, return the associated error code.
     fn observe_error(&mut self, err: Error) -> u32 {
         self.last_error = Some(err.to_string());
         match err {
@@ -59,19 +63,17 @@ pub struct Evaluator<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
     eval: eval::Evaluator<'a, Store, Heap>,
 }
 
-/// Identity function on `Evaluator`.
+/// No-op function on `Database` and `Evaluator`.
 ///
 /// The only point of this function is to trigger type inference to infer the
 /// types of the store and heap on the evaluator, given a database reference.
 /// This ensures that after passing an evaluator through the FFI, which erases
 /// its type, we can get back the type later, if we have a typed database
 /// reference.
-unsafe fn id_evaluator<'a, Store: store::Store, Heap: heap::Heap>(
-    db: &database::Database<Store, Heap>,
-    eval: &'a Evaluator<'a, Store, Heap>,
-) -> &'a Evaluator<'a, Store, Heap> {
-    eval
-}
+fn infer_evaluator_type<'a, 'call, Store: store::Store, Heap: heap::Heap>(
+    _: &'call database::Database<Store, Heap>,
+    _: &'call Evaluator<'a, Store, Heap>,
+) {}
 
 pub fn noblit_query_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap>(
     db: &'a database::Database<Store, Heap>,
@@ -79,6 +81,7 @@ pub fn noblit_query_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap
 ) -> Evaluator<'a, Store, Heap> {
     let mut temporaries = Temporaries::new();
     let mut cursor = Cursor::from_bytes(query_bytes);
+    // TODO: Report a proper error.
     let mut query = parse::parse_query(&mut cursor, &mut temporaries).expect("Failed to parse query.");
     let view = Box::new(db.view(temporaries));
 
@@ -107,7 +110,6 @@ pub fn noblit_query_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap
     let (plan_ptr, view_ptr) = unsafe {
         (&*(&*plan as *const Plan), &*(&*view as *const View<_, _>))
     };
-
 
     Evaluator {
         view: view,
@@ -166,16 +168,25 @@ pub unsafe extern fn noblit_open_packed_in_memory(fd: c_int) -> *mut Context {
 }
 
 #[no_mangle]
-pub unsafe extern fn noblit_query(
+pub unsafe extern fn noblit_query_open(
     ctx: *mut Context,
     query: *const u8,
     query_len: usize,
     out_eval: *mut *mut c_void
-) {
+) -> u32 {
     let query_bytes = slice::from_raw_parts(query, query_len);
     with_database!(ctx, |db| {
         let evaluator = noblit_query_impl(db, query_bytes);
         *out_eval = Contextual::new(ctx, evaluator);
+        Ok(())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern fn noblit_query_close(query: *mut c_void) {
+    into_context!(query, |db, evaluator| {
+        infer_evaluator_type(db, &evaluator);
+        println!("Dropping evaluator.");
         Ok(())
     });
 }

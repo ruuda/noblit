@@ -38,7 +38,7 @@ pub enum Database {
 #[repr(C)]
 pub struct Contextual<T> {
     context: *mut Context,
-    value: T
+    pub value: T
 }
 
 impl<T> Contextual<T> {
@@ -52,18 +52,19 @@ impl<T> Contextual<T> {
     }
 }
 
-/// Call the generic function `f` on database `db`.
+/// Call the generic function `f` on the database in context `ctx`.
 ///
 /// If this would be a function, its type would be (Haskell notation):
 ///
-///     :: forall r. &self
+///     :: forall r. *mut Context
 ///     -> (forall s h. (store::Store s, heap::Heap h) => &Database s h -> r)
 ///     -> r
 ///
 /// This is a higher-kinded type that we can't express in Rust, so we resort to
 /// a macro instead.
 macro_rules! with_database {
-    ($ctx: ident, $f: expr) => {
+    ($ctx: ident, $f: expr) => {{
+        (*$ctx).clear_error();
         let result = match (*$ctx).db {
             mono::Database::Memory(ref db) => $f(db),
         };
@@ -71,17 +72,48 @@ macro_rules! with_database {
             Ok(()) => 0,
             Err(err) => (*$ctx).observe_error(err),
         }
-    };
+    }};
 }
 
+/// Call the generic function `f` on the database and contextual value.
+///
+/// If this would be a function, its type would be (Haskell notation):
+///
+///     :: forall r cv. *mut Context
+///     -> (forall s h. (store::Store s, heap::Heap h) => &Database s h -> cv s h -> r)
+///     -> r
+///
+/// The function `f` should accept `&mut Database` and `&mut T`, where `T` is
+/// the value in the `Contextual<T>`. `T` must be inferred through type
+/// inference. Note that when the `T` itself contains a mutable pointer to the
+/// database, then we now alias it, therefore this macro is unsafe. The caller
+/// should be careful with the `db` pointer. It is mostly useful to trigger
+/// unification in type inference, it should not be dereferenced.
 macro_rules! with_context {
     ($contextual: ident, $f: expr) => {
         // The contextual struct stores a pointer to the context as its first
         // field, so we can treat a pointer to it as a pointer to `*const Context`.
-        let ctx: &Context = &**($contextual as *const *const Context);
+        let ctx: *mut Context = *($contextual as *const *mut Context);
         with_database!(ctx, |db| {
             let contextual: &mut Contextual<_> = &*($contextual as *mut Contextual<_>);
+            $f(db, &mut contextual.value)
+        });
+    };
+}
+
+/// Like `with_context`, but receives `T` instead of `&mut T`.
+///
+/// This drops the `Contextual<T>`.
+macro_rules! into_context {
+    ($contextual: ident, $f: expr) => {
+        // The contextual struct stores a pointer to the context as its first
+        // field, so we can treat a pointer to it as a pointer to `*const Context`.
+        let ctx: *mut Context = *($contextual as *const *mut Context);
+        with_database!(ctx, |db| {
+            let contextual: Box<Contextual<_>> = Box::from_raw($contextual as *mut Contextual<_>);
             $f(db, contextual.value)
+            // At this point, the box goes out of scope, and the contextual
+            // value gets dropped.
         });
     };
 }
