@@ -19,20 +19,28 @@ def extract_decls(lines: Iterable[str]) -> Iterable[str]:
     Extract C declarations from code blocks in a markdown file.
     """
     declaration: List[str] = []
+    in_block = False
 
     for line in lines:
         # Four-space indented code blocks must be preceded by a blank line.
         if line.strip() == '':
             declaration = []
+            in_block = True
+            continue
+
+        is_indented = line.startswith('    ')
 
         # Include content from code blocks, and join multiple lines, until the
         # semicolon terminator.
-        if line.startswith('    '):
+        if in_block and is_indented:
             declaration.append(line[4:].rstrip())
 
             if any(end in line for end in (';', '#define', '{')):
                 yield ' '.join(declaration)
                 declaration = []
+
+        if not is_indented:
+            in_block = False
 
 
 def get_decls_from_docs() -> List[str]:
