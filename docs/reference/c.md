@@ -101,3 +101,52 @@ it was loaded from is left untouched when the database is mutated.
 
 Close the database, release associated resources, and deallocate the `noblit_t`
 struct.
+
+## noblit_evaluator_t
+
+    typedef struct noblit_query noblit_evaluator_t;
+
+A query evaluator.
+
+## noblit_query_open
+
+    noblit_result_t
+    noblit_query_open(
+        noblit_t *const db,
+        uint8_t *const query,
+        size_t query_len,
+        noblit_evaluator_t** evaluator
+    );
+
+Parse and plan a query, produce an evaluator to iterate the results.
+
+<dl>
+  <dt>db</dt>
+  <dd>
+    Database to query. The database remains borrowed for as long as the
+    evaluator exists; it should not be referenced until the matching
+    <a href="#noblit_query_close"><code>noblit_query_close</code></a>.
+  </dd>
+  <dt>query</dt>
+  <dd>
+    Buffer that contains the query in binary format. The query buffer is
+    borrowed for the duration of the call, Noblit does not reference it after
+    the call returns. See also <code>noblit::binary</code> module for the binary
+    format reference. TODO: Document it properly.
+  </dd>
+  <dt>query_len</dt>
+  <dd>Length of the query buffer in bytes.</dd>
+  <dt>evaluator</dt>
+  <dd>
+    Out parameter for the resulting evaluator. When the function returns 0,
+    <code>*evaluator</code> will contain a pointer to the evaluator.
+  <dd>
+</dl>
+
+
+## noblit_query_close
+
+    void
+    noblit_query_close(noblit_evaluator_t* evaluator);
+
+Take ownership of the evaluator and deallocate it.
