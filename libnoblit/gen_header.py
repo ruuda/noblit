@@ -9,9 +9,12 @@
 
 """
 Extract the noblit.h C header from the API reference.
+Accepts --output and a filename, prints to stdout otherwise.
 """
 
-from typing import Iterable, List
+import sys
+
+from typing import IO, Iterable, List
 
 
 def extract_decls(lines: Iterable[str]) -> Iterable[str]:
@@ -51,21 +54,23 @@ def get_decls_from_docs() -> List[str]:
         return list(extract_decls(f))
 
 
-def main() -> None:
-    print('#ifndef _NOBLIT_H_')
-    print('#define _NOBLIT_H_')
-    print(
-        '\n/* This file was generated from docs/reference/c.md '
-        'by libnoblit/gen_header.py. */\n'
-    )
-    print('#include <stddef.h>')
-    print('#include <stdint.h>\n')
+def main(out: IO[str]) -> None:
+    out.write('#ifndef _NOBLIT_H_\n')
+    out.write('#define _NOBLIT_H_\n')
+    out.write('\n/* This file was generated from docs/reference/c.md ')
+    out.write('by libnoblit/gen_header.py. */\n\n')
+    out.write('#include <stddef.h>\n')
+    out.write('#include <stdint.h>\n\n')
 
     for decl in get_decls_from_docs():
-        print(decl)
+        out.write(decl)
+        out.write('\n')
 
-    print('\n#endif')
+    out.write('\n#endif\n')
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) == 3 and sys.argv[1] == '--output':
+        main(open(sys.argv[2], 'w', encoding='utf-8'))
+    else:
+        main(sys.stdout)
