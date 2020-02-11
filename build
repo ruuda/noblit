@@ -94,6 +94,25 @@ STEPS = {
         ['mypy', '--strict', 'golden'],
         ['mypy', '--strict', 'libnoblit'],
     ),
+    'build_header': Step.new(
+        ['libnoblit/gen_header.py', '--output', 'noblit.h'],
+        ['gcc', '-Wall', '-Werror', '-c', 'noblit.h'],
+    ),
+    'check_symbols': Step.new(
+        ['libnoblit/check_symbols.py', 'target/debug/libnoblit.so'],
+    ),
+    'check_goldens': Step.new(
+        ['prove', '--exec', 'golden/run.py', 'golden'],
+    ),
+    'build_docs': Step.new(
+        ['mkdocs', 'build'],
+    ),
+    'build_lib_miri': Step.new(
+        ['cargo', '+nightly-2020-01-18', 'clean'],
+        ['cargo', '+nightly-2020-01-18', 'miri', 'test'],
+        ['cargo', '+nightly-2020-01-18', 'clean'],
+        cwd='noblit',
+    ),
 }
 
 
