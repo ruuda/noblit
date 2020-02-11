@@ -7,6 +7,8 @@
 # you may not use this file except in compliance with the License.
 # A copy of the License has been included in the root of the repository.
 
+from __future__ import annotations
+
 """
 Build automation for Noblit.
 
@@ -19,14 +21,80 @@ This script is not a build system: it runs a dumb sequence of commands, it does
 not track dependencies, nor does it avoid running unnecessary steps. This makes
 it easier to write (no need to specify dependencies), but slower to run (it may
 do useless work).
+
+This script will by default build the Nix development environment and enter it,
+if it is not already on the PATH. This can take a second or so, even when it is
+a no-op. For lower latency, enter the environment once with "nix run --command
+$SHELL", and start ./build inside that shell.
+
+Flags:
+
+  -h --help          Show this text.
+     --no-isolation  Run in the existing environment, avoid Nix.
 """
 
 import os
 import re
 import subprocess
 import sys
+import time
 
-from typing import Dict
+from typing import Dict, List, NamedTuple, Optional
+
+
+class Result(NamedTuple):
+    command: List[str]
+    duration_seconds: float
+    exit_code: int
+
+
+class Step(NamedTuple):
+    commands: List[List[str]]
+    cwd: Optional[str] = None
+
+    @staticmethod
+    def new(*commands: List[str], cwd: Optional[str] = None) -> Step:
+        return Step(commands, cwd)
+
+    def run(self) -> Iterable[Result]:
+        for cmd in self.commands:
+            # TODO: Locate repo root.
+            if self.cwd is not None:
+                cwd = f'{os.getcwd()}/{self.cwd}'
+            else:
+                cwd = os.getcwd()
+
+            print('\n$', ' '.join(cmd))
+            begin_second = time.monotonic()
+            completed_proc = subprocess.run(cmd, cwd=cwd)
+            end_second = time.monotonic()
+            yield Result(
+                command=cmd,
+                duration_seconds=end_second - begin_second,
+                exit_code=completed_proc.returncode,
+            )
+
+
+STEPS = {
+    'build_lib': Step.new(
+        ['cargo', 'build'],
+        ['cargo', 'test'],
+    ),
+    'build_client_haskell': Step.new(
+        ['stack', '--no-terminal', 'build'],
+        ['stack', '--no-terminal', 'test'],
+        cwd='client/haskell',
+    ),
+    'build_example_haskell': Step.new(
+        ['stack', '--no-terminal', 'build'],
+        cwd='examples',
+    ),
+    'typecheck': Step.new(
+        ['mypy', '--strict', 'client/python'],
+        ['mypy', '--strict', 'golden'],
+        ['mypy', '--strict', 'libnoblit'],
+    ),
+}
 
 
 def get_devenv_path() -> str:
@@ -59,15 +127,44 @@ def get_dev_environment() -> Dict[str, str]:
         # Prevent another reexec by setting NOBLIT_DEVENV.
         'NOBLIT_DEVENV': '1',
         'PATH': f'{devenv}/bin',
+        'HOME': os.environ['HOME'],
+        'TERM': os.environ['TERM'],
     }
 
 
 def main() -> None:
-    print(os.environ)
+    if '--help' in sys.argv or '-h' in sys.argv:
+        print(__doc__.strip())
+        sys.exit(0)
+
+    # Run the steps provided on the command line, or all steps if none were
+    # provided.
+    steps = [arg for arg in sys.argv[1:] if not arg.startswith('--')] or STEPS.keys()
+
+    results = []
+
+    for step_name in steps:
+        step = STEPS[step_name]
+        results.extend(step.run())
+
+    print()
+    for result in results:
+        cmd = ' '.join(result.command)
+        if result.exit_code == 0:
+            status = '\x1b[32m PASS\x1b[0m'
+        else:
+            status = '\x1b[31m FAIL\x1b[0m'
+
+        print(f'{status}  {result.duration_seconds:3.1f}s  {cmd}')
+
+    sys.exit(max(result.exit_code for result in results))
 
 
 if __name__ == '__main__':
-    if os.getenv('NOBLIT_DEVENV') == '1' or '--no-isolation' in sys.argv:
+    if os.getenv('NOBLIT_DEVENV') == '1':
+        main()
+    elif '--no-isolation' in sys.argv:
+        sys.argv.remove('--no-isolation')
         main()
     else:
         new_environment = get_dev_environment()
