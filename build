@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+
+# Noblit -- An immutable append-only database
+# Copyright 2020 Ruud van Asseldonk
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# A copy of the License has been included in the root of the repository.
+
+"""
+Build automation for Noblit.
+
+Noblit consists of many parts. In particular the Rust crate, but also the client
+libraries, golden tests, docs, and various supporting scripts. Fully running all
+quality checks involves many steps. CI runs all of them, but to individually run
+all of them locally is tedious. This script automates that.
+
+This script is not a build system: it runs a dumb sequence of commands, it does
+not track dependencies, nor does it avoid running unnecessary steps. This makes
+it easier to write (no need to specify dependencies), but slower to run (it may
+do useless work).
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+from typing import Dict
+
+
+def get_devenv_path() -> str:
+    """
+    If a Nix development environment is on the PATH, return it. Otherwise invoke
+    Nix to build the development environment, and return its path.
+    """
+    match = re.search(r'/nix/store/[0-9a-z]{32}-noblit-devenv', os.environ['PATH'])
+
+    if match is not None:
+        return match.group(0)
+
+    else:
+        cmd = ['nix-build', '--no-out-link']
+        return subprocess.run(cmd, capture_output=True).stdout.decode('utf-8').strip()
+
+
+def get_dev_environment() -> Dict[str, str]:
+    """
+    Set up the PATH and other environment variables to make the tools from the
+    Nix development environment available, and nothing else.
+    """
+    devenv = get_devenv_path()
+    return {
+        'LANG': 'en_US.UTF8',
+        # Binaries in the profile built above may need locales, that they can't
+        # find unless we point LOCALE_ARCHIVE at the archive that contains them.
+        'LIBRARY_PATH': f'{devenv}/lib',
+        'LOCALE_ARCHIVE': f'{devenv}/lib/locale/locale-archive',
+        # Prevent another reexec by setting NOBLIT_DEVENV.
+        'NOBLIT_DEVENV': '1',
+        'PATH': f'{devenv}/bin',
+    }
+
+
+def main() -> None:
+    print(os.environ)
+
+
+if __name__ == '__main__':
+    if os.getenv('NOBLIT_DEVENV') == '1' or '--no-isolation' in sys.argv:
+        main()
+    else:
+        new_environment = get_dev_environment()
+        os.execve(sys.argv[0], sys.argv, new_environment)
