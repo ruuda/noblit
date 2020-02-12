@@ -7,8 +7,6 @@
 # you may not use this file except in compliance with the License.
 # A copy of the License has been included in the root of the repository.
 
-from __future__ import annotations
-
 """
 Build automation for Noblit.
 
@@ -27,11 +25,21 @@ if it is not already on the PATH. This can take a second or so, even when it is
 a no-op. For lower latency, enter the environment once with "nix run --command
 $SHELL", and start ./build inside that shell.
 
+Usage:
+
+  ./build
+  ./build RULE...
+
+  By default, all rules are executed. If any arguments are provided, only the
+  matching rules get executed.
+
 Flags:
 
   -h --help          Show this text.
      --no-isolation  Run in the existing environment, avoid Nix.
 """
+
+from __future__ import annotations
 
 import os
 import re
@@ -39,16 +47,36 @@ import subprocess
 import sys
 import time
 
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, Iterable, List, NamedTuple, Optional, Set
 
 
 class Result(NamedTuple):
-    command: List[str]
+    step: Step
     duration_seconds: float
     exit_code: int
 
 
-def run_build(buildfile: Iterable[str]) -> Iterable[Result]:
+class Step(NamedTuple):
+    rule: str
+    command: List[str]
+    directory: Optional[str]
+
+    def run(self) -> Result:
+        if self.directory is not None:
+            cwd = f'{os.getcwd()}/{self.directory}'
+        else:
+            cwd = os.getcwd()
+
+        print('\n$', ' '.join(self.command))
+
+        begin_second = time.monotonic()
+        completed_proc = subprocess.run(self.command, cwd=cwd)
+        end_second = time.monotonic()
+
+        return Result(self, end_second - begin_second, completed_proc.returncode)
+
+
+def parse_buildfile(buildfile: Iterable[str])-> Iterable[Step]:
     directory: Optional[str] = None
     current_rule: str = ''
 
@@ -73,23 +101,7 @@ def run_build(buildfile: Iterable[str]) -> Iterable[Result]:
         # better to have proper lists (maybe json) instead of an ad-hoc format.
         elif line.startswith('  '):
             cmd = line.strip().split()
-
-            if directory is not None:
-                cwd = f'{os.getcwd()}/{directory}'
-            else:
-                cwd = os.getcwd()
-
-            print('\n$', ' '.join(cmd))
-
-            begin_second = time.monotonic()
-            completed_proc = subprocess.run(cmd, cwd=cwd)
-            end_second = time.monotonic()
-
-            yield Result(
-                command=cmd,
-                duration_seconds=end_second - begin_second,
-                exit_code=completed_proc.returncode,
-            )
+            yield Step(current_rule, cmd, directory)
 
         else:
             print(f'Build: unknown directive at line {lineno + 1}: {line}')
@@ -140,13 +152,15 @@ def main() -> None:
     args = [arg for arg in sys.argv[1:] if not arg.startswith('-')]
     buildfile = args[0]
     rules = args[1:]
+    results = []
 
-    with open(buildfile, 'r', encoding='utf-8') as build_lines:
-        results = list(run_build(build_lines))
+    for step in parse_buildfile(open(buildfile, 'r', encoding='utf-8')):
+        if len(rules) == 0 or step.rule in rules:
+            results.append(step.run())
 
     print()
     for result in results:
-        cmd = ' '.join(result.command)
+        cmd = ' '.join(result.step.command)
         if result.exit_code == 0:
             status = '\x1b[32m PASS\x1b[0m'
         else:
