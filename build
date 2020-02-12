@@ -1,9 +1,8 @@
 #!tools/run_build.py
 
-# This build file defines some steps that can by executed with ./build <step>.
-# The steps get executed by build.py. This file is similar to a makefile in the
-# sense that it defines commands to run, but build.py does not track
-# dependencies between targets, it only runs the commands.
+# This build file defines some rules that can by executed with ./build <rule>.
+# The rules get executed by run_build.py. By default, ./build runs all rules.
+# Run ./build --help for more information.
 
 build_lib:
   # Build Noblit itself, and associated binaries, and run unit tests.
