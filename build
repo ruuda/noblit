@@ -54,3 +54,9 @@ build_miri:
   cargo +nightly-2020-01-18 clean
   cargo +nightly-2020-01-18 miri test
   cargo +nightly-2020-01-18 clean
+
+fuzz:
+  # Run the fuzzers in limited form (limited input size, and only for 20s). This
+  # is not sufficient for thorough fuzzing, but it will catch blatant errors.
+  cargo +nightly-2020-01-18 fuzz run htree_insert_entity --debug-assertions --release -- -max_len=64 -max_total_time=20
+  cargo +nightly-2020-01-18 fuzz run htree_insert_value  --debug-assertions --release -- -max_len=64 -max_total_time=20
