@@ -121,7 +121,7 @@ def get_devenv_path() -> str:
     else:
         print("$ nix-build")
         cmd = ['nix-build', '--no-out-link']
-        return subprocess.run(cmd, capture_output=True).stdout.decode('utf-8').strip()
+        return subprocess.run(cmd, stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
 
 def get_dev_environment() -> Dict[str, str]:
