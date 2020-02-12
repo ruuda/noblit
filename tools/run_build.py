@@ -158,6 +158,10 @@ def main() -> None:
         if len(rules) == 0 or step.rule in rules:
             results.append(step.run())
 
+    if len(results) == 0:
+        print('build: no rules matched', *rules)
+        sys.exit(0)
+
     print()
     for result in results:
         cmd = ' '.join(result.step.command)
