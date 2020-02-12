@@ -48,4 +48,4 @@ install:
   - stack setup
 
 script:
-  - ./build
+  - $TRAVIS_BUILD_DIR/build
