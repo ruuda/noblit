@@ -1,4 +1,4 @@
-#!/usr/bin/env -S python3 tools/run_build.py
+#!tools/run_build.py
 
 # This build file defines some steps that can by executed with ./build <step>.
 # The steps get executed by build.py. This file is similar to a makefile in the
@@ -6,6 +6,7 @@
 # dependencies between targets, it only runs the commands.
 
 build_lib:
+  # Build Noblit itself, and associated binaries, and run unit tests.
   cargo build
   cargo test
 
@@ -37,6 +38,7 @@ check_symbols:
   libnoblit/check_symbols.py target/debug/libnoblit.so
 
 check_goldens:
+  # Run the golden tests with the Prove TAP harness.
   prove --exec golden/run.py golden
 
 build_docs:
