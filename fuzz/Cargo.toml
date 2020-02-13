@@ -10,6 +10,7 @@ cargo-fuzz = true
 [dependencies]
 noblit = { path = "../noblit" }
 libfuzzer-sys = "0.3.0"
+arbitrary = { version = "0.4.0", features = ["derive"] }
 
 # Prevent this from interfering with workspaces.
 [workspace]
@@ -22,3 +23,7 @@ path = "fuzz_targets/htree_insert_entity.rs"
 [[bin]]
 name = "htree_insert_value"
 path = "fuzz_targets/htree_insert_value.rs"
+
+[[bin]]
+name = "htree_insert"
+path = "fuzz_targets/htree_insert.rs"
