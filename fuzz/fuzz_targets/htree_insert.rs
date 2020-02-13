@@ -110,9 +110,16 @@ fn run<Size: PageSize>(actions: &[FuzzAction]) -> Option<()> {
             FuzzAction::Insert => {
                 tree.insert(&datoms[..]).unwrap();
                 tree.check_invariants().unwrap();
-                datoms.clear();
+
+                // Stop fuzzing if we are not inserting datoms. This prevents
+                // the fuzzer from focussing too much on doing insert all the
+                // time, without inserting datoms. This line speeds up the
+                // fuzzer by roughly 10x.
+                if datoms.len() == 0 { return None }
+
                 // Transaction ids must be even.
                 tid += 2;
+                datoms.clear();
             }
         }
     }
