@@ -109,7 +109,7 @@ Implementation:
    and VAET, like in Datomic.
  * The disk format consists of hitchhiker tree indices and a
    heap file for large values that cannot be inlined in the index.
-   See also [Disk Format](doc/disk-format.md) and [htree](doc/htree.md).
+   See also [Disk Format](docs/disk-format.md) and [htree](docs/htree.md).
  * In addition to the data being semantically immutable, trees on disk are also
    immutable, and the index files are append-only. They would need to be
    rewritten periodically if too much unreferenced tree nodes accumulate.
