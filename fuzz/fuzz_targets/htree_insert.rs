@@ -21,7 +21,7 @@ use libfuzzer_sys::fuzz_target;
 use noblit::datom::{Datom, Aid, Eid, Value, Tid};
 use noblit::heap::{HeapMut, self};
 use noblit::htree::{HTree, Node};
-use noblit::index::{DatomOrd, Eavt};
+use noblit::index::{DatomOrd, Aevt, Avet, Eavt};
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::store::{StoreMut, PageSize, PageSize256, PageSize568, PageSize4096};
 
@@ -38,19 +38,59 @@ enum FuzzAction {
 }
 
 #[derive(Arbitrary, Debug)]
-enum FuzzInput {
-    RunPageSize256 { actions: Vec<FuzzAction> },
-    RunPageSize568 { actions: Vec<FuzzAction> },
-    RunPageSize4096 { actions: Vec<FuzzAction> },
+enum FuzzPageSize {
+    PageSize256,
+    PageSize568,
+    PageSize4096,
 }
 
-fn run<Size: PageSize>(actions: &[FuzzAction]) -> Option<()> {
+#[derive(Arbitrary, Debug)]
+enum FuzzOrd {
+    Aevt,
+    Avet,
+    Eavt,
+}
+
+#[derive(Arbitrary, Debug)]
+struct FuzzInput {
+    page_size: FuzzPageSize,
+    cmp: FuzzOrd,
+    actions: Vec<FuzzAction>,
+}
+
+fuzz_target!(|input: FuzzInput| {
+    // We test all combinations of page size and datom ordering (so we test all
+    // indexes). Because these are type parameters, we do a two-stage dispatch
+    // on the value, to move them to the type level.
+    run2(input.page_size, input.cmp, &input.actions);
+});
+
+// Outer stage: page size and comparator are values, not type parameters.
+fn run2(page_size: FuzzPageSize, cmp: FuzzOrd, actions: &[FuzzAction]) -> Option<()> {
+    match page_size {
+        FuzzPageSize::PageSize256 => run1::<PageSize256>(cmp, actions),
+        FuzzPageSize::PageSize568 => run1::<PageSize568>(cmp, actions),
+        FuzzPageSize::PageSize4096 => run1::<PageSize4096>(cmp, actions),
+    }
+}
+
+// Middle stage: page size is a type parameter, ordering is a value.
+fn run1<Size: PageSize>(cmp: FuzzOrd, actions: &[FuzzAction]) -> Option<()> {
+    match cmp {
+        FuzzOrd::Aevt => run0::<Size, _>(Aevt, actions),
+        FuzzOrd::Avet => run0::<Size, _>(Avet, actions),
+        FuzzOrd::Eavt => run0::<Size, _>(Eavt, actions),
+    }
+}
+
+// Inner stage: page size and ordering are type parameters.
+fn run0<Size: PageSize, Cmp: DatomOrd>(cmp: Cmp, actions: &[FuzzAction]) -> Option<()> {
     let mut store = MemoryStore::<Size>::new();
     let mut heap = MemoryHeap::new();
 
     let node = Node::empty_of_level(0);
     let root = store.write_page(&node.write::<Size>()).unwrap();
-    let mut tree = HTree::new(root, Eavt, store, &mut heap);
+    let mut tree = HTree::new(root, cmp, store, &mut heap);
 
     // Reserve capacity for a large-ish number of datoms, to prevent most
     // reallocations during fuzzing, thereby reducing distracting control flow.
@@ -126,11 +166,3 @@ fn run<Size: PageSize>(actions: &[FuzzAction]) -> Option<()> {
 
     Some(())
 }
-
-fuzz_target!(|input: FuzzInput| {
-    match input {
-        FuzzInput::RunPageSize256 { actions } => run::<PageSize256>(&actions),
-        FuzzInput::RunPageSize568 { actions } => run::<PageSize568>(&actions),
-        FuzzInput::RunPageSize4096 { actions } => run::<PageSize4096>(&actions),
-    };
-});
