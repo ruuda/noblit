@@ -7,12 +7,11 @@
 
 //! Parsers for the wire protocol.
 
-use std::io;
-
-use datom::Value;
 use binary::Cursor;
-use query::{Query, QueryAttribute, QueryValue, Statement, Var};
+use datom::Value;
+use error::Result;
 use mutation::Mutation;
+use query::{Query, QueryAttribute, QueryValue, Statement, Var};
 use temp_heap::Temporaries;
 
 /// Deserialize variable names from binary format.
@@ -20,7 +19,7 @@ use temp_heap::Temporaries;
 /// Variable names are a 16-bit length-prefixed list of 16-bit length prefixed
 /// strings.
 /// TODO: Document the protocol properly somewhere.
-fn parse_strings(cursor: &mut Cursor) -> io::Result<Vec<String>> {
+fn parse_strings(cursor: &mut Cursor) -> Result<Vec<String>> {
     let num_variables = cursor.take_u16_le()?;
     let mut variable_names = Vec::with_capacity(num_variables as usize);
     for _ in 0..num_variables {
@@ -38,7 +37,7 @@ fn parse_strings(cursor: &mut Cursor) -> io::Result<Vec<String>> {
 fn parse_statements(
     cursor: &mut Cursor,
     temporaries: &mut Temporaries
-) -> io::Result<Vec<Statement>> {
+) -> Result<Vec<Statement>> {
     let num_statements = cursor.take_u16_le()?;
     let mut statements = Vec::with_capacity(num_statements as usize);
     for _ in 0..num_statements {
@@ -87,7 +86,7 @@ fn parse_statements(
 ///
 /// A variable list is a 16-bit length-prefixed list of 16-bit variable ids.
 /// TODO: Document the protocol properly.
-fn parse_variables(cursor: &mut Cursor) -> io::Result<Vec<Var>> {
+fn parse_variables(cursor: &mut Cursor) -> Result<Vec<Var>> {
     let num_variables = cursor.take_u16_le()?;
     let mut variables = Vec::with_capacity(num_variables as usize);
     for _ in 0..num_variables {
@@ -102,7 +101,7 @@ fn parse_variables(cursor: &mut Cursor) -> io::Result<Vec<Var>> {
 pub fn parse_query(
     cursor: &mut Cursor,
     temporaries: &mut Temporaries
-) -> io::Result<Query> {
+) -> Result<Query> {
     let variable_names = parse_strings(cursor)?;
     let where_statements = parse_statements(cursor, temporaries)?;
     let selects = parse_variables(cursor)?;
@@ -120,7 +119,7 @@ pub fn parse_query(
 pub fn parse_mutation(
     cursor: &mut Cursor,
     temporaries: &mut Temporaries,
-) -> io::Result<Mutation> {
+) -> Result<Mutation> {
     use std::iter;
 
     // The first part is the same as for a regular query.

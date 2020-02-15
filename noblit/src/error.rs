@@ -9,7 +9,9 @@
 
 use std::io;
 use std::fmt;
+use std::result;
 
+#[derive(Debug)]
 pub enum Error {
     IoError(io::Error),
 }
@@ -27,3 +29,5 @@ impl fmt::Display for Error {
         }
     }
 }
+
+pub type Result<T> = result::Result<T, Error>;

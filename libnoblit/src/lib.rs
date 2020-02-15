@@ -21,6 +21,7 @@ use noblit::database::View;
 use noblit::database;
 use noblit::disk;
 use noblit::error::Error;
+use noblit::error::Result;
 use noblit::eval;
 use noblit::heap;
 use noblit::parse;
@@ -75,14 +76,14 @@ fn infer_evaluator_type<'a, 'call, Store: store::Store, Heap: heap::Heap>(
     _: &'call Evaluator<'a, Store, Heap>,
 ) {}
 
-pub fn noblit_query_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap>(
+pub fn noblit_query_open_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap>(
     db: &'a database::Database<Store, Heap>,
     query_bytes: &'b [u8]
-) -> Evaluator<'a, Store, Heap> {
+) -> Result<Evaluator<'a, Store, Heap>> {
     let mut temporaries = Temporaries::new();
     let mut cursor = Cursor::from_bytes(query_bytes);
     // TODO: Report a proper error.
-    let mut query = parse::parse_query(&mut cursor, &mut temporaries).expect("Failed to parse query.");
+    let mut query = parse::parse_query(&mut cursor, &mut temporaries)?;
     let view = Box::new(db.view(temporaries));
 
     // Resolve named attributes to id-based attributes, and plan the query.
@@ -111,11 +112,13 @@ pub fn noblit_query_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap::Heap
         (&*(&*plan as *const Plan), &*(&*view as *const View<_, _>))
     };
 
-    Evaluator {
+    let eval = Evaluator {
         view: view,
         plan: plan,
         eval: eval::Evaluator::new(plan_ptr, view_ptr),
-    }
+    };
+
+    Ok(eval)
 }
 
 #[repr(C)]
@@ -176,7 +179,7 @@ pub unsafe extern fn noblit_query_open(
 ) -> u32 {
     let query_bytes = slice::from_raw_parts(query, query_len);
     with_database!(ctx, |db| {
-        let evaluator = noblit_query_impl(db, query_bytes);
+        let evaluator = noblit_query_open_impl(db, query_bytes);
         *out_eval = Contextual::new(ctx, evaluator);
         Ok(())
     })
