@@ -9,7 +9,7 @@ from __future__ import annotations
 from ctypes import CDLL, POINTER, Structure, byref, cdll
 from ctypes import c_byte, c_char, c_char_p, c_uint32, c_size_t, c_void_p, c_int
 from enum import Enum
-from typing import IO, Optional, NamedTuple
+from typing import IO, Optional, NamedTuple, cast
 
 _LIB: Optional[CDLL] = None
 
@@ -50,7 +50,7 @@ def ensure_lib() -> CDLL:
         _LIB.noblit_close.argtypes = [c_void_p]
         _LIB.noblit_close.restype = None
         _LIB.noblit_query_open.argtypes = [c_void_p, c_char_p, c_size_t, c_void_p]
-        _LIB.noblit_query_open.retype = c_uint32
+        _LIB.noblit_query_open.restype = c_uint32
 
     return _LIB
 
@@ -59,7 +59,11 @@ class _Slice(Structure):
     _fields_ = [('data', POINTER(c_byte)), ('len', c_size_t)]
 
     def into_bytes(self) -> bytes:
-        return POINTER(c_char).from_buffer(self.data)[:self.len]
+        # Actually returns bytes, and not "List[c_char]",
+        # but Mypy does not know that, so we add the assertion below.
+        bytes_slice = POINTER(c_char).from_buffer(self.data)[:self.len]
+        assert isinstance(bytes_slice, bytes)
+        return bytes_slice
 
 
 class NoblitResult(Enum):
@@ -77,7 +81,7 @@ class NoblitError(Exception):
     Contains the result code, which is the error category, and the message with
     more details, including details of this particular instance of the error.
     """
-    def __init__(self, result: int, message: str) -> None:
+    def __init__(self, result: c_uint32, message: str) -> None:
         self.result = NoblitResult(result)
         self.message = message
 
@@ -92,8 +96,8 @@ class Database:
         self._lib = ensure_lib()
 
     def _get_last_error(self) -> str:
-        message_utf8 = self._lib.noblit_get_last_error(self._db).into_bytes()
-        return message_utf8.decode('utf-8')
+        message_utf8: _Slice = self._lib.noblit_get_last_error(self._db)
+        return message_utf8.into_bytes().decode('utf-8')
 
     def _check_result(self, result: c_uint32) -> None:
         if result == 0:
