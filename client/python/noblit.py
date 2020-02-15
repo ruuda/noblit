@@ -88,6 +88,7 @@ class NoblitError(Exception):
 class Database:
     def __init__(self, db: c_void_p) -> None:
         self._db = db
+        # Cache a reference to the library.
         self._lib = ensure_lib()
 
     def _get_last_error(self) -> str:
@@ -119,13 +120,16 @@ class Database:
         result = self._lib.noblit_query_open(self._db, q, len(q), byref(evaluator))
         self._check_result(result)
         assert evaluator.value is not None
-        return Evaluator(self._lib, evaluator)
+        return Evaluator(self._lib, self, evaluator)
 
 
 class Evaluator:
-    def __init__(self, lib: CDLL, evaluator: c_void_p) -> None:
-        self._lib = lib
+    def __init__(self, lib: CDLL, db: Database, evaluator: c_void_p) -> None:
         self._evaluator = evaluator
+        # We store the database, to ensure that it outlives the evaluator.
+        self._db = db
+        # Cache a reference to the library.
+        self._lib = lib
 
     def __del__(self) -> None:
         self._lib.noblit_query_close(self._evaluator)
@@ -138,11 +142,8 @@ with open('../mindec/mindec.ndb', 'rb') as f:
     db = Database.open_packed_in_memory(f)
     print(db)
     query_builtin_types = (
-        b'\x00\x02\x00\x04\x00name\x01\x00t\x01\x00\x01\x00\x0c\x00'
+        b'\x02\x00\x04\x00name\x01\x00t\x01\x00\x01\x00\x0c\x00'
         b'db.type.name\x00\x00\x00\x02\x00\x01\x00\x00\x00'
     )
     evaluator = db.query(query_builtin_types)
     print(evaluator)
-    del evaluator
-    print('Dropped evaluator')
-    del db
