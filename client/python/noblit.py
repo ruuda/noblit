@@ -18,7 +18,7 @@ def load_lib() -> CDLL:
     last_exc = None
 
     # TODO: How to clean this up to make it usable in practice?
-    for prefix in ('', 'target/debug/', 'target/release'):
+    for prefix in ('', 'target/debug/', 'target/release/'):
         try:
             return cdll.LoadLibrary(prefix + 'libnoblit.so')
 
