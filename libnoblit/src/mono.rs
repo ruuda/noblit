@@ -64,13 +64,18 @@ impl<T> Contextual<T> {
 /// a macro instead.
 macro_rules! with_database {
     ($ctx: ident, $f: expr) => {{
-        (*$ctx).clear_error();
-        let result = match (*$ctx).db {
-            mono::Database::Memory(ref db) => $f(db),
+        // Assign the macro arg to a type-annotated local variable, to avoid
+        // passing in something of the wrong type but having it compile
+        // accidentally.
+        let ctx: &mut Context = &mut *($ctx as *mut Context);
+
+        (*ctx).clear_error();
+        let result = match ctx.db {
+            mono::Database::Memory(ref mut db) => $f(db),
         };
         match result {
             Ok(()) => 0,
-            Err(err) => (*$ctx).observe_error(err),
+            Err(err) => ctx.observe_error(err),
         }
     }};
 }
@@ -94,7 +99,7 @@ macro_rules! with_context {
         // The contextual struct stores a pointer to the context as its first
         // field, so we can treat a pointer to it as a pointer to `*const Context`.
         let ctx: *mut Context = *($contextual as *const *mut Context);
-        with_database!(ctx, |db| {
+        with_database!(ctx, |db: &mut database::Database<_, _>| {
             let contextual: &mut Contextual<_> = &*($contextual as *mut Contextual<_>);
             $f(db, &mut contextual.value)
         });
@@ -109,9 +114,9 @@ macro_rules! into_context {
         // The contextual struct stores a pointer to the context as its first
         // field, so we can treat a pointer to it as a pointer to `*const Context`.
         let ctx: *mut Context = *($contextual as *const *mut Context);
-        with_database!(ctx, |db| {
-            let contextual: Box<Contextual<_>> = Box::from_raw($contextual as *mut Contextual<_>);
-            $f(db, contextual.value)
+        with_database!(ctx, |db: &mut database::Database<_, _>| {
+            let mut contextual: Box<Contextual<_>> = Box::from_raw($contextual as *mut Contextual<_>);
+            $f(db, &mut contextual.value)
             // At this point, the box goes out of scope, and the contextual
             // value gets dropped.
         });

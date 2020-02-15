@@ -59,9 +59,9 @@ impl Context {
 }
 
 pub struct Evaluator<'a, Store: 'a + store::Store, Heap: 'a + heap::Heap> {
+    eval: eval::Evaluator<'a, Store, Heap>,
     view: Box<View<'a, Store, Heap>>,
     plan: Box<Plan>,
-    eval: eval::Evaluator<'a, Store, Heap>,
 }
 
 /// No-op function on `Database` and `Evaluator`.
@@ -179,8 +179,8 @@ pub unsafe extern fn noblit_query_open(
 ) -> u32 {
     let query_bytes = slice::from_raw_parts(query, query_len);
     with_database!(ctx, |db| {
-        let evaluator = noblit_query_open_impl(db, query_bytes);
-        *out_eval = Contextual::new(ctx, evaluator);
+        let evaluator = noblit_query_open_impl(db, query_bytes)?;
+        *out_eval = Contextual::<Evaluator<_, _>>::new(ctx, evaluator);
         Ok(())
     })
 }
@@ -188,8 +188,7 @@ pub unsafe extern fn noblit_query_open(
 #[no_mangle]
 pub unsafe extern fn noblit_query_close(query: *mut c_void) {
     into_context!(query, |db, evaluator| {
-        infer_evaluator_type(db, &evaluator);
-        println!("Dropping evaluator.");
+        infer_evaluator_type(db, evaluator);
         Ok(())
     });
 }
