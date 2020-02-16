@@ -1,7 +1,7 @@
 # Bug Tracker Example
 
-*Note: This example is completely hypothetical, constructed to explore syntax
-and requirements. You cannot actually run these queries.*
+*Note: This example is outdated. For a working, albeit less documented example,
+take a look at the files in the ‘golden’ directory of the repository.*
 
 Suppose we would want to build a database for a bug tracker, where users can
 file and comment on issues, and set and change certain properties. This is an
