@@ -466,22 +466,21 @@ unmaintained, Noblit is vaporware.</p>
 <h2 id="goals">Goals</h2>
 <ul>
 <li>An embeddable library for queries and transactions.</li>
-<li>Enabling — but not requiring — a client-server database on top of the library,
-   with a single transactor and scale-out reads.</li>
+<li>Relational queries in a machine-first query format.</li>
+<li>Durable storage on disk, with atomic transactions.</li>
+<li>Easy to build, few or zero dependencies.</li>
+<li>Handling moderate write workloads and moderately sized data.</li>
 <li>Storing datasets that do not fit in working memory. The result of a query and
    data to insert must fit though.</li>
-<li>Handling moderate write workloads and moderately sized data.</li>
-<li>Relational queries in a machine-first query format.</li>
+<li>Enabling — but not requiring — a client-server database on top of the library,
+   with a single transactor and scale-out reads.</li>
 <li>Simplicity. First make it work, then make it fast. I am writing this down to
    remind myself to not micro-optimize. Complications should be justified by
    profiling measurements.</li>
-<li>Easy to build, few or zero dependencies.</li>
 </ul>
 <h2 id="non-goals">Non-goals</h2>
 <ul>
 <li>Deleting data or updating data in place.</li>
-<li>Writing large values (say, larger than 64 KiB). A key-value store or document
-   store might be better suited for this.</li>
 <li>High write throughput. If you produce large volumes of data quickly, probably
    not all of it remains valuable for a long time, and storage space might
    become a concern. A time series database or durable message queue might be
@@ -537,8 +536,14 @@ unmaintained, Noblit is vaporware.</p>
             <li class="toc-chapter
               "><a href="resources/">Resources</a></li>
             <li class="toc-section
-            "><a href="files/">Internals</a></li>
+            "><a href="architecture/">Internals</a></li>
           
+            <li class="toc-chapter
+              "><a href="architecture/">Architecture</a></li>
+            
+            <li class="toc-chapter
+              "><a href="distributed-operation/">Distributed operation</a></li>
+            
             <li class="toc-chapter
               "><a href="files/">Files</a></li>
             

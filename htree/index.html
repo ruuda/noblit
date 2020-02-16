@@ -387,7 +387,7 @@
     <div id="main">
       <nav id="breadcrumbs">
         <a href="..">Noblit</a>
-         › <a href="../files/">Internals</a> 
+         › <a href="../architecture/">Internals</a> 
          › <a href="./">Trees</a> 
         <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
       </nav>
@@ -401,7 +401,7 @@ the advantages of an immutable data structure, without the write amplification.<
 <p>Tree nodes in Noblit are immutable. Index updates produce new nodes that succeed
 older nodes. Nodes can become unreachable, but they are never removed.
 Eventually, many nodes in a file may not be reachable. In that case the tree can
-be copied to a <em>new</em> file, omitting the unreachable blocks. This is a copying
+be copied to a <em>new</em> file, omitting the unreachable nodes. This is a copying
 garbage collection.</p>
 <h2 id="index-trees">Index Trees</h2>
 <p>Indexes in Noblit are sorted sets of datoms. Each datom is 32 bytes. (For large
@@ -486,8 +486,14 @@ This modification is what turns a B-tree into a hitchhiker tree.</p>
             <li class="toc-chapter
               "><a href="../resources/">Resources</a></li>
             <li class="toc-section
-            "><a href="../files/">Internals</a></li>
+            "><a href="../architecture/">Internals</a></li>
           
+            <li class="toc-chapter
+              "><a href="../architecture/">Architecture</a></li>
+            
+            <li class="toc-chapter
+              "><a href="../distributed-operation/">Distributed operation</a></li>
+            
             <li class="toc-chapter
               "><a href="../files/">Files</a></li>
             

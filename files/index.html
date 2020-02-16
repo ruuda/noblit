@@ -387,7 +387,7 @@
     <div id="main">
       <nav id="breadcrumbs">
         <a href="..">Noblit</a>
-         › <a href="./">Internals</a> 
+         › <a href="../architecture/">Internals</a> 
          › <a href="./">Files</a> 
         <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
       </nav>
@@ -412,12 +412,13 @@ previous version. The index file is an append-only collection of nodes. The head
 points to the latest roots of the index trees, and it stores the counters for
 allocating entity ids. The head is the only part of Noblit that is updated
 in place, the other files are append-only.</p>
-<p>Committing a transaction is a three-stage process:</p>
+<p>Committing a transaction involves three writes and a sync:</p>
 <ol>
-<li>Append any new large values to the heap file, and sync the heap.</li>
+<li>Append any new large values to the heap file.</li>
 <li>Add datoms to the indexes. This produces one or more new tree nodes per
-    index. Append the new nodes to the index file, and sync it.</li>
-<li>Write the new head, and sync it.</li>
+    index. Append the new nodes to the index file.</li>
+<li>Write the new head.</li>
+<li>Sync the heap file, the index file, and finally the head.</li>
 </ol>
 <p>By making the head update atomic, the entire transaction becomes atomic. If the
 commit fails at some point before the new head is written, the old head is still
@@ -483,7 +484,7 @@ can read heap at startup, although that does not scale, persistent hash table
 may be needed.</p>
       </article>
       <nav id="nav-prev-next">
-        <a id="nav-prev" href="../resources/" title="Resources">Previous</a>
+        <a id="nav-prev" href="../distributed-operation/" title="Distributed operation">Previous</a>
         <a id="nav-next" href="../htree/" title="Trees">Next</a>
         </nav>
       </div>
@@ -530,8 +531,14 @@ may be needed.</p>
             <li class="toc-chapter
               "><a href="../resources/">Resources</a></li>
             <li class="toc-section
-            "><a href="./">Internals</a></li>
+            "><a href="../architecture/">Internals</a></li>
           
+            <li class="toc-chapter
+              "><a href="../architecture/">Architecture</a></li>
+            
+            <li class="toc-chapter
+              "><a href="../distributed-operation/">Distributed operation</a></li>
+            
             <li class="toc-chapter
                current"><a href="./">Files</a></li>
             <li><ul>

@@ -9,7 +9,7 @@
   -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Resources — Noblit</title>
+  <title>Distributed operation — Noblit</title>
   <link href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,500" rel="stylesheet">
   <style>
   /* The Inter font family, see https://rsms.me/inter.
@@ -387,28 +387,89 @@
     <div id="main">
       <nav id="breadcrumbs">
         <a href="..">Noblit</a>
-         › <a href="../building/">Development</a> 
-         › <a href="./">Resources</a> 
+         › <a href="../architecture/">Internals</a> 
+         › <a href="./">Distributed operation</a> 
         <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
       </nav>
       <article>
-        <h1 id="resources">Resources</h1>
-<p>Below are some resources that were helpful or inspiring for the development of
-Noblit. Some of them were not directly useful, but simply interesting.</p>
+        <h1 id="distributed-operation">Distributed operation</h1>
+<p>Noblit is a modular database library. It consists of several components:</p>
 <ul>
-<li><a href="https://www.infoq.com/presentations/Deconstructing-Database">Deconstructing the Database</a> — a talk about Datomic and its data model</li>
-<li><a href="https://docs.datomic.com/cloud/whatis/data-model.html">The Datomic Data Model</a> — from the Datomic documentation</li>
-<li><a href="https://github.com/google/leveldb/blob/1cb384088184be9840bd59b4040503a9fa9aee66/doc/impl.md">LevelDB implementation notes</a> — from the LevelDB documentation</li>
-<li><a href="https://www.youtube.com/watch?v=rtEalnKT25I">InfluxDB Storage Engine Internals</a> — a talk about storage in a time series database</li>
-<li><a href="https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf">What You Always Wanted to Know About Datalog</a> — a paper on Datalog</li>
-<li><a href="http://tonsky.me/blog/unofficial-guide-to-datomic-internals/">Unofficial Guide to Datomic Internals</a> — a blog post on Datomic internals</li>
-<li><a href="https://www.youtube.com/watch?v=gpxnbly9bz4">SQLite: A Database for the Edge of the Network</a> — a talk about SQLite internals</li>
-<li><a href="https://www.youtube.com/channel/UCHnBsf2rH-K7pn09rb3qvkA">The CMU database group channel</a> — recorded lectures from their database courses</li>
+<li>The page store and heap, which store index tree nodes and large datom values.</li>
+<li>A query engine, that requires only read access to the store and heap.</li>
+<li>A mutator responsible for processing transactions. The mutator requires write
+   access to the store and heap.</li>
 </ul>
+<p>These components are part of a single native dynamic library that you can link
+into your application. The store and the heap are an interface (<em>trait</em> in Rust)
+with several implementations. Noblit features an in-memory store and heap, and
+a file-backed store and heap. The modular approach allows Noblit to be used in
+a few different ways.</p>
+<p><em>Vaporware warning: the following paragraphs about distributed operation are an
+idea for the distant future. While Noblit is designed with distributed operation
+in mind, none of it has been implemented.</em></p>
+<h2 id="local-operation">Local operation</h2>
+<p>With its memory-backed and file-backed store, Noblit is similar to <a href="https://sqlite.org/index.html">SQLite</a>:
+an embeddable native library for interacting with an in-memory database, or a
+local file-backed database.</p>
+<h2 id="deconstructing-the-database">Deconstructing the database</h2>
+<p>On top of Noblit the library, we can build a daemon that exposes query and
+mutations over the network. Unlike traditional relational databases, the server
+would not need to be a monolith. Like <a href="https://www.datomic.com/">Datomic</a>, Noblit could be
+deployed as a <a href="https://www.infoq.com/presentations/Deconstructing-Database/">deconstructed database</a>, where storage, query
+processing, and mutation, do not need to reside in the same place.</p>
+<p>Query processing can be done at clients through the embedded library, same as in
+local operation. This is similar to Datomic’s peer library. Alternatively, query
+processing can happen at a dedicated server, in the traditional client-server
+model. Regardless of where query processing happens, decoupling query from
+storage allows scaling reads horizontally.</p>
+<h2 id="distributed-reads">Distributed reads</h2>
+<p>Query processing requires an implementation of a store and heap, readable, but
+not necessarily writable. Because these store immutable data, they can be scaled
+easily.</p>
+<ul>
+<li>The store and heap may be backed by a remote service, rather than by a local
+   file.</li>
+<li>Because everything is immutable, all data can be cached safely at every
+   level.</li>
+<li>A multi-level cache is possible. Mix and match a local memory cache, a
+   distributed memory cache (like Memcached), a disk cache backed by a fast but
+   volatile local <abbr>SSD</abbr>, and a cache backed by slow but stable
+   storage.</li>
+<li>Check peers first, and only hit the main source of truth (the store and heap
+   that the mutator writes to) if the page is not available elsewhere. This
+   reduces load on the mutator, so it can devote all its resources to
+   transaction processing.</li>
+</ul>
+<p>When clients execute a query, they need to specify the revision of the database
+to execute it agaist. The current latest revision is the only piece of mutable
+state in Noblit, and the mutator is responsible for managing it. Committing a
+transaction causes that transaction to become the new latest revision. Often,
+clients want to execute a query against the lastest revision of the database. To
+get the latest revision, they would need to query the mutator, making the
+mutator contended again, even for reads. Obtaining the latest revision is
+inherently racy: by the time the client receives the response, it may already be
+outdated. Fortunately, this is often not a problem; clients do not want the
+absolute latest revision, just a sufficiently recent revision. This means that
+replicas can also service the “get latest” query, as long as they do not lag too
+far behind.</p>
+<p>Together, this means that query capacity can be scaled virtually without limit.
+The cost of adding a read replica — the bandwith of reading pages that have not
+yet been cached locally from its peers — can be amortized over all existing peers,
+so it goes down per added replica. As long as stale (but consistent) data is
+acceptable, this makes it easy to make reads highly available.</p>
+<h2 id="distributed-writes">Distributed writes</h2>
+<p>Noblit serializes writes. The easiest way to do that, is by executing them
+on a single thread on a single machine. This makes it impossible to scale writes
+horizontally. For availability reasons — not for performance — it may be
+desirable to replace the single mutator with a multi-node mutator that runs a
+distributed consensus algorithm to serialize mutations. However, for
+availability, it is probably a easier to have a stand-by mutator and a way to
+switch, than it is to build a distributed system.</p>
       </article>
       <nav id="nav-prev-next">
-        <a id="nav-prev" href="../fuzz-tests/" title="Fuzz tests">Previous</a>
-        <a id="nav-next" href="../architecture/" title="Architecture">Next</a>
+        <a id="nav-prev" href="../architecture/" title="Architecture">Previous</a>
+        <a id="nav-next" href="../files/" title="Files">Next</a>
         </nav>
       </div>
     <aside>
@@ -452,7 +513,7 @@ Noblit. Some of them were not directly useful, but simply interesting.</p>
               "><a href="../fuzz-tests/">Fuzz tests</a></li>
             
             <li class="toc-chapter
-               current"><a href="./">Resources</a></li>
+              "><a href="../resources/">Resources</a></li>
             <li class="toc-section
             "><a href="../architecture/">Internals</a></li>
           
@@ -460,8 +521,14 @@ Noblit. Some of them were not directly useful, but simply interesting.</p>
               "><a href="../architecture/">Architecture</a></li>
             
             <li class="toc-chapter
-              "><a href="../distributed-operation/">Distributed operation</a></li>
-            
+               current"><a href="./">Distributed operation</a></li>
+            <li><ul>
+                <li class="toc-heading"><a href="#local-operation">Local operation</a></li>
+                <li class="toc-heading"><a href="#deconstructing-the-database">Deconstructing the database</a></li>
+                <li class="toc-heading"><a href="#distributed-reads">Distributed reads</a></li>
+                <li class="toc-heading"><a href="#distributed-writes">Distributed writes</a></li>
+                </ul></li>
+               
             <li class="toc-chapter
               "><a href="../files/">Files</a></li>
             
