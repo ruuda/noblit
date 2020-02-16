@@ -69,16 +69,17 @@ unmaintained, Noblit is vaporware.
 ## Goals
 
  * An embeddable library for queries and transactions.
- * Enabling — but not requiring — a client-server database on top of the library,
-   with a single transactor and scale-out reads.
+ * Relational queries in a machine-first query format.
+ * Durable storage on disk, with atomic transactions.
+ * Easy to build, few or zero dependencies.
+ * Handling moderate write workloads and moderately sized data.
  * Storing datasets that do not fit in working memory. The result of a query and
    data to insert must fit though.
- * Handling moderate write workloads and moderately sized data.
- * Relational queries in a machine-first query format.
+ * Enabling — but not requiring — a client-server database on top of the library,
+   with a single transactor and scale-out reads.
  * Simplicity. First make it work, then make it fast. I am writing this down to
    remind myself to not micro-optimize. Complications should be justified by
    profiling measurements.
- * Easy to build, few or zero dependencies.
 
 ## Non-goals
 
