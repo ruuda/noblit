@@ -27,7 +27,7 @@ import subprocess
 import os
 import os.path
 
-from typing import IO, Set
+from typing import IO, List, Set
 
 
 def load_corpus(path: str) -> Set[bytes]:
@@ -45,6 +45,7 @@ def load_corpus(path: str) -> Set[bytes]:
         with open(fname, 'rb') as f:
             corpus.add(f.read())
 
+    print('\n', end='', file=sys.stderr, flush=True)
     return corpus
 
 
@@ -52,8 +53,30 @@ def u32_le(x: int) -> bytes:
     return x.to_bytes(length=4, byteorder='little', signed=False)
 
 
-def i32_le(x: int) -> bytes:
-    return x.to_bytes(length=4, byteorder='little', signed=True)
+def u16_le(x: int) -> bytes:
+    return x.to_bytes(length=2, byteorder='little', signed=False)
+
+
+def unsign(x: int) -> int:
+    """
+    Encode a signed integer as an unsigned integer, in such a way that values
+    close to zero end up close to zero. Credit for this way of encoding integers
+    goes to the FLAC format, which encodes deltas in a similar manner.
+
+    For a 30k file, 75 MB corpus, these are the sizes after compressing with
+    Brotli -9:
+
+    * Raw u32le:                   623871 bytes
+    * Delta, i3le:                 620851 bytes
+    * Delta, u32le through unsign: 619479 bytes
+    * Delta, u16le through unsign: 615054 bytes
+
+    So we can save a few bytes by encoding the deltas like this.
+    """
+    if x >= 0:
+        return x * 2
+    else:
+        return (x * -2) - 1
 
 
 def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
@@ -70,7 +93,7 @@ def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
     out.write(u32_le(prev_len))
     for entry in sorted_corpus[1:]:
         new_len = len(entry)
-        out.write(i32_le(new_len - prev_len))
+        out.write(u16_le(unsign(new_len - prev_len)))
         prev_len = new_len
 
     # After that, write the entries themselves. They are sorted, so even with a
@@ -93,7 +116,7 @@ def main() -> None:
             total_size = sum(len(entry) for entry in corpus)
             print(
                 f'Would pack {len(corpus)} files '
-                f'totalling {total_size // 1000} kB, if stdout was not a tty.'
+                f'totalling {total_size / 1e6:.3f} MB, if stdout was not a tty.'
             )
         else:
             write_corpus(sys.stdout.buffer, corpus)
