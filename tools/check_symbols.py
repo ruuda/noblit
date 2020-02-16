@@ -12,8 +12,8 @@ Verify that all symbols in libnoblit.so are documented,
 and verify that all documented symbols exist.
 
 Usage:
-    libnoblit/check_symbols.py target/debug/libnoblit.so
-    libnoblit/check_symbols.py target/release/libnoblit.so
+    check_symbols.py target/debug/libnoblit.so
+    check_symbols.py target/release/libnoblit.so
 """
 
 import sys
