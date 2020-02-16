@@ -22,10 +22,10 @@ There are two ways to optimize a query plan:
  * **Choosing the indexes to use for a scan**, also called *micro-optimization*,
    because so far empirical evidence suggests that the performance difference
    between the various indexes that can service a scan is small. This is because
-   the indexes have the same complexity, it is only locality effects that make
-   one index more suitable than another. The difference between the best and
-   worst plan may be a factor two in extreme cases, but not an order of
-   magnitude.
+   scans over the different indexes have the same complexity, it is only
+   locality effects that make one index more suitable than another. The
+   difference between the best and worst plan may be a factor two in extreme
+   cases, but not an order of magnitude.
 
 Although the optimizer performs both macro and micro-optimization, currently the
 indexes used can not be controlled by the query. Perhaps it would be best for
@@ -56,8 +56,8 @@ time of the parent node.
 Given the tree of partial queries, we can explore the tree to find the leaf with
 the minimal query time. Because the query time of a child is greater than that
 of the parent, we can call the additional time the “cost” of an edge, and
-finding the leaf with the minimal query time means finding a path through the
-tree with minimal cost. Dijkstra’s algorithm solves this neatly:
+finding the leaf with the minimal query time means finding a minimal-cost path
+from the root to a leaf. Dijkstra’s algorithm solves this neatly:
 
  * Track an *open set* of candidate nodes.
  * Remove the candidate with the minimal query time from the open set, and add

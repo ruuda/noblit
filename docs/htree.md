@@ -11,7 +11,7 @@ the advantages of an immutable data structure, without the write amplification.
 Tree nodes in Noblit are immutable. Index updates produce new nodes that succeed
 older nodes. Nodes can become unreachable, but they are never removed.
 Eventually, many nodes in a file may not be reachable. In that case the tree can
-be copied to a _new_ file, omitting the unreachable blocks. This is a copying
+be copied to a _new_ file, omitting the unreachable nodes. This is a copying
 garbage collection.
 
 ## Index Trees 

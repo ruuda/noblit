@@ -22,12 +22,13 @@ points to the latest roots of the index trees, and it stores the counters for
 allocating entity ids. The head is the only part of Noblit that is updated
 in place, the other files are append-only.
 
-Committing a transaction is a three-stage process:
+Committing a transaction involves three writes and a sync:
 
- 1. Append any new large values to the heap file, and sync the heap.
+ 1. Append any new large values to the heap file.
  2. Add datoms to the indexes. This produces one or more new tree nodes per
-    index. Append the new nodes to the index file, and sync it.
- 3. Write the new head, and sync it.
+    index. Append the new nodes to the index file.
+ 3. Write the new head.
+ 4. Sync the heap file, the index file, and finally the head.
 
 By making the head update atomic, the entire transaction becomes atomic. If the
 commit fails at some point before the new head is written, the old head is still
