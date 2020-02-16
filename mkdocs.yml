@@ -21,6 +21,8 @@ nav:
     - Fuzz tests: fuzz-tests.md
     - Resources: resources.md
   - Internals:
+    - Architecture: architecture.md
+    - Distribution: distribution.md
     - Files: files.md
     - Trees: htree.md
     - Execution: execution.md
