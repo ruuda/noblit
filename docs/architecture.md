@@ -79,3 +79,39 @@ garbage colletion. Traverse the trees, and write all reachable nodes to a *new*
 index file. In addition to dropping unreachable nodes, the tree nodes in the new
 index file can be ordered such that a tree traversal becomes a sequential scan
 through the index file, improving disk access patterns.
+
+A garbage collection can happen in parallel with normal operation. Apart from
+the required <abbr>IO</abbr> bandwith, writing a new index file does not
+interfere with the existing index file, which can continue to be used. If, once
+the collection is complete, the compacted trees are no longer the latest trees,
+then the new data can be inserted into the new index file too (as a regular tree
+insertion), until the two files are in sync, at which point we can perform new
+writes against the new index file, and forget about the old index file.
+
+TODO: To be able to efficiently get all datoms added since a given transaction
+though, we would need a transaction-ordered index, which Noblit currently does
+not have. Is it worth adding one?
+
+While garbage collection can mitigate the downsides of an append-only page
+store, it comes at a cost:
+
+ * During the collection, extra disk space and <abbr>IO</abbr> bandwidth are
+   required.
+ * The collection causes write amplification: every datom in the database will
+   be written again. While the hitchhiker tree itself ensures a logarithmic
+   (in the total number of datoms) number of writes per datom, the rate at which
+   nodes become unreachable depends on the transaction rate in addition to the
+   total number of datoms, so especially in the case of many small transactions,
+   garbage collection may be required often.
+ * Coordination is required to know when the old index file can be removed,
+   after collection is complete.
+ * The page id no longer uniquely identifies a tree node. To retain the benefits
+   of not reusing old names for new pages, we would need to identify tree nodes
+   by the version of the index file, in addition to their page id.
+
+As an alternative to garbage collection, it may be possible to keep most of the
+benefits of an append-only page store, while avoiding the wasted space of backing
+it by an append-only file, by keeping track of a mapping from (virtual) page ids
+to (physical) file offsets. The downside is that coordination is required to
+update this mapping, even for reads. Also, while this avoids wasted space, it
+does not by itself mitigate fragmentation.
