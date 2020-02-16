@@ -22,7 +22,7 @@ nav:
     - Resources: resources.md
   - Internals:
     - Architecture: architecture.md
-    - Distribution: distribution.md
+    - Distributed operation: distributed-operation.md
     - Files: files.md
     - Trees: htree.md
     - Execution: execution.md
