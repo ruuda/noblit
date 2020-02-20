@@ -1,0 +1,14 @@
+[package]
+name = "fuzzpack"
+version = "0.0.0"
+authors = ["Ruud van Asseldonk <dev@veniogames.com>"]
+
+[workspace]
+members = ["."]
+
+[dependencies]
+fst = "0.3.5"
+walkdir = "=2.2.9"
+# Not a direct dependency, but we must pin it at 1.0.5, because later versions
+# are incompatible with Rust 1.28.0.
+same-file = "=1.0.5"
