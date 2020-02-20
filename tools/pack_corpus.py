@@ -163,8 +163,7 @@ def main() -> None:
             write_corpus(sys.stdout.buffer, corpus)
 
     if action == 'unpack':
-        corpus = read_corpus(sys.stdin.buffer)
-        for entry in corpus:
+        for entry in read_corpus(sys.stdin.buffer):
             # Name entries after their SHA1 hash, as that is what libfuzzer
             # names them.
             fname = os.path.join(path, hashlib.sha1(entry).hexdigest())
