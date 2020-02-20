@@ -32,12 +32,13 @@ Usage:
     brotli --decompress --stdout htree_insert.br | pack_corpus.py unpack fuzz/corpus/htree_insert
 """
 
-import sys
-import subprocess
+import hashlib
 import os
 import os.path
+import subprocess
+import sys
 
-from typing import IO, List, Set
+from typing import IO, Iterable, List, Set
 
 
 def load_corpus(path: str) -> Set[bytes]:
@@ -67,6 +68,10 @@ def u16_le(x: int) -> bytes:
     return x.to_bytes(length=2, byteorder='little', signed=False)
 
 
+def from_unsigned_le(data: bytes) -> int:
+    return int.from_bytes(data, byteorder='little', signed=False)
+
+
 def unsign(x: int) -> int:
     """
     Encode a signed integer as an unsigned integer, in such a way that values
@@ -87,6 +92,16 @@ def unsign(x: int) -> int:
         return x * 2
     else:
         return (x * -2) - 1
+
+
+def resign(x: int) -> int:
+    """
+    Inverse of "unsign".
+    """
+    if x % 2 == 0:
+        return x // 2
+    else:
+        return (x + 1) // -2
 
 
 def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
@@ -111,6 +126,23 @@ def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
     for entry in sorted_corpus:
         out.write(entry)
 
+
+def read_corpus(inp: IO[bytes]) -> Iterable[bytes]:
+    num_entries = from_unsigned_le(inp.read(4))
+    prev_len = from_unsigned_le(inp.read(4))
+
+    entry_lengths = [prev_len]
+
+    for _ in range(1, num_entries):
+        delta = resign(from_unsigned_le(inp.read(2)))
+        entry_len = prev_len + delta
+        entry_lengths.append(entry_len)
+        prev_len = entry_len
+
+    for entry_len in entry_lengths:
+        yield inp.read(entry_len)
+
+
 def main() -> None:
     if len(sys.argv) != 3:
         print(__doc__)
@@ -129,6 +161,15 @@ def main() -> None:
             )
         else:
             write_corpus(sys.stdout.buffer, corpus)
+
+    if action == 'unpack':
+        corpus = read_corpus(sys.stdin.buffer)
+        for entry in corpus:
+            # Name entries after their SHA1 hash, as that is what libfuzzer
+            # names them.
+            fname = os.path.join(path, hashlib.sha1(entry).hexdigest())
+            with open(fname, 'wb') as f:
+                f.write(entry)
 
 
 if __name__ == '__main__':
