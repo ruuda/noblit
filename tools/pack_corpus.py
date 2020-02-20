@@ -27,7 +27,6 @@ import subprocess
 import os
 import os.path
 
-from itertools import takewhile
 from typing import IO, List, Set
 
 
@@ -80,15 +79,6 @@ def unsign(x: int) -> int:
         return (x * -2) - 1
 
 
-def pack_prefix(xs: bytes, ys: bytes) -> bytes:
-    """
-    Return xs, with the shared prefix with ys replaced with a single-byte length.
-    """
-    n = sum(1 for _ in takewhile(lambda p: p[0] == p[1], zip(xs, ys)))
-    m = min(n, 255)
-    return bytes([m]) + xs[m:]
-
-
 def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
     assert len(corpus) > 0
     sorted_corpus = sorted(corpus)
@@ -108,10 +98,8 @@ def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
 
     # After that, write the entries themselves. They are sorted, so even with a
     # small window, dictionaries work well.
-    for prev_entry, entry in zip(sorted_corpus, sorted_corpus[1:]):
-        out.write(pack_prefix(entry, prev_entry))
-        print(f'{entry[:128]!r}', file=sys.stderr)
-
+    for entry in sorted_corpus:
+        out.write(entry)
 
 def main() -> None:
     if len(sys.argv) != 3:
