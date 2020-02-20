@@ -17,6 +17,16 @@ Similar to tar, but specialized to fuzz inputs to facilitate compression:
   * Store files sorted and back to back, such that similar inputs are close,
     which makes backreferences more useful.
 
+Comparison on a corpus of 30k files, ~75 MB, using Brotli -11 for compression:
+
+    tar     100,044,800 bytes
+    tar.br    2,223,921 bytes
+    pack     75,526,720 bytes
+    pack.br     579,591 bytes
+
+So the packed-compressed corpus is about 25% the size of the tarred-compressed
+corpus, and about 0.77% the original size.
+
 Usage:
     pack_corups.py pack fuzz/corpus/htree_insert | brotli -q9 --output htree_insert.br
     brotli --decompress --stdout htree_insert.br | pack_corpus.py unpack fuzz/corpus/htree_insert
