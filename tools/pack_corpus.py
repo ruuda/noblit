@@ -27,6 +27,7 @@ import subprocess
 import os
 import os.path
 
+from itertools import zip_longest
 from typing import IO, List, Set
 
 
@@ -79,6 +80,14 @@ def unsign(x: int) -> int:
         return (x * -2) - 1
 
 
+def xor(xs: bytes, ys: bytes) -> bytes:
+    """
+    Return xs xor ys, where the ys is padded with zeros if xs is longer.
+    """
+    n = min(len(xs), len(ys))
+    return bytes(x ^ (y or 0) for x, y in zip_longest(xs, ys[:n]))
+
+
 def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
     assert len(corpus) > 0
     sorted_corpus = sorted(corpus)
@@ -98,8 +107,8 @@ def write_corpus(out: IO[bytes], corpus: Set[bytes]) -> None:
 
     # After that, write the entries themselves. They are sorted, so even with a
     # small window, dictionaries work well.
-    for entry in sorted_corpus[1:]:
-        out.write(entry)
+    for prev_entry, entry in zip(sorted_corpus, sorted_corpus[1:]):
+        out.write(xor(entry, prev_entry))
 
 
 def main() -> None:
