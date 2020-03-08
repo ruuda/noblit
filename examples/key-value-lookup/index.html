@@ -9,7 +9,7 @@
   -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Resources — Noblit</title>
+  <title>Key-value lookup — Noblit</title>
   <link href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,500" rel="stylesheet">
   <style>
   /* The Inter font family, see https://rsms.me/inter.
@@ -386,96 +386,127 @@
   <div id="content">
     <div id="main">
       <nav id="breadcrumbs">
-        <a href="..">Noblit</a>
-         › <a href="../building/">Development</a> 
-         › <a href="./">Resources</a> 
+        <a href="../..">Noblit</a>
+         › <a href="./">Examples</a> 
+         › <a href="./">Key-value lookup</a> 
         <a id="repo-link" href="https://github.com/ruuda/noblit/">GitHub</a>
       </nav>
       <article>
-        <h1 id="resources">Resources</h1>
-<p>Below are some resources that were helpful or inspiring for the development of
-Noblit. Some of them were not directly useful, but simply interesting.</p>
+        <h1 id="key-value-lookup-example">Key-value lookup example</h1>
+<p>This example shows how to use Noblit as a key-value store. In particular, we
+will be inserting password hashes and counts from a <a href="https://haveibeenpwned.com/">Have I Been Pwned</a>
+dump into a database, so we can check whether a given password occurred in a
+breach. A dump includes not only the <abbr>SHA1</abbr> hashes of breached
+passwords, but also their prevalence count. This is an excellent use case for a
+key-value store: the <abbr>SHA1</abbr> hashes will be the keys, and the
+prevalence counts will be the values.</p>
+<p>A key-value store is a simple example, and not one that Noblit excels at.
+We will import the Have I been Pwned dump into a new database in a single run,
+and only read from the database after that. As such, this example does not
+showcase Noblit’s history-related features. Also, because Noblit is a
+general-purpose database, it is not going to be as performant or convenient as
+a specialized key-value store. Still, a key-value store is a good example to get
+started with, before moving on to more complex schemas or queries.</p>
+<h2 id="the-code">The code</h2>
+<p>You can find the <a href="https://github.com/ruuda/noblit/blob/hibp/examples/haveibeenpwned/src/main.rs">finished example</a> in the <em>haveibeenpwned</em> subdirectory
+of the <em>examples</em> directory in the root of the repository.</p>
+<h2 id="setting-up-the-schema">Setting up the schema</h2>
+<p><em>TODO: Write this section.</em></p>
 <ul>
-<li><a href="https://www.infoq.com/presentations/Deconstructing-Database">Deconstructing the Database</a> — a talk about Datomic and its data model</li>
-<li><a href="https://docs.datomic.com/cloud/whatis/data-model.html">The Datomic Data Model</a> — from the Datomic documentation</li>
-<li><a href="https://github.com/google/leveldb/blob/1cb384088184be9840bd59b4040503a9fa9aee66/doc/impl.md">LevelDB implementation notes</a> — from the LevelDB documentation</li>
-<li><a href="https://www.youtube.com/watch?v=rtEalnKT25I">InfluxDB Storage Engine Internals</a> — a talk about storage in a time series database</li>
-<li><a href="https://www.utdallas.edu/~gupta/courses/acl/papers/datalog-paper.pdf">What You Always Wanted to Know About Datalog</a> — a paper on Datalog</li>
-<li><a href="http://tonsky.me/blog/unofficial-guide-to-datomic-internals/">Unofficial Guide to Datomic Internals</a> — a blog post on Datomic internals</li>
-<li><a href="https://www.youtube.com/watch?v=gpxnbly9bz4">SQLite: A Database for the Edge of the Network</a> — a talk about SQLite internals</li>
-<li><a href="https://www.youtube.com/channel/UCHnBsf2rH-K7pn09rb3qvkA">The CMU database group channel</a> — recorded lectures from their database courses</li>
+<li>We have <code>pw.sha1</code> of type <code>bytes</code>.</li>
+<li>We have <code>pw.count</code> of type <code>uint64</code>.</li>
 </ul>
+<h2 id="inserting">Inserting</h2>
+<p><em>TODO: Write this section.</em></p>
+<ul>
+<li>Insert in batches, transactions must fit in memory.</li>
+<li>Some fluff to read the dump file.</li>
+</ul>
+<h2 id="lookup">Lookup</h2>
+<p><em>TODO: Write this section.</em></p>
+<pre><code>where
+  pw pw.sha1 :sha1
+  pw pw.count count
+select
+  count
+</code></pre>
       </article>
       <nav id="nav-prev-next">
-        <a id="nav-prev" href="../fuzz-tests/" title="Fuzz tests">Previous</a>
-        <a id="nav-next" href="../architecture/" title="Architecture">Next</a>
+        <a id="nav-prev" href="../../query-planning/" title="Query planning">Previous</a>
+        <a id="nav-next" href="../bug-tracker/" title="Bug tracker">Next</a>
         </nav>
       </div>
     <aside>
       <nav>
         <ul>
-        <li class="toc-section"><a href="..">Overview</a></li>
+        <li class="toc-section"><a href="../..">Overview</a></li>
           <li class="toc-section
-            "><a href="../data-model/">Concepts</a></li>
+            "><a href="../../data-model/">Concepts</a></li>
           
             <li class="toc-chapter
-              "><a href="../data-model/">Data model</a></li>
+              "><a href="../../data-model/">Data model</a></li>
             
             <li class="toc-chapter
-              "><a href="../query/">Query</a></li>
+              "><a href="../../query/">Query</a></li>
             
             <li class="toc-chapter
-              "><a href="../query-planning/">Query planning</a></li>
+              "><a href="../../query-planning/">Query planning</a></li>
             <li class="toc-section
-            "><a href="../examples/key-value-lookup/">Examples</a></li>
+            "><a href="./">Examples</a></li>
           
             <li class="toc-chapter
-              "><a href="../examples/key-value-lookup/">Key-value lookup</a></li>
-            
+               current"><a href="./">Key-value lookup</a></li>
+            <li><ul>
+                <li class="toc-heading"><a href="#the-code">The code</a></li>
+                <li class="toc-heading"><a href="#setting-up-the-schema">Setting up the schema</a></li>
+                <li class="toc-heading"><a href="#inserting">Inserting</a></li>
+                <li class="toc-heading"><a href="#lookup">Lookup</a></li>
+                </ul></li>
+               
             <li class="toc-chapter
-              "><a href="../examples/bug-tracker/">Bug tracker</a></li>
+              "><a href="../bug-tracker/">Bug tracker</a></li>
             <li class="toc-section
-            "><a href="../reference/rust/">Reference</a></li>
+            "><a href="../../reference/rust/">Reference</a></li>
           
             <li class="toc-chapter
-              "><a href="../reference/rust/">Rust API reference</a></li>
+              "><a href="../../reference/rust/">Rust API reference</a></li>
             
             <li class="toc-chapter
-              "><a href="../reference/c/">C API reference</a></li>
+              "><a href="../../reference/c/">C API reference</a></li>
             <li class="toc-section
-            "><a href="../building/">Development</a></li>
+            "><a href="../../building/">Development</a></li>
           
             <li class="toc-chapter
-              "><a href="../building/">Building</a></li>
+              "><a href="../../building/">Building</a></li>
             
             <li class="toc-chapter
-              "><a href="../golden-tests/">Golden tests</a></li>
+              "><a href="../../golden-tests/">Golden tests</a></li>
             
             <li class="toc-chapter
-              "><a href="../fuzz-tests/">Fuzz tests</a></li>
+              "><a href="../../fuzz-tests/">Fuzz tests</a></li>
             
             <li class="toc-chapter
-               current"><a href="./">Resources</a></li>
+              "><a href="../../resources/">Resources</a></li>
             <li class="toc-section
-            "><a href="../architecture/">Internals</a></li>
+            "><a href="../../architecture/">Internals</a></li>
           
             <li class="toc-chapter
-              "><a href="../architecture/">Architecture</a></li>
+              "><a href="../../architecture/">Architecture</a></li>
             
             <li class="toc-chapter
-              "><a href="../distributed-operation/">Distributed operation</a></li>
+              "><a href="../../distributed-operation/">Distributed operation</a></li>
             
             <li class="toc-chapter
-              "><a href="../files/">Files</a></li>
+              "><a href="../../files/">Files</a></li>
             
             <li class="toc-chapter
-              "><a href="../htree/">Trees</a></li>
+              "><a href="../../htree/">Trees</a></li>
             
             <li class="toc-chapter
-              "><a href="../execution/">Execution</a></li>
+              "><a href="../../execution/">Execution</a></li>
             
             <li class="toc-chapter
-              "><a href="../query-optimization/">Query optimization</a></li>
+              "><a href="../../query-optimization/">Query optimization</a></li>
             </ul>
       </nav>
     </aside>
