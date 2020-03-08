@@ -1,0 +1,8 @@
+[package]
+name = "haveibeenpwned"
+version = "0.0.0"
+authors = ["Ruud van Asseldonk"]
+publish = false
+
+[dependencies]
+noblit = { path = "../../noblit" }
