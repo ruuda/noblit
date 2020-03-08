@@ -19,7 +19,11 @@
 extern crate noblit;
 
 use std::env;
+use std::fs;
+use std::io::{BufRead, Write};
+use std::io;
 use std::process;
+use std::str::FromStr;
 
 use noblit::database;
 use noblit::datom::Aid;
@@ -43,6 +47,11 @@ fn init_database() -> (Database, Schema) {
 struct Schema {
     pw_sha1: Aid,
     pw_count: Aid,
+}
+
+struct Password {
+    sha1: [u8; 20],
+    count: u64,
 }
 
 fn assert_schema(db: &mut Database) -> Schema {
@@ -91,6 +100,35 @@ fn assert_schema(db: &mut Database) -> Schema {
     }
 }
 
+/// Insert all passwords into the database. Leaves `pws` empty.
+fn insert_batch(db: &mut Database, schema: &Schema, pws: &mut Vec<Password>) {
+    let mut tx = db.begin();
+    let mut tmps = Temporaries::new();
+
+    for pw in pws.drain(..) {
+        let eid = tx.create_entity();
+        let cid = tmps.push_bytes(Box::new(pw.sha1));
+        tx.assert(eid, schema.pw_sha1, Value::from_const_bytes(cid));
+        tx.assert(eid, schema.pw_count, Value::from_u64_inline(pw.count));
+    }
+
+    db.commit(&tmps, tx).expect("TODO: Good Result types.");
+}
+
+/// Parse a hexadecimal sha1 hash, or crash.
+fn parse_sha1(sha1_hex: &str) -> [u8; 20] {
+    assert_eq!(sha1_hex.len(), 40);
+
+    let mut sha1 = [0; 20];
+    for i in 0..20 {
+        let byte_str = &sha1_hex[i * 2..i * 2 + 2];
+        let byte = u8::from_str_radix(byte_str, 16).expect("Expected hexadecimal SHA1 hash.");
+        sha1[i] = byte;
+    }
+
+    sha1
+}
+
 fn print_usage() {
     println!("Usage:");
     println!("  haveibeenpwned build out.ndb pwned-passwords-sha1.txt");
@@ -109,8 +147,41 @@ fn main() {
 
     match &cmd[..] {
         "build" => {
-            let (_db, _schema) = init_database();
-            unimplemented!("TODO: Fill database.");
+            let (mut db, schema) = init_database();
+            let f = fs::File::open(arg).expect("Failed to open input file.");
+            let mut reader = io::BufReader::new(f);
+            let mut batch = Vec::new();
+            let mut i_batch = 0;
+
+            for (i, opt_line) in reader.lines().enumerate() {
+                let line = opt_line.expect("Failed to read input line.");
+
+                // The lines have the format "<sha1>:<count>", with the sha1 in
+                // hexadecimal (40 characters), a colon, and the count in ascii
+                // decimal digits.
+                let sha1_hex = &line[..40];
+                let count_str = &line[41..];
+                assert_eq!(&line[40..41], ":");
+
+                let pw = Password {
+                    sha1: parse_sha1(sha1_hex),
+                    count: u64::from_str(count_str).expect("Failed to parse count."),
+                };
+                batch.push(pw);
+
+                if batch.len() >= 100_000 {
+                    insert_batch(&mut db, &schema, &mut batch);
+                    i_batch += 1;
+                    print!("\rInserted {} batches, {} passwords.", i_batch, i + 1);
+                    io::stdout().flush().unwrap();
+                }
+
+                if db.get_store().as_bytes().len() >= 1_000_000_000 {
+                    println!("");
+                    println!("Stopping after {} passwords, store grew larger than 1G.", i + 1);
+                    break
+                }
+            }
         }
         "check" => {
 
