@@ -11,6 +11,7 @@ nav:
     - Query: query.md
     - Query planning: query-planning.md
   - Examples:
+    - Key-value lookup: examples/key-value-lookup.md
     - Bug tracker: examples/bug-tracker.md
   - Reference:
     - Rust API reference: reference/rust.md

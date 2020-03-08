@@ -5,11 +5,30 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! Build a Noblit database from the "Have I Been Pwned?" file.
+//! Build a Noblit database from a "Have I Been Pwned?" file.
 //!
 //! This example provides a binary that converts the text-based dumps from
 //! [Have I Been Pwned][hibp] into a Noblit database, in order to query quickly
 //! whether a password is present in the dump.
+//!
+//! To run this example, first [download][hibp] and extract the text file with
+//! pwned SHA-1 hashes from Have I Been Pwned. To convert it into a Noblit
+//! database, run this example in “build” mode:
+//!
+//! ```text
+//! $ haveibeenpwned build pwned.ndb pwned-passwords-sha1-ordered-by-count-v5.txt
+//! ```
+//!
+//! Once the database has been built, we can check for the presence of a given
+//! password with “check” mode:
+//!
+//! ```text
+//! $ echo -n 'hello' | sha1sum
+//! aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d  -
+//!
+//! $ haveibeenpwned check pwned.ndb aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d
+//! SHA1 is present with count 253581.
+//! ```
 //!
 //! This example is inspired by [this post][stryku] on stryku.pl.
 //!
