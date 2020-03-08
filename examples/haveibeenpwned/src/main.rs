@@ -115,6 +115,51 @@ fn insert_batch(db: &mut Database, schema: &Schema, pws: &mut Vec<Password>) {
     db.commit(&tmps, tx).expect("TODO: Good Result types.");
 }
 
+/// Run a query to check whether the SHA1 is present, print the results.
+fn check_password(db: &Database, sha1: &[u8; 20]) {
+    use noblit::query::{Query, Statement, Var};
+
+    let mut temporaries = Temporaries::new();
+    let cid_pw_sha1 = temporaries.push_string("pw.sha1".to_string());
+    let cid_pw_count = temporaries.push_string("pw.count".to_string());
+    let cid_sha1 = temporaries.push_bytes(Box::new(sha1.clone()));
+
+    let mut view = db.view(temporaries);
+
+    // Encode this query:
+    // TODO: Add a more user-friendly way of doing this.
+    // where
+    //   pw pw.sha1 <sha1>
+    //   pw pw.count c
+    // select
+    //   c
+    let mut query = Query {
+        variable_names: vec![
+            "pw".to_string(), // 0
+            "c".to_string(),  // 1
+        ],
+        where_statements: vec![
+            Statement::named_const(Var(0), cid_pw_sha1, Value::from_const_bytes(cid_sha1)),
+            Statement::named_var(Var(0), cid_pw_count, Var(1)),
+        ],
+        select: vec![Var(1)],
+    };
+    query.fix_attributes(&mut view);
+    query.infer_types(&view).expect("Query contains a type error.");
+
+    let plan = noblit::planner::Planner::plan(&query);
+    let eval = noblit::eval::Evaluator::new(&plan, &view);
+    let rows: Vec<_> = eval.collect();
+
+    match rows.len() {
+        0 => println!("SHA1 is not present in the database."),
+        1 => println!("SHA1 is present with count {}.", rows[0][0].as_u64(view.heap())),
+        n => panic!("SHA1 was found more than once."),
+    }
+
+    // TODO: Print timing information.
+}
+
 /// Parse a hexadecimal sha1 hash, or crash.
 fn parse_sha1(sha1_hex: &str) -> [u8; 20] {
     assert_eq!(sha1_hex.len(), 40);
@@ -182,9 +227,17 @@ fn main() {
                     break
                 }
             }
+
+            let f = fs::File::create(db_path).expect("Failed to open output file.");
+            let mut writer = io::BufWriter::new(f);
+            noblit::disk::write_packed(&db, &mut writer).expect("Failed to write databse.");
         }
         "check" => {
-
+            let needle = parse_sha1(&arg[..]);
+            let f = fs::File::open(db_path).expect("Failed to open input database.");
+            let mut reader = io::BufReader::new(f);
+            let db = noblit::disk::read_packed(&mut reader).expect("Failed to read databse.");
+            check_password(&db, &needle);
         }
         _ => {
             print_usage();
