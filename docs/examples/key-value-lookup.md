@@ -23,7 +23,7 @@ started with, before moving on to more complex schemas or queries.
 You can find the [finished example][mainrs] in the _haveibeenpwned_ subdirectory
 of the _examples_ directory in the root of the repository.
 
-[mainrs]: https://github.com/ruuda/noblit/blob/hibp/examples/haveibeenpwned/src/main.rs
+[mainrs]: https://github.com/ruuda/noblit/blob/master/examples/haveibeenpwned/src/main.rs
 
 ## Setting up the schema
 
