@@ -14,15 +14,19 @@
 //!
 //! This module handles storage of pages, values, and database metadata on disk.
 
+use std::fs;
 use std::io;
+use std::path::Path;
 
 use binary::{slice_2, slice_8};
 use binary::{u16_from_le_bytes, u16_to_le_bytes};
 use binary::{u64_from_le_bytes, u64_to_le_bytes};
 use database::Database;
-use heap;
 use head::Head;
+use heap;
 use memory_store::{MemoryStore, MemoryHeap};
+use mmap::Mmap;
+use mmap_store::{MmapStore, MmapHeap};
 use store;
 
 /// The magic bytes that indicate a file is a Noblit database.
@@ -171,6 +175,44 @@ pub fn read_packed<Size: store::PageSize>(
 
     let store: MemoryStore<Size> = MemoryStore::from_vec(store_buffer);
     let heap = MemoryHeap::from_vec(heap_buffer);
+    let db = Database::open(store, heap, head);
+    Ok(db)
+}
+
+/// **Unsafe**: Map a file with a database in packed format into memory.
+///
+/// The resulting database is read-only.
+///
+/// A database backed by a memory-mapped file has some advantages, and some
+/// severe disadvantages that make it risky or even unsafe to use.
+///
+/// Advantages:
+///
+/// * Only a single copy of the data lives in memory, and there is no copying
+///   overhead for IO.
+/// * The operating system is free to evict cached parts of the files in times
+///   of memory pressure.
+///
+/// Disadvantages:
+///
+/// * There is no error handling for IO; if you map a file on a thumb drive,
+///   pull out the drive, and then run a query, your program will get SIGBUS'd.
+/// * An external process can modify the contents of the file after Noblit
+///   validates it.
+pub fn map_packed<P: AsRef<Path>>(path: P) -> io::Result<Database<MmapStore, MmapHeap>> {
+    let file = fs::File::open(path)?;
+    let input = io::BufReader::new(file);
+
+    // TODO: Read header.
+    let head = unimplemented!();
+    let file = input.into_inner();
+
+
+    let store_buffer = Mmap::new(&file)?;
+    let heap_buffer = Mmap::new(&file)?;
+
+    let store = MmapStore::new(store_buffer);
+    let heap = MmapHeap::new(heap_buffer);
     let db = Database::open(store, heap, head);
     Ok(db)
 }

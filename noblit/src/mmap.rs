@@ -61,6 +61,10 @@ impl Mmap {
             Ok(map)
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.length
+    }
 }
 
 impl Drop for Mmap {
@@ -68,7 +72,7 @@ impl Drop for Mmap {
         unsafe {
             // We ignore the return value; `munmap` should only fail due to
             // programmer error, not because of runtime errors. And even then,
-            // if we fail to unmap the memory, it leaks, but Rust still prevent
+            // if we fail to unmap the memory, it leaks, but Rust still prevents
             // us accessing it.
             munmap(self.buffer as *mut c_void, self.length);
         }

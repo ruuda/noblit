@@ -17,6 +17,7 @@ pub mod htree;
 pub mod index;
 pub mod memory_store;
 pub mod mmap;
+pub mod mmap_store;
 pub mod mutation;
 pub mod parse;
 pub mod permutation;
