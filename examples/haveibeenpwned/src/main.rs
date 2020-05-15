@@ -47,7 +47,6 @@ use std::str::FromStr;
 use noblit::database;
 use noblit::datom::Aid;
 use noblit::datom::Value;
-use noblit::heap::SizedHeap;
 use noblit::memory_store::{MemoryStore, MemoryHeap};
 use noblit::store::{PageSize4096};
 use noblit::temp_heap::Temporaries;
@@ -173,7 +172,7 @@ fn check_password(db: &Database, sha1: &[u8; 20]) {
     match rows.len() {
         0 => println!("SHA1 is not present in the database."),
         1 => println!("SHA1 is present with count {}.", rows[0][0].as_u64(view.heap())),
-        n => panic!("SHA1 was found more than once."),
+        _ => panic!("SHA1 was found more than once."),
     }
 
     // TODO: Print timing information.

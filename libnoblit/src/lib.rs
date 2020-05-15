@@ -91,7 +91,7 @@ pub fn noblit_query_open_impl<'a, 'b, Store: 'a + store::Store, Heap: 'a + heap:
 
     // TODO: Add getter to get the slice of selected types.
     let types = query.infer_types(&view).expect("Type error.");
-    let select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
+    let _select_types: Vec<_> = query.select.iter().map(|s| types[s.0 as usize]).collect();
 
     let plan = Box::new(Planner::plan(&query));
 
