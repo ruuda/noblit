@@ -3,8 +3,8 @@
 Noblit is a native library written in Rust. It will come with official client
 libraries for Haskell, Python, and Rust.
 
-_The Haskell client is under construction; the Rust and Python clients do not
-yet exist._
+_The Haskell and Python client are under construction; the Rust client does not
+yet exist, but the Noblit crate itself can be used._
 
 ## Build tools
 
@@ -47,7 +47,7 @@ This will have produced three libraries:
 If you need a header file, a script can generate one from the
 [C interface documentation](reference/c.md):
 
-    $ libnoblit/gen_header.py > noblit.h
+    $ tools/gen_header.py > noblit.h
 
 ## Haskell client
 
