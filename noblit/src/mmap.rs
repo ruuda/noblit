@@ -5,7 +5,7 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-//! Rust wrapper for `mmap(3)`.
+//! Rust wrapper for mmap(3).
 
 use std::fs;
 use std::io;
@@ -25,6 +25,10 @@ const PROT_READ: c_int = 1;
 const MAP_PRIVATE: c_int = 2;
 const MAP_FAILED: *mut c_void = !0 as *mut c_void; // !0 = -1.
 
+/// An file mapped into memory so it can be accessed like a slice.
+///
+/// There are some caveats to using mmap, see `disk::map_packed` for more
+/// details.
 pub struct Mmap {
     buffer: *const u8,
     length: usize,

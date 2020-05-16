@@ -209,22 +209,22 @@ pub fn read_packed<Size: store::PageSize>(
 /// The resulting database is read-only.
 ///
 /// A database backed by a memory-mapped file has some advantages, and some
-/// severe disadvantages that make it risky or even unsafe to use.
+/// **severe disadvantages that make it risky or even unsafe to use**.
+///
+/// Disadvantages:
+///
+/// * There is no error handling for IO; if you map a file on a thumb drive,
+///   pull out the drive, and then run a query, your program will get SIGBUS’d.
+/// * An external process can modify the contents of the file after Noblit
+///   validates it.
 ///
 /// Advantages:
 ///
 /// * Only a single copy of the data lives in memory, and there is no copying
 ///   overhead for IO.
-/// * The operating system is free to evict cached parts of the files in times
-///   of memory pressure.
-/// * It can transparently read from databases that do not fit in RAM.
-///
-/// Disadvantages:
-///
-/// * There is no error handling for IO; if you map a file on a thumb drive,
-///   pull out the drive, and then run a query, your program will get SIGBUS'd.
-/// * An external process can modify the contents of the file after Noblit
-///   validates it.
+/// * The operating system is free to evict from the page cache in times of
+///   memory pressure.
+/// * It is possible to transparently read from databases that do not fit in RAM.
 pub fn map_packed<P: AsRef<Path>>(path: P) -> io::Result<Database<MmapStore, MmapHeap>> {
     let file = fs::File::open(path)?;
     let mut input = io::BufReader::new(file);
