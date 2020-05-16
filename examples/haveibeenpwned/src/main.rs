@@ -134,7 +134,13 @@ fn insert_batch(db: &mut Database, schema: &Schema, pws: &mut Vec<Password>) {
 }
 
 /// Run a query to check whether the SHA1 is present, print the results.
-fn check_password(db: &Database, sha1: &[u8; 20]) {
+fn check_password<
+  Store: noblit::store::Store,
+  Heap: noblit::heap::Heap,
+>(
+    db: &database::Database<Store, Heap>,
+    sha1: &[u8; 20],
+) {
     use noblit::query::{Query, Statement, Var};
 
     let mut temporaries = Temporaries::new();
@@ -250,11 +256,22 @@ fn main() {
             let mut writer = io::BufWriter::new(f);
             noblit::disk::write_packed(&db, &mut writer).expect("Failed to write databse.");
         }
+        // For the check command, by default we use the mmap version, which is
+        // fast, and works even if the database does not fit in RAM, but which
+        // can be unsafe depending on how you use it.
         "check" => {
+            let needle = parse_sha1(&arg[..]);
+            let db = noblit::disk::map_packed(db_path).expect("Failed to read databse.");
+            check_password(&db, &needle);
+        }
+        // As a sanity check, we also offer the check against an in-memory
+        // database which first loads the entire database into memory.
+        "check-inmem" => {
             let needle = parse_sha1(&arg[..]);
             let f = fs::File::open(db_path).expect("Failed to open input database.");
             let mut reader = io::BufReader::new(f);
-            let db = noblit::disk::read_packed(&mut reader).expect("Failed to read databse.");
+            let db: Database =
+                noblit::disk::read_packed(&mut reader).expect("Failed to read databse.");
             check_password(&db, &needle);
         }
         _ => {

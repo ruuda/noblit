@@ -217,6 +217,7 @@ pub fn read_packed<Size: store::PageSize>(
 ///   overhead for IO.
 /// * The operating system is free to evict cached parts of the files in times
 ///   of memory pressure.
+/// * It can transparently read from databases that do not fit in RAM.
 ///
 /// Disadvantages:
 ///
@@ -238,9 +239,8 @@ pub fn map_packed<P: AsRef<Path>>(path: P) -> io::Result<Database<MmapStore, Mma
     let heap_off = store_off + Size::round_up(header.store_size_in_bytes as usize);
 
     let file = input.into_inner();
-    // TODO: Pass len and offset when making the mapping.
-    let store_buffer = Mmap::new(&file)?;
-    let heap_buffer = Mmap::new(&file)?;
+    let store_buffer = Mmap::new(&file, store_off as i64, header.store_size_in_bytes as usize)?;
+    let heap_buffer = Mmap::new(&file, heap_off as i64, header.heap_size_in_bytes as usize)?;
 
     let store = MmapStore::new(store_buffer);
     let heap = MmapHeap::new(heap_buffer);

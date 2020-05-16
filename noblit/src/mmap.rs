@@ -31,24 +31,15 @@ pub struct Mmap {
 }
 
 impl Mmap {
-    pub fn new(file: &fs::File) -> io::Result<Mmap> {
+    pub fn new(file: &fs::File, offset: i64, len: usize) -> io::Result<Mmap> {
+        assert!(len > 0, "Cannot mmap an empty range.");
         let fd = file.as_raw_fd();
-        let length = file.metadata()?.len();
-
-        assert!(length < usize::max_value() as u64);
-
-        // The length for mmap must be greater than 0.
-        if length == 0 {
-            let err = io::Error::new(io::ErrorKind::UnexpectedEof, "File to be mapped is empty");
-            return Err(err);
-        }
 
         let prot = PROT_READ;
         let flags = MAP_PRIVATE;
-        let off = 0;
 
         let result = unsafe {
-            mmap(ptr::null_mut(), length as usize, prot, flags, fd, off)
+            mmap(ptr::null_mut(), len, prot, flags, fd, offset)
         };
 
         if result == MAP_FAILED {
@@ -56,7 +47,7 @@ impl Mmap {
         } else {
             let map = Mmap {
                 buffer: result as *const u8,
-                length: length as usize,
+                length: len,
             };
             Ok(map)
         }
@@ -96,7 +87,7 @@ mod test {
     #[test]
     fn mmap_maps_readme() {
         let readme = fs::File::open("../README.md").expect("Expected repo README.md to exist.");
-        match Mmap::new(&readme) {
+        match Mmap::new(&readme, 0, 10) {
             Err(e) => panic!("{:?}", e),
             Ok(map) => assert_eq!(&map[..10], b"# Noblit\n\n"),
         }
