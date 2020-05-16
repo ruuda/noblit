@@ -10,7 +10,7 @@
 use std::io;
 
 use binary;
-use heap::{CidBytes, CidInt, Heap, SizedHeap};
+use heap::{CidBytes, CidInt, Heap};
 use store::{PageId, PageSize4096, Store};
 
 use mmap::Mmap;
