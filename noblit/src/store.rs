@@ -69,6 +69,12 @@ pub trait PageSize {
         // then the child page id array (8 bytes per element), the the header.
         Self::datoms_bytes_len() + Self::children_bytes_len()
     }
+
+    /// Round up a value to the next multiple of the page size.
+    #[inline(always)]
+    fn round_up(x: usize) -> usize {
+        (x + (Self::SIZE - 1)) / Self::SIZE * Self::SIZE
+    }
 }
 
 /// 256 bytes per page.

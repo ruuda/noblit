@@ -44,6 +44,14 @@ use store;
 /// * A null byte to pad to a multiple of 4 (not present in the PNG header).
 pub const SIGNATURE: [u8; 12] = *b"\x91Noblit\r\n\x1a\n\0";
 
+/// The variable data in the header of the packed format.
+struct PackedHeader {
+    head: Head,
+    page_size_in_bytes: u64,
+    store_size_in_bytes: u64,
+    heap_size_in_bytes: u64,
+}
+
 /// Write the database as a single stream, in packed format.
 ///
 /// The packed format has the advantage that the entire database is a single
@@ -121,19 +129,11 @@ fn read_exact<R: io::Read>(mut input: R, len: usize) -> io::Result<Vec<u8>> {
     Ok(result)
 }
 
-/// Read a database from a single stream, in packed format.
+/// Read the header of the packed format.
 ///
-/// This reads the entire database into memory. It is mostly useful for toy use
-/// cases.
-///
-/// The compile-time page size must match the page size of the file. In practice
-/// only page size 4096 should be used; the other page sizes exist only for use
-/// in tests and fuzzing, to test deeper trees, and uncover edge cases.
-/// Nonetheless, the page size is stored in the file, so we can confirm that it
-/// matches.
-pub fn read_packed<Size: store::PageSize>(
-    mut input: &mut dyn io::Read
-) -> io::Result<Database<MemoryStore<Size>, MemoryHeap>> {
+/// This does not consume any padding after the header that is used to round up
+/// to the nearest page size.
+fn read_packed_header(input: &mut dyn io::Read) -> io::Result<PackedHeader> {
     let mut buffer = [0_u8; 16];
     input.read_exact(&mut buffer[..])?;
 
@@ -162,7 +162,32 @@ pub fn read_packed<Size: store::PageSize>(
     // Byte [72..80): The size of the heap, in bytes.
     let heap_size_in_bytes = u64_from_le_bytes(slice_8(&buffer[16..24]));
 
-    assert_eq!(page_size_in_bytes as usize, Size::SIZE);
+    let result = PackedHeader {
+        head,
+        page_size_in_bytes,
+        store_size_in_bytes,
+        heap_size_in_bytes,
+    };
+
+    Ok(result)
+}
+
+/// Read a database from a single stream, in packed format.
+///
+/// This reads the entire database into memory. It is mostly useful for toy use
+/// cases.
+///
+/// The compile-time page size must match the page size of the file. In practice
+/// only page size 4096 should be used; the other page sizes exist only for use
+/// in tests and fuzzing, to test deeper trees, and uncover edge cases.
+/// Nonetheless, the page size is stored in the file, so we can confirm that it
+/// matches.
+pub fn read_packed<Size: store::PageSize>(
+    mut input: &mut dyn io::Read
+) -> io::Result<Database<MemoryStore<Size>, MemoryHeap>> {
+    let header = read_packed_header(input)?;
+
+    assert_eq!(header.page_size_in_bytes as usize, Size::SIZE);
 
     // Then we expect to find zero padding, up to the next multiple of the page
     // size.
@@ -170,12 +195,12 @@ pub fn read_packed<Size: store::PageSize>(
     input.read_exact(&mut buffer[..])?;
     assert!(buffer.iter().all(|byte| *byte == 0));
 
-    let store_buffer = read_exact(&mut input, store_size_in_bytes as usize)?;
-    let heap_buffer = read_exact(&mut input, heap_size_in_bytes as usize)?;
+    let store_buffer = read_exact(&mut input, header.store_size_in_bytes as usize)?;
+    let heap_buffer = read_exact(&mut input, header.heap_size_in_bytes as usize)?;
 
     let store: MemoryStore<Size> = MemoryStore::from_vec(store_buffer);
     let heap = MemoryHeap::from_vec(heap_buffer);
-    let db = Database::open(store, heap, head);
+    let db = Database::open(store, heap, header.head);
     Ok(db)
 }
 
@@ -201,19 +226,25 @@ pub fn read_packed<Size: store::PageSize>(
 ///   validates it.
 pub fn map_packed<P: AsRef<Path>>(path: P) -> io::Result<Database<MmapStore, MmapHeap>> {
     let file = fs::File::open(path)?;
-    let input = io::BufReader::new(file);
+    let mut input = io::BufReader::new(file);
 
-    // TODO: Read header.
-    let head = unimplemented!();
+    use store::PageSize;
+    type Size = store::PageSize4096;
+
+    let header = read_packed_header(&mut input)?;
+    assert_eq!(header.page_size_in_bytes as usize, Size::SIZE);
+
+    let store_off = Size::SIZE;
+    let heap_off = store_off + Size::round_up(header.store_size_in_bytes as usize);
+
     let file = input.into_inner();
-
-
+    // TODO: Pass len and offset when making the mapping.
     let store_buffer = Mmap::new(&file)?;
     let heap_buffer = Mmap::new(&file)?;
 
     let store = MmapStore::new(store_buffer);
     let heap = MmapHeap::new(heap_buffer);
-    let db = Database::open(store, heap, head);
+    let db = Database::open(store, heap, header.head);
     Ok(db)
 }
 
