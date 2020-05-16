@@ -16,6 +16,7 @@ pub mod heap;
 pub mod htree;
 pub mod index;
 pub mod memory_store;
+pub mod mmap;
 pub mod mutation;
 pub mod parse;
 pub mod permutation;
@@ -25,7 +26,6 @@ pub mod query;
 pub mod store;
 pub mod temp_heap;
 pub mod types;
-
 
 // TODO: I can guard this with #[cfg(fuzzing)] and #[cfg(test)] to keep it
 // compiling. But then how to build the inspect_fuzz_artifact binary? Guarding
