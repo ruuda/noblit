@@ -27,7 +27,7 @@ const MAP_FAILED: *mut c_void = !0 as *mut c_void; // !0 = -1.
 
 /// An file mapped into memory so it can be accessed like a slice.
 ///
-/// There are some caveats to using mmap, see `disk::map_packed` for more
+/// There are some caveats to using mmap, see `disk::mmap_packed` for more
 /// details.
 pub struct Mmap {
     buffer: *const u8,

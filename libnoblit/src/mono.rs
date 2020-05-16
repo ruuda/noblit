@@ -17,6 +17,7 @@ use std::os::raw::c_void;
 
 use noblit::database;
 use noblit::memory_store::{MemoryHeap, MemoryStore};
+use noblit::mmap_store::{MmapHeap, MmapStore};
 use noblit::store::PageSize4096;
 
 use super::Context;
@@ -25,8 +26,7 @@ type MemoryStore4096 = MemoryStore<PageSize4096>;
 
 pub enum Database {
     Memory(database::Database<MemoryStore4096, MemoryHeap>),
-    // In the future, with file-backed store and heap, there would be more
-    // entries here.
+    Mmap(database::Database<MmapStore, MmapHeap>),
 }
 
 /// A value, with context whose database this value was created from.
@@ -72,6 +72,7 @@ macro_rules! with_database {
         (*ctx).clear_error();
         let result = match ctx.db {
             mono::Database::Memory(ref mut db) => $f(db),
+            mono::Database::Mmap(ref mut db) => $f(db),
         };
         match result {
             Ok(()) => 0,

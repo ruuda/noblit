@@ -16,7 +16,6 @@
 
 use std::fs;
 use std::io;
-use std::path::Path;
 
 use binary::{slice_2, slice_8};
 use binary::{u16_from_le_bytes, u16_to_le_bytes};
@@ -225,8 +224,7 @@ pub fn read_packed<Size: store::PageSize>(
 /// * The operating system is free to evict from the page cache in times of
 ///   memory pressure.
 /// * It is possible to transparently read from databases that do not fit in RAM.
-pub fn map_packed<P: AsRef<Path>>(path: P) -> io::Result<Database<MmapStore, MmapHeap>> {
-    let file = fs::File::open(path)?;
+pub fn mmap_packed(file: &fs::File) -> io::Result<Database<MmapStore, MmapHeap>> {
     let mut input = io::BufReader::new(file);
 
     use store::PageSize;
@@ -245,6 +243,7 @@ pub fn map_packed<P: AsRef<Path>>(path: P) -> io::Result<Database<MmapStore, Mma
     let store = MmapStore::new(store_buffer);
     let heap = MmapHeap::new(heap_buffer);
     let db = Database::open(store, heap, header.head);
+
     Ok(db)
 }
 

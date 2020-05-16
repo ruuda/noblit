@@ -144,9 +144,20 @@ pub unsafe extern fn noblit_get_last_error(db: *const Context) -> noblit_slice_t
 }
 
 fn noblit_open_packed_in_memory_impl(file: &mut fs::File) -> Box<Context> {
+    // TODO: Report error properly.
     let db = disk::read_packed(&mut io::BufReader::new(file)).expect("Failed to read database.");
     let context = Context {
         db: mono::Database::Memory(db),
+        last_error: None,
+    };
+    Box::new(context)
+}
+
+fn noblit_open_packed_mmap_impl(file: &mut fs::File) -> Box<Context> {
+    // TODO: Report error properly.
+    let db = disk::mmap_packed(file).expect("Failed to map database.");
+    let context = Context {
+        db: mono::Database::Mmap(db),
         last_error: None,
     };
     Box::new(context)
@@ -166,6 +177,16 @@ pub unsafe extern fn noblit_open_packed_in_memory(fd: c_int) -> *mut Context {
     let context = noblit_open_packed_in_memory_impl(&mut file);
     // We only borrow the foreign file, so the File::drop should not close it.
     // Turning the file back into the foreign file descriptor prevents the drop.
+    let _ = file.into_raw_fd();
+    Box::into_raw(context)
+}
+
+#[no_mangle]
+pub unsafe extern fn noblit_open_packed_mmap(fd: c_int) -> *mut Context {
+    // See also `noblit_open_packed_in_memory` for details.
+    use std::os::unix::io::{FromRawFd, IntoRawFd};
+    let mut file = fs::File::from_raw_fd(fd);
+    let context = noblit_open_packed_mmap_impl(&mut file);
     let _ = file.into_raw_fd();
     Box::into_raw(context)
 }

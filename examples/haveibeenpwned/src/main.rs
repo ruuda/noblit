@@ -261,7 +261,8 @@ fn main() {
         // can be unsafe depending on how you use it.
         "check" => {
             let needle = parse_sha1(&arg[..]);
-            let db = noblit::disk::map_packed(db_path).expect("Failed to read databse.");
+            let f = fs::File::open(db_path).expect("Failed to open input database.");
+            let db = noblit::disk::mmap_packed(&f).expect("Failed to read databse.");
             check_password(&db, &needle);
         }
         // As a sanity check, we also offer the check against an in-memory

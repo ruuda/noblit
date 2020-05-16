@@ -94,6 +94,33 @@ it was loaded from is left untouched when the database is mutated.
   </dd>
 </dl>
 
+## noblit_open_packed_mmap
+
+    noblit_t*
+    noblit_open_packed_mmap(int fd);
+
+Map a database from a file in packed format into memory. The resulting database
+is immutable.
+
+<dl>
+  <dt>fd</dt>
+  <dd>
+    File descriptor of the file to read from. The file descriptor is borrowed
+    mutably for the duration of the call.
+  </dd>
+</dl>
+<dl>
+  <dt>return value</dt>
+  <dd>
+    A pointer to a database struct.
+    The pointer should be treated as an opaque pointer.
+  </dd>
+</dl>
+
+Memory-mapping a database has a **severe caveat**: there is no way to handle
+<abbr>IO</abbr> errors gracefully. The process will receive <abbr>SIGBUS</abbr>
+on <abbr>IO</abbr> errors.
+
 ## noblit_close
 
     void
