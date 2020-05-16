@@ -9,6 +9,7 @@
 
 use std::io;
 
+use binary;
 use heap::{CidBytes, CidInt, Heap, HeapMut, SizedHeap};
 use store::{PageId, PageSize, Store, StoreMut};
 
@@ -114,17 +115,8 @@ impl Heap for MemoryHeap {
         debug_assert_eq!(offset.0 % 8, 0, "Constant ids must be 8-byte aligned.");
         assert!(offset.0 + 8 <= self.buffer.len() as u64, "Constant id out of bounds.");
 
-        let bytes = &self.buffer[offset.0 as usize..offset.0 as usize + 8];
-
-        0
-            | (bytes[0] as u64) << 56
-            | (bytes[1] as u64) << 48
-            | (bytes[2] as u64) << 40
-            | (bytes[3] as u64) << 32
-            | (bytes[4] as u64) << 24
-            | (bytes[5] as u64) << 16
-            | (bytes[6] as u64) << 8
-            | (bytes[7] as u64)
+        let bytes = binary::slice_8(&self.buffer[offset.0 as usize..]);
+        binary::u64_from_le_bytes(bytes)
     }
 
     /// Retrieve a byte string constant.
@@ -146,17 +138,7 @@ impl HeapMut for MemoryHeap {
         debug_assert_eq!(self.buffer.len() % 8, 0, "Buffer should remain 8-byte aligned.");
         let offset = self.buffer.len();
 
-        // TODO: Use little endian, then we can skip the swap dance on x86_64.
-        let bytes = [
-            (value >> 56) as u8,
-            (value >> 48) as u8,
-            (value >> 40) as u8,
-            (value >> 32) as u8,
-            (value >> 24) as u8,
-            (value >> 16) as u8,
-            (value >> 8) as u8,
-            (value >> 0) as u8,
-        ];
+        let bytes = binary::u64_to_le_bytes(value);
         self.buffer.extend_from_slice(&bytes[..]);
 
         Ok(CidInt(offset as u64))
