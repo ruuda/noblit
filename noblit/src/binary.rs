@@ -62,6 +62,10 @@ pub fn u64_to_le_bytes(x: u64) -> [u8; 8] {
 /// See also `slice_8`.
 #[inline(always)]
 pub fn slice_2(buffer: &[u8]) -> [u8; 2] {
+    // Touch the greatest index first, so we only have a single bounds check
+    // instead of 2. (The checks can't be automatically merged, because the
+    // panic message is different for each line.)
+    let _ = buffer[1];
     [
         buffer[0],
         buffer[1],
@@ -77,6 +81,10 @@ pub fn slice_2(buffer: &[u8]) -> [u8; 2] {
 /// optimize it away, but I am not aware of a way to guarantee that.
 #[inline(always)]
 pub fn slice_8(buffer: &[u8]) -> [u8; 8] {
+    // Touch the greatest index first, so we only have a single bounds check
+    // instead of 8 of them. (The checks can't be automatically merged, because
+    // the panic message is different for each line.)
+    let _ = buffer[7];
     [
         buffer[0],
         buffer[1],
