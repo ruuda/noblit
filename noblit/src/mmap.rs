@@ -52,10 +52,6 @@ impl Mmap {
             Ok(map)
         }
     }
-
-    pub fn len(&self) -> usize {
-        self.length
-    }
 }
 
 impl Drop for Mmap {
