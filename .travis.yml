@@ -44,7 +44,7 @@ install:
   - cargo  +nightly-2020-01-18 miri setup
 
   # Install tools to run the fuzzer.
-  - cargo  +nightly-2020-01-18 install cargo-fuzz --vers 0.7.3 || true
+  - cargo  +nightly-2020-01-18 install cargo-fuzz --vers 0.8.0 || true
 
   # Set up the Haskell toolchain.
   - cd $TRAVIS_BUILD_DIR/client/haskell
