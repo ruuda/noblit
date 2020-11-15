@@ -102,7 +102,7 @@ fn run0<Size: PageSize, Cmp: DatomOrd>(cmp: Cmp, actions: &[FuzzAction]) -> Opti
             FuzzAction::Append { entity, attribute, value: fuzz_value } => {
                 let value = match fuzz_value {
                     FuzzValue::U64(x) => {
-                        match Value::from_u64(*x) {
+                        match Value::try_from_u64_inline(*x) {
                             Some(v) => v,
                             None => {
                                 let cid = tree.heap.append_u64(*x).unwrap();
@@ -112,7 +112,7 @@ fn run0<Size: PageSize, Cmp: DatomOrd>(cmp: Cmp, actions: &[FuzzAction]) -> Opti
                         }
                     }
                     FuzzValue::Bytes(bytes) => {
-                        match Value::from_bytes(bytes) {
+                        match Value::try_from_bytes_inline(bytes) {
                             Some(v) => v,
                             None => {
                                 let cid = tree.heap.append_bytes(bytes).unwrap();

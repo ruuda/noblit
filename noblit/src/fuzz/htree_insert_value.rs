@@ -39,7 +39,7 @@ fn run<'a, Size: PageSize>(mut cursor: Cursor<'a>) -> Option<()> {
                 let len = n;
                 let value_slice = cursor.take_slice(len as usize)?;
 
-                let value = match Value::from_bytes(value_slice) {
+                let value = match Value::try_from_bytes_inline(value_slice) {
                     Some(v) => {
                         dprintln!("  inline, len {}: {:?}", len, value_slice);
                         v

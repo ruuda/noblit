@@ -52,19 +52,13 @@ fn parse_statements(
             }
             1 => {
                 let value_u64 = cursor.take_u64_le()?;
-                let value = match Value::from_u64(value_u64) {
-                    Some(v) => v,
-                    None => Value::from_const_u64(temporaries.push_u64(value_u64)),
-                };
+                let value = Value::from_u64(value_u64, temporaries);
                 QueryValue::Const(value)
             }
             2 => {
                 let value_len = cursor.take_u16_le()?;
                 let value_str = cursor.take_utf8(value_len as usize)?;
-                let value = match Value::from_str(&value_str[..]) {
-                    Some(v) => v,
-                    None => Value::from_const_bytes(temporaries.push_string(value_str)),
-                };
+                let value = Value::from_string(value_str, temporaries);
                 QueryValue::Const(value)
             }
             _ => unimplemented!("Unsupported value. TODO: Proper error handling."),

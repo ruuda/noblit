@@ -80,31 +80,20 @@ fn assert_schema(db: &mut Database) -> Schema {
     let db_type_bytes = db.builtins.entity_db_type_bytes;
     let db_type_uint64 = db.builtins.entity_db_type_uint64;
 
-    // TODO: Put this somewhere in Noblit.
-    fn value_from_str(tmps: &mut Temporaries, val: &str) -> Value {
-        match Value::from_str(val) {
-            Some(v) => v,
-            None => {
-                let cid = tmps.push_string(val.to_string());
-                Value::from_const_bytes(cid)
-            }
-        }
-    }
-
     // Build a transaction to set up the schema.
     let mut tx = db.begin();
     let mut tmps = Temporaries::new();
 
     // Define two attributes: pw.sha1: bytes, and pw.count: uint64.
     let eid_pw_sha1 = tx.create_entity();
-    tx.assert(eid_pw_sha1, db_attr_name, value_from_str(&mut tmps, "pw.sha1"));
+    tx.assert(eid_pw_sha1, db_attr_name, Value::from_str("pw.sha1", &mut tmps));
     tx.assert(eid_pw_sha1, db_attr_type, Value::from_eid(db_type_bytes));
     tx.assert(eid_pw_sha1, db_attr_unique, Value::from_bool(true));
     tx.assert(eid_pw_sha1, db_attr_many, Value::from_bool(false));
     let pw_sha1 = Aid(eid_pw_sha1.0);
 
     let eid_pw_count = tx.create_entity();
-    tx.assert(eid_pw_count, db_attr_name, value_from_str(&mut tmps, "pw.count"));
+    tx.assert(eid_pw_count, db_attr_name, Value::from_str("pw.count", &mut tmps));
     tx.assert(eid_pw_count, db_attr_type, Value::from_eid(db_type_uint64));
     tx.assert(eid_pw_count, db_attr_unique, Value::from_bool(false));
     tx.assert(eid_pw_count, db_attr_many, Value::from_bool(false));

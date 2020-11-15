@@ -11,6 +11,7 @@ use std;
 use std::cmp::Ordering;
 
 use heap::{CidInt, CidBytes, Heap};
+use temp_heap::Temporaries;
 
 /// Entity id.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -173,9 +174,10 @@ impl Value {
 
     /// Construct an integer value from an unsigned integer.
     ///
-    /// Returns `None` if the value is too large to be stored inline. In that
-    /// case, store the value in on the heap and use `from_const_u64`.
-    pub fn from_u64(value: u64) -> Option<Value> {
+    /// Returns `None` if the value is too large to be stored inline. Use
+    /// `from_u64` to spill to a temporary heap instead, or use `from_const_u64`
+    /// to manually spill to the heap.
+    pub fn try_from_u64_inline(value: u64) -> Option<Value> {
         if value & Value::TAG_MASK == 0 {
             Some(Value::from_u64_inline(value))
         } else {
@@ -220,9 +222,10 @@ impl Value {
 
     /// Construct a byte string value from a byte slice.
     ///
-    /// Returns `None` if the value is too large to be stored inline. In that
-    /// case, store the value on the heap and use `from_const_bytes`.
-    pub fn from_bytes(value: &[u8]) -> Option<Value> {
+    /// Returns `None` if the value is too large to be stored inline. Use
+    /// `from_bytes` to automatically spill to a temporary heap, or use
+    /// `from_const_bytes` after manually putting the value on a heap.
+    pub fn try_from_bytes_inline(value: &[u8]) -> Option<Value> {
         if value.len() < 8 {
             Some(Value::from_bytes_inline(value))
         } else {
@@ -232,14 +235,14 @@ impl Value {
 
     /// Construct a byte string value from a 7-byte string slice or shorter.
     ///
-    /// Panics if the value is too large. Use `from_const_bytes` to handle large values.
+    /// Panics if the value is too large. Use `from_str` to handle all values.
     pub fn from_str_inline(value: &str) -> Value {
         Value::from_bytes_inline(value.as_bytes())
     }
 
     /// Construct a byte string value from string slice.
-    pub fn from_str(value: &str) -> Option<Value> {
-        Value::from_bytes(value.as_bytes())
+    pub fn try_from_str_inline(value: &str) -> Option<Value> {
+        Value::try_from_bytes_inline(value.as_bytes())
     }
 
     pub fn from_const_u64(cid: CidInt) -> Value {
@@ -252,6 +255,50 @@ impl Value {
         let offset = cid.0;
         assert_eq!(offset & Value::TAG_MASK, 0, "Const id must fit in 62 bits.");
         Value(offset | Value::TAG_EXTERNAL | Value::TAG_BYTES)
+    }
+
+    /// Construct a u64 value, spilling it to the temporary heap if it does not fit inline.
+    pub fn from_u64(value: u64, temporaries: &mut Temporaries) -> Value {
+        match Value::try_from_u64_inline(value) {
+            Some(v) => v,
+            None => {
+                let cid = temporaries.push_u64(value);
+                Value::from_const_u64(cid)
+            }
+        }
+    }
+
+    /// Construct a byte string value, spilling it to the temporary heap if it does not fit inline.
+    pub fn from_bytes(value: &[u8], temporaries: &mut Temporaries) -> Value {
+        match Value::try_from_bytes_inline(value) {
+            Some(v) => v,
+            None => {
+                let cid = temporaries.push_bytes(Box::from(value));
+                Value::from_const_bytes(cid)
+            }
+        }
+    }
+
+    /// Construct a string value, spilling it to the temporary heap if it does not fit inline.
+    pub fn from_str(value: &str, temporaries: &mut Temporaries) -> Value {
+        match Value::try_from_str_inline(value) {
+            Some(v) => v,
+            None => {
+                let cid = temporaries.push_string(value.to_string());
+                Value::from_const_bytes(cid)
+            }
+        }
+    }
+
+    /// Construct a string value, spilling it to the temporary heap if it does not fit inline.
+    pub fn from_string(value: String, temporaries: &mut Temporaries) -> Value {
+        match Value::try_from_str_inline(&value[..]) {
+            Some(v) => v,
+            None => {
+                let cid = temporaries.push_string(value);
+                Value::from_const_bytes(cid)
+            }
+        }
     }
 
     pub fn as_bytes<'a, H: Heap + ?Sized>(&'a self, heap: &'a H) -> &'a [u8] {
@@ -407,7 +454,7 @@ mod test {
     fn from_u64_returns_none_on_large_values() {
         // This is a regression test. A previous test considered this value
         // small enough, but then constructing an inline u64 failed.
-        assert_eq!(Value::from_u64(8141037401938390264), None);
+        assert_eq!(Value::try_from_u64_inline(8141037401938390264), None);
     }
 
     #[test]
