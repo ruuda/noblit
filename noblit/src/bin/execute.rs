@@ -200,7 +200,7 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
     // duration". Higher numbers give us more accurate results, but we hit
     // diminishing results quickly. The goal is to rank plans, so we only need
     // enough accuracy to tell which plan is faster with some confidence.
-    let min_iters_expand: u32 = 2_000;
+    let mut min_iters_expand: u32 = 2_000;
     let min_iters_final: u32 = 5_000;
 
     while let Some(mut candidate) = open.pop() {
@@ -232,6 +232,17 @@ fn optimize_query(cursor: &mut Cursor, database: &Database) {
                 candidate.duration.min_duration,
                 candidate.duration.num_samples,
             );
+
+            // Adjust the number of iterations before expanding for a target
+            // time of 0.5 seconds per candidate, capped at a maximum of 2000
+            // iterations and a minimum of 5. Without this, optimization can
+            // take hours as soon as the partial query gets in the millisecond
+            // range.
+            min_iters_expand = if candidate.duration.min_duration.as_secs() == 0 {
+                5.max(2000.min(500_000 / (1 + candidate.duration.min_duration.subsec_micros())))
+            } else {
+                5
+            };
 
             for timed_plan in &candidate.plans {
                 println!(
