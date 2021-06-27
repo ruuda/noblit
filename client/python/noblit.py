@@ -100,7 +100,7 @@ class Database:
         return message_utf8.into_bytes().decode('utf-8')
 
     def _check_result(self, result: c_uint32) -> None:
-        if result == 0:
+        if result == c_uint32(0):
             return
 
         message = self._get_last_error()

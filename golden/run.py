@@ -47,6 +47,8 @@ def main(fname: str) -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     ) as executor:
+        assert executor.stdin is not None, 'We piped stdin, it should be there'
+        assert executor.stdout is not None, 'We piped stdout, it should be there'
 
         # Run every query (read or write), one by one.
         for i, (query_lines, expected_lines) in enumerate(blocks):
