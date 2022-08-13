@@ -395,8 +395,8 @@
         <h1 id="building">Building</h1>
 <p>Noblit is a native library written in Rust. It will come with official client
 libraries for Haskell, Python, and Rust.</p>
-<p><em>The Haskell client is under construction; the Rust and Python clients do not
-yet exist.</em></p>
+<p><em>The Haskell and Python client are under construction; the Rust client does not
+yet exist, but the Noblit crate itself can be used.</em></p>
 <h2 id="build-tools">Build tools</h2>
 <p><a href="https://nixos.org/nix/">Nix</a> can set up a build environment in which all required build tools are
 available. The repository contains a <code>default.nix</code> file that defines the
@@ -429,7 +429,7 @@ $ ls target/release/libnoblit*
 </ul>
 <p>If you need a header file, a script can generate one from the
 <a href="../reference/c/">C interface documentation</a>:</p>
-<pre><code>$ libnoblit/gen_header.py &gt; noblit.h
+<pre><code>$ tools/gen_header.py &gt; noblit.h
 </code></pre>
 <h2 id="haskell-client">Haskell client</h2>
 <p>The Haskell client is located in <code>client/haskell</code> and builds with Stack.

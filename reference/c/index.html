@@ -463,7 +463,6 @@ it was loaded from is left untouched when the database is mutated.</p>
     mutably for the duration of the call.
   </dd>
 </dl>
-
 <dl>
   <dt>return value</dt>
   <dd>
@@ -472,6 +471,30 @@ it was loaded from is left untouched when the database is mutated.</p>
   </dd>
 </dl>
 
+<h2 id="noblit_open_packed_mmap">noblit_open_packed_mmap</h2>
+<pre><code>noblit_t*
+noblit_open_packed_mmap(int fd);
+</code></pre>
+<p>Map a database from a file in packed format into memory. The resulting database
+is immutable.</p>
+<dl>
+  <dt>fd</dt>
+  <dd>
+    File descriptor of the file to read from. The file descriptor is borrowed
+    mutably for the duration of the call.
+  </dd>
+</dl>
+<dl>
+  <dt>return value</dt>
+  <dd>
+    A pointer to a database struct.
+    The pointer should be treated as an opaque pointer.
+  </dd>
+</dl>
+
+<p>Memory-mapping a database has a <strong>severe caveat</strong>: there is no way to handle
+<abbr>IO</abbr> errors gracefully. The process will receive <abbr>SIGBUS</abbr>
+on <abbr>IO</abbr> errors.</p>
 <h2 id="noblit_close">noblit_close</h2>
 <pre><code>void
 noblit_close(noblit_t* db);
@@ -563,6 +586,7 @@ noblit_query_close(noblit_evaluator_t* evaluator);
                 <li class="toc-heading"><a href="#noblit_slice_t">noblit_slice_t</a></li>
                 <li class="toc-heading"><a href="#noblit_get_last_error">noblit_get_last_error</a></li>
                 <li class="toc-heading"><a href="#noblit_open_packed_in_memory">noblit_open_packed_in_memory</a></li>
+                <li class="toc-heading"><a href="#noblit_open_packed_mmap">noblit_open_packed_mmap</a></li>
                 <li class="toc-heading"><a href="#noblit_close">noblit_close</a></li>
                 <li class="toc-heading"><a href="#noblit_evaluator_t">noblit_evaluator_t</a></li>
                 <li class="toc-heading"><a href="#noblit_query_open">noblit_query_open</a></li>
