@@ -1,7 +1,7 @@
 {
   description = "Noblit";
 
-  inputs.nixpkgs.url = "nixpkgs/432fc2d9a67f92e05438dff5fdc2b39d33f77997";
+  inputs.nixpkgs.url = "nixpkgs/nixos-unstable";
 
   outputs = { self, nixpkgs }: 
     let
