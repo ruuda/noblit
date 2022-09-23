@@ -1,7 +1,8 @@
 [workspace]
 members = [
-  "noblit",
+  "kv",
   "libnoblit",
+  "noblit",
   "examples/haveibeenpwned",
 ]
 
