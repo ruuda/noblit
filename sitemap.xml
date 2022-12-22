@@ -1,93 +1,98 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/architecture/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/building/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/data-model/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/distributed-operation/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/execution/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/files/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/fuzz-tests/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/golden-tests/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/htree/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/query-optimization/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/query-planning/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/query/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/resources/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/examples/bug-tracker/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/examples/key-value-lookup/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/reference/c/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
     <url>
-     <loc>None</loc>
-     <lastmod>2022-08-13</lastmod>
-     <changefreq>daily</changefreq>
+         <loc>https://docs.ruuda.nl/noblit/reference/rust/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://docs.ruuda.nl/noblit/theme/</loc>
+         <lastmod>1980-01-01</lastmod>
+         <changefreq>daily</changefreq>
     </url>
 </urlset>
