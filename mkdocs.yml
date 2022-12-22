@@ -1,4 +1,5 @@
 site_name: Noblit
+site_url: https://docs.ruuda.nl/noblit/
 repo_url: https://github.com/ruuda/noblit
 strict: true
 theme:
