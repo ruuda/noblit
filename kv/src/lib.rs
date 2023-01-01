@@ -19,29 +19,17 @@ pub trait PageSize {
     const CAPACITY: usize;
 }
 
-/// A queue models a device or service that supports asynchronous IO.
-trait Queue {
-    type Input;
-    type Output;
-    type Error;
+trait Error {}
 
-    pub fn send(request: Input) -> Result<(), Error>;
-    pub fn recv() -> Result<Output, Error>;
-}
-
+pub struct Block(Box<[u8]>);
 pub struct BlockId(u64);
-pub struct SuperBlockId(u64);
 
-enum BlockStoreIn {
-    GetBlock(BlockId),
-    Allocate,
-    EraseSuperBlock(SuperBlockId);
+trait BlockStoreRead {
+    fn get_blocks(&mut self, ids: &[BlockId]) -> &[Block];
 }
 
-enum BlockStoreOut {
-    GotBlock(BlockId, Vec<u8>),
-    Allocated(BlockId),
-    ErasedSuperBlock(SuperBlockId),
+trait BlockStoreWrite {
+    fn put_blocks(&mut self, blocks: Vec<Block>) -> Vec<BlockId>;
 }
 
 trait BlockStore {
