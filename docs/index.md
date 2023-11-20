@@ -23,15 +23,15 @@ first-class and queryable.
  * **Point in time queries.**
    Any historical state of the database can be reproduced and queried
    efficiently.
- * **Reified schema**.
+ * **Reified schema.**
    Noblit stores the schema as entities in the database itself. The schema can
    be evolved through normal assertions and retractions, and the full migration
    history is available.
- * **Reified transactions**.
+ * **Reified transactions.**
    Transactions in Noblit are entities that can have attributes like any other
    entity. Possibilities include the transaction timestamp and the user who
    initiated the transaction. Transactions can be inspected in queries.
- * **Profile-guided query optimization**.
+ * **Profile-guided query optimization.**
    While queries are declarative, statement order affects the query plan. An
    explicit query optimizer can optimize a given query by measuring how
    alternatives perform, instead of having to estimate from statistics.
