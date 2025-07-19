@@ -1,6 +1,5 @@
-
-use std::future::{Future};
-use std::pin::{Pin};
+use std::future::Future;
+use std::pin::Pin;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 struct Runtime;
@@ -17,25 +16,25 @@ impl WakerImpl {
         const VTABLE: RawWakerVTable = RawWakerVTable::new(
             // `clone`
             |ptr| {
-                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) }; 
+                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) };
                 println!("waker::clone");
                 w.clone().as_raw()
             },
             // `wake`
             |ptr| {
-                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) }; 
+                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) };
                 println!("waker::wake");
                 w.wake()
             },
             // `wake_by_ref`
             |ptr| {
-                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) }; 
+                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) };
                 println!("waker::wake_by_ref");
                 w.wake_by_ref()
             },
             // `drop`
-            |ptr| { 
-                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) }; 
+            |ptr| {
+                let w: &WakerImpl = unsafe { &*(ptr as *const WakerImpl) };
                 println!("waker::drop");
                 w.drop()
             },
@@ -55,8 +54,9 @@ impl Runtime {
         Runtime
     }
 
-    pub fn execute<T, F>(&mut self, mut future: F) -> T 
-        where F: Future<Output = T> + Unpin
+    pub fn execute<T, F>(&mut self, mut future: F) -> T
+    where
+        F: Future<Output = T> + Unpin,
     {
         let waker_impl = WakerImpl;
         let waker = waker_impl.as_waker();

@@ -23,8 +23,8 @@ const ENTRIES_PER_NODE: usize = 4;
 ///
 /// TODO: Add a statement about endianness.
 mod raw {
-    use std::num::NonZeroU64;
     use super::{ENTRIES_PER_NODE, KeyRef, NodeId, ValueRef};
+    use std::num::NonZeroU64;
 
     /// Raw representation of an entry in a tree node in the hitchhiker tree.
     ///
@@ -60,7 +60,10 @@ mod raw {
                 ((self.raw_key_offset == 0) && (self.raw_key_len == 0)) || (self.raw_key_len > 0),
                 "The canonical encoding of the empty key has offset 0.",
             );
-            KeyRef { offset: self.raw_key_offset, len: self.raw_key_len }
+            KeyRef {
+                offset: self.raw_key_offset,
+                len: self.raw_key_len,
+            }
         }
 
         #[inline]
@@ -141,16 +144,32 @@ mod raw {
             assert_eq!(size_of::<Entry>(), 32, "Raw entry is 32 bytes.");
             assert_eq!(align_of::<Entry>(), 32, "Raw entry aligns to 32 bytes.");
             assert_eq!(size_of::<NodeHeader>(), 32, "Raw header is 32 bytes.");
-            assert_eq!(align_of::<NodeHeader>(), 32, "Raw header aligns to 32 bytes.");
+            assert_eq!(
+                align_of::<NodeHeader>(),
+                32,
+                "Raw header aligns to 32 bytes."
+            );
 
             #[cfg(feature = "node-size-4096")]
-            assert_eq!(size_of::<Node>(), 4096, "A 4k node fits a header + 127 entries.");
+            assert_eq!(
+                size_of::<Node>(),
+                4096,
+                "A 4k node fits a header + 127 entries."
+            );
 
             #[cfg(feature = "node-size-256")]
-            assert_eq!(size_of::<Node>(), 256, "A 256-byte node fits a header + 7 entries.");
+            assert_eq!(
+                size_of::<Node>(),
+                256,
+                "A 256-byte node fits a header + 7 entries."
+            );
 
             #[cfg(feature = "node-size-160")]
-            assert_eq!(size_of::<Node>(), 160, "A 160-byte node fits a header + 4 entries.");
+            assert_eq!(
+                size_of::<Node>(),
+                160,
+                "A 160-byte node fits a header + 4 entries."
+            );
         }
     }
 }
