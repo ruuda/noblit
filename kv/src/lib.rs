@@ -123,6 +123,10 @@ mod raw {
     }
 
     impl Node {
+        pub fn id(&self) -> NodeId {
+            NodeId(NonZeroU64::new(self.raw_header.raw_id).expect("Node ids are nonzero."))
+        }
+
         pub fn entries(&self) -> &[Entry] {
             &self.raw_entries[..self.raw_header.raw_len as _]
         }
@@ -199,21 +203,30 @@ impl Arena {
             prev_id = node_id;
         }
 
-        assert_eq!(self.nodes.len(), self.node_ids.len(), "We have one id per node.");
+        assert_eq!(
+            self.nodes.len(),
+            self.node_ids.len(),
+            "We have one id per node."
+        );
 
         for node in &self.nodes {
             for entry in node.entries() {
                 // Assert that the key and value slices are in bounds.
                 assert!(entry.raw_key_offset <= self.key_data.len() as u64);
-                assert!(entry.raw_key_offset + entry.raw_key_len as u64 <= self.key_data.len() as u64);
+                assert!(
+                    entry.raw_key_offset + entry.raw_key_len as u64 <= self.key_data.len() as u64
+                );
                 assert!(entry.raw_value_offset <= self.value_data.len() as u64);
-                assert!(entry.raw_value_offset + entry.raw_value_len as u64 <= self.value_data.len() as u64);
+                assert!(
+                    entry.raw_value_offset + entry.raw_value_len as u64
+                        <= self.value_data.len() as u64
+                );
             }
         }
     }
 
     pub fn push_node(&mut self, node: raw::Node) {
-        self.node_ids.push(NodeId(NonZeroU64::new(node.raw_header.raw_id).unwrap()));
+        self.node_ids.push(node.id());
         self.nodes.push(node);
 
         #[cfg(debug_assertions)]
