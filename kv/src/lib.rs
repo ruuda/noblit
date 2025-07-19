@@ -276,6 +276,16 @@ impl Arena {
         entry
     }
 
+    pub fn update_node(&mut self, node: &Node, new_entries: Vec<Entry>) {
+        // TODO: I need something like a dedup_merge that merges two sorted slices
+        // of entries, skipping duplicate keys.
+
+        // TODO: If the node that we are updating lived in an older generation,
+        // then with the current format, we need to copy the keys and values
+        // back into this generation. That would be a shame, can we include a
+        // generation id in the references to fix that?
+    }
+
     pub fn push_node(&mut self, node: Node) {
         self.node_ids.push(node.id());
         self.nodes.push(node);
