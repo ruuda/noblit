@@ -41,6 +41,7 @@ mod raw {
     /// TODO: Document hitchhiker tree invariant.
     #[repr(align(32))]
     #[repr(C)]
+    #[derive(Clone, Default)]
     pub struct Entry {
         /// Byte offset into this generation's keys file.
         pub raw_key_offset: u64,
@@ -179,10 +180,12 @@ mod raw {
     }
 }
 
+use raw::{Entry, Node};
+
 /// Identifies a node in the hitchhiker tree.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(transparent)]
-pub struct NodeId(std::num::NonZeroU64);
+pub struct NodeId(NonZeroU64);
 
 /// A slice into a generation's key data.
 #[derive(Copy, Clone, Debug)]
@@ -207,7 +210,7 @@ pub struct Arena {
     epoch: u64,
 
     /// Tree nodes stored in this generation.
-    nodes: Vec<raw::Node>,
+    nodes: Vec<Node>,
 
     /// Element i is the id of `self.nodes[i]`. Nodes are stored by ascending id.
     node_ids: Vec<NodeId>,
@@ -249,7 +252,31 @@ impl Arena {
         }
     }
 
-    pub fn push_node(&mut self, node: raw::Node) {
+    /// Append the key and value to their heaps.
+    ///
+    /// Returns an entry suitable for inserting into a new tree node.
+    pub fn push_key_value(&mut self, key: &[u8], value: Option<&[u8]>) -> Entry {
+        let mut entry = Entry::default();
+
+        // TODO: As an optimization, we can keep a hash table of string hash to
+        // (offset, len) in the heap, so that in case of duplicates (which can
+        // happen especially with keys, when we keep updating the same key), we
+        // reuse the existing value instead of storing it twice.
+
+        entry.raw_key_offset = self.key_data.len() as u64;
+        entry.raw_key_len = key.len().try_into().expect("Key fits in 4 GiB.");
+        self.key_data.extend_from_slice(key);
+
+        if let Some(v) = value {
+            entry.raw_value_offset = self.value_data.len() as u64;
+            entry.raw_value_len = v.len().try_into().expect("Value fits in 4 GiB.");
+            self.value_data.extend_from_slice(v);
+        }
+
+        entry
+    }
+
+    pub fn push_node(&mut self, node: Node) {
         self.node_ids.push(node.id());
         self.nodes.push(node);
 
