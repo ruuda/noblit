@@ -5,7 +5,6 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
-use std::collections::HashMap;
 use std::hash::Hash;
 
 /// Trait to allow compile-time parametrization over the page size.
@@ -79,6 +78,36 @@ pub struct Generation {
 
     /// The nodes' value offset and value length slice values out of this arena.
     value_data: Vec<u8>,
+}
+
+impl Generation {
+    pub fn assert_invariants(&self) {
+        let mut prev_id = 0;
+        for node_id in self.node_ids.iter().map(|n| n.0.get()) {
+            assert!(node_id > prev_id, "Node ids are ascending.");
+            prev_id = node_id;
+        }
+
+        assert_eq!(self.nodes.len(), self.node_ids.len(), "We have one id per node.");
+
+        for node in &self.nodes {
+            for entry in &node.entries {
+                // Assert that the key and value slices are in bounds.
+                assert!(entry.key_offset <= self.key_data.len() as u64);
+                assert!(entry.key_offset + entry.key_len as u64 <= self.key_data.len() as u64);
+                assert!(entry.value_offset <= self.value_data.len() as u64);
+                assert!(entry.value_offset + entry.value_len as u64 <= self.value_data.len() as u64);
+            }
+        }
+    }
+
+    pub fn push_node(&mut self, node_id: NodeId, node: RawNode) {
+        self.node_ids.push(node_id);
+        self.nodes.push(node);
+
+        #[cfg(debug_assertions)]
+        self.assert_invariants();
+    }
 }
 
 pub struct Database {
