@@ -7,6 +7,9 @@ edition = "2024"
 [lib]
 crate-type = ["rlib"]
 
+[dependencies]
+parking_lot = "0.12.4"
+
 [features]
 # We allow compile-time parametrization over the node size. We use this
 # primarily for tests and the fuzzers, to keep the examples smaller, so

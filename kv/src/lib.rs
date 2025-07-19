@@ -5,8 +5,13 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
+use std::collections::HashMap;
 use std::hash::Hash;
+use std::net::Shutdown::Write;
 use std::num::NonZeroU64;
+use std::sync::atomic::AtomicU64;
+
+use parking_lot::{Mutex, MutexGuard};
 
 pub struct Error {}
 
@@ -253,6 +258,159 @@ impl Arena {
     }
 }
 
+struct DatabaseState {
+    /// The id of the current tree root.
+    root: NodeId,
+
+    /// For current and past tree roots, the count of how many transactions are reading from it.
+    ///
+    /// These tree nodes are used as the GC roots when we perform a collection.
+    refcounts: HashMap<NodeId, u32>,
+}
+
+impl DatabaseState {
+    /// Bump the refcount for the current root node by 1, and return the node id.
+    pub fn get_root_increment_refcount(&mut self) -> NodeId {
+        *self.refcounts.entry(self.root).or_insert(0) += 1;
+        self.root
+    }
+
+    /// Decrement the refcount for the given node id.
+    pub fn decrement_refcount(&mut self, node_id: NodeId) {
+        let mut entry = match self.refcounts.entry(node_id) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry,
+            _ => panic!("Trying to decrement refcount that is not present in the table."),
+        };
+        *entry.get_mut() -= 1;
+        if *entry.get() == 0 {
+            entry.remove();
+        }
+    }
+}
+
 pub struct Database {
+    /// For every GC generation, an arena that stores the nodes in that generation.
     generations: Vec<Arena>,
+
+    /// Database state that needs to be synchronized.
+    state: Mutex<DatabaseState>,
+}
+
+pub struct ReadTransaction<'a> {
+    db: &'a Database,
+    root: NodeId,
+}
+
+pub struct WriteTransaction<'a> {
+    /// The inner read transaction.
+    ///
+    /// Write transactions are a superset of read transactions. We still need to
+    /// track the root and database reference, and we can do reads through a
+    /// write transaction.
+    /// TODO: Implement that, and ensure that reads see its own writes.
+    inner: ReadTransaction<'a>,
+
+    /// Keys and values to insert into the database.
+    ///
+    /// When the value is `None`, that's a tombstone, which marks that the key
+    /// should be deleted.
+    operations: HashMap<Vec<u8>, Option<Vec<u8>>>,
+}
+
+impl Database {
+    /// Begin a new transaction against the latest version of the database.
+    ///
+    /// All reads from the transaction will observe the current version of the
+    /// database, even if new writes are later committed to it.
+    ///
+    /// A read transaction can be upgraded to a write transaction.
+    pub fn begin(&self) -> ReadTransaction {
+        let mut state = self.state.lock();
+        let root = state.get_root_increment_refcount();
+        ReadTransaction { db: self, root }
+    }
+}
+
+impl<'a> ReadTransaction<'a> {
+    /// Upgrade the transaction to a write transaction.
+    ///
+    /// Write transactions are opportunistically concurrent: write transactions
+    /// do not block reads or other write transactions, until commit. If we
+    /// try to commit, but the database has seen writes since this transaction
+    /// was created, then the commit fails, and we have to restart. This works
+    /// well when write contention is low.
+    pub fn write(self) -> WriteTransaction<'a> {
+        WriteTransaction {
+            inner: self,
+            operations: HashMap::new(),
+        }
+    }
+}
+
+impl<'a> Drop for ReadTransaction<'a> {
+    fn drop(&mut self) {
+        self.db.state.lock().decrement_refcount(self.root);
+    }
+}
+
+impl<'a> WriteTransaction<'a> {
+    /// Insert a key and value into the database. Replaces the value if the key exists.
+    pub fn insert(&mut self, key: Vec<u8>, value: Vec<u8>) {
+        self.operations.insert(key, Some(value));
+    }
+
+    /// Delete a key from the database.
+    pub fn remove(&mut self, key: Vec<u8>) {
+        self.operations.insert(key, None);
+    }
+
+    /// Shared implementation of the two types of commit.
+    fn commit_impl(
+        inner: ReadTransaction<'a>,
+        state: &mut DatabaseState,
+        operations: HashMap<Vec<u8>, Option<Vec<u8>>>,
+    ) {
+        // The destructor of the read transaction takes state lock and
+        // decrements the refcount, but since we already hold the lock,
+        // we can just decrement it now.
+        state.decrement_refcount(inner.root);
+        std::mem::forget(inner);
+    }
+
+    /// Commit, if no mutations were committed since the start of this transaction.
+    ///
+    /// If a different transaction committed before this one, then the mutations
+    /// that this transaction makes are potentially invalid, and the application
+    /// should restart the transaction. In case of such a conflict, the `Err`
+    /// returns this transaction.
+    ///
+    /// This commit acts as a compare-and-swap on the root node of the database:
+    /// if the root did not change since we started the transaction, then we
+    /// replace it with the new root.
+    pub fn commit(self) -> Result<(), WriteTransaction<'a>> {
+        let mut state = self.inner.db.state.lock();
+        if state.root != self.inner.root {
+            return Err(self);
+        }
+        WriteTransaction::commit_impl(self.inner, &mut state, self.operations);
+        Ok(())
+    }
+
+    /// Commit, regardless of mutations that were committed since the start of this transaction.
+    ///
+    /// Commit in this case means that we apply all `insert` and `remove`
+    /// operations against the _current_ version of the database, which may be
+    /// different from the version of the database when this transaction started.
+    /// Whether this is safe to do depends on application logic. In general, it
+    /// is safe when the mutations were not based on any reads, and unsafe when
+    /// they were.
+    pub fn commit_unconditional(self) {
+        let mut state = self.inner.db.state.lock();
+        WriteTransaction::commit_impl(self.inner, &mut state, self.operations);
+    }
+
+    pub fn abort(self) {
+        // Abort is a no-op, we just forget about all operations!
+        // The Drop for the inner read transaction will decrement the refcount.
+    }
 }
