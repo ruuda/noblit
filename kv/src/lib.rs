@@ -21,79 +21,66 @@ pub trait PageSize {
 
 pub struct Error {}
 
-/// Identifies a virtual page.
+/// Identifies a node in the hitchhiker tree.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct PageId(u64);
+#[repr(transparent)]
+pub struct NodeId(std::num::NonZeroU64);
 
-/// Identifies a physical page.
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub struct SlotId(u64);
-
-/// How would we save a new page?
-/// 1. Write the data into the slot.
-/// 2. Append to the page table.
-/// 3. Fsync both.
-/// So this needs to be one op, I suppose?
-/// Or virtual IO operations with completions, but how to link them properly?
-/// DECISION: For now, let's start with synchronous IO and let's not worry about
-/// efficient batching. That's not the goal of this project.
-
-type Result<T> = std::result::Result<T, Error>;
-
-pub trait PageTableRead {
-    /// Load the entire table from backing storage.
-    fn read(&mut self) -> Result<HashMap<PageId, SlotId>>;
+/// Raw representation of an entry in a tree node in the hitchhiker tree.
+///
+/// All entries, except for the last one in a non-leaf node, reference a key and
+/// a value.
+///
+/// We use raw integers here, to ensure that the node can be packed into memory
+/// efficiently in the way we like. In a tree node, we store entries
+/// sequentially, such that for entry i, all keys in entries[i].child order
+/// before entry i, and all keys in entries[i + 1].child order after entry i.
+#[repr(align(32))]
+struct RawEntry {
+    /// Byte offset into this generation's keys file.
+    key_offset: u64,
+    /// Byte offset into this generation's values file.
+    value_offset: u64,
+    /// Value length in bytes.
+    value_len: u32,
+    /// Key length in bytes.
+    key_len: u16,
+    /// 0 for a regular node, 1 for a tombstone.
+    /// TODO: Or we could use u64::MAX in value offset as a sentinel?
+    /// Then we could lift the key length limit restriction.
+    flags: u16,
+    /// If nonzero, the node id of the child node.
+    child: u64,
 }
 
-pub trait PageTableWrite: PageTableRead {
-    /// Append a new mapping entry.
-    ///
-    /// Returns the number of entries (page_id_slot_id pairs) in the backing file.
-    fn append(&mut self, v_id: PageId, p_id: SlotId) -> Result<usize>;
+struct RawNode {
+    /// Leaf nodes are at level 0, their parents at level 1, etc.
+    level: u8,
 
-    /// Replace the entire table with a new version.
-    fn rewrite(&mut self, ids: &HashMap<PageId, SlotId>) -> Result<()>;
+    /// The generation that this node lives in. We need to know this to resolve keys and values.
+    generation: u8,
+
+    /// Keys and values, and pointers to child nodes if the level is greater than 0.
+    entries: Vec<RawEntry>,
 }
 
-pub struct PageTable<T> {
-    /// The in-memory mapping of page id to physical slot.
-    mapping: HashMap<PageId, SlotId>,
+pub struct Generation {
+    /// The number of times this generation was restarted.
+    epoch: u64,
 
-    /// Backing IO system.
-    io: T,
+    /// Tree nodes themselves. Their ids are stored separately in `node_ids`.
+    nodes: Vec<RawNode>,
+
+    /// Element i is the id of `self.nodes[i]`. Nodes are stored by ascending id.
+    node_ids: Vec<NodeId>,
+
+    /// The nodes' key offset and key length slice keys out of this arena.
+    key_data: Vec<u8>,
+
+    /// The nodes' value offset and value length slice values out of this arena.
+    value_data: Vec<u8>,
 }
 
-impl<T: PageTableRead> PageTable<T> {
-    pub fn new(mut io: T) -> Result<Self> {
-        let result = Self {
-            mapping: io.read()?,
-            io,
-        };
-        Ok(result)
-    }
-
-    pub fn get(&self, v_id: PageId) -> Option<SlotId> {
-        self.mapping.get(&v_id).cloned()
-    }
-}
-
-impl<T: PageTableWrite> PageTable<T> {
-    /// Insert a new mapping into the table.
-    ///
-    /// This consumes self, because in the case of an IO error, we are not sure
-    /// whether the on-disk table is in sync with what we keep in memory, and we
-    /// can't allow execution to continue.
-    pub fn append(mut self, v_id: PageId, p_id: SlotId) -> Result<Self> {
-        // Save the new entry to the backing file, and if the backing file is
-        // growing too large, then we replace it to ensure the loading time and
-        // disk usage remain bounded.
-        let n_entries = self.io.append(v_id, p_id)?;
-        if n_entries > self.mapping.len() * 10 {
-            self.io.rewrite(&self.mapping)?;
-        }
-
-        self.mapping.insert(v_id, p_id);
-
-        Ok(self)
-    }
+pub struct Database {
+    generations: Vec<Generation>,
 }

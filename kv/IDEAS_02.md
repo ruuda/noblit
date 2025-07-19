@@ -3,7 +3,7 @@
 (Evolution in IDEAS.md)
 
 The key-value store is implemented as a persistent hitchhiker tree. This
-means means that we never update things in place, so we can make all writes
+means that we never update things in place, so we can make all writes
 append-only. This does mean that we produce garbage. Especially in a hitchhiker
 tree, the generational hypothesis holds strongly: updates usually only produce
 a new root node, until it overflows, so most nodes get superseded quickly.
