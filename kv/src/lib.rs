@@ -16,113 +16,129 @@ use parking_lot::{Mutex, MutexGuard};
 pub struct Error {}
 
 #[cfg(feature = "node-size-4096")]
-const ENTRIES_PER_NODE: usize = 127;
+const ENTRIES_PER_NODE: usize = 170;
 
 #[cfg(feature = "node-size-256")]
-const ENTRIES_PER_NODE: usize = 7;
+const ENTRIES_PER_NODE: usize = 10;
 
-#[cfg(feature = "node-size-160")]
-const ENTRIES_PER_NODE: usize = 4;
+#[cfg(feature = "node-size-88")]
+const ENTRIES_PER_NODE: usize = 3;
+
+/// Identifies a node in the hitchhiker tree.
+///
+/// Node ids are stable: they don't change when the nodes are moved around in
+/// backing storage.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
+pub struct NodeId(NonZeroU64);
+
+/// Identifies a bytestring on the keys heap.
+///
+/// Key ids are stable: they don't change when keys are moved around in backing
+/// storage.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
+pub struct KeyId(NonZeroU64);
+
+/// Identifies a bytestring on the values heap.
+///
+/// Value ids are stable: they don't change when keys are moved around in
+/// backing storage.
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(transparent)]
+pub struct ValueId(NonZeroU64);
+
+/// Raw representation of an entry in a tree node in the hitchhiker tree.
+///
+/// All entries that are in use include a key, and when they are not a
+/// tombstone, also a value. Entries can optionally point to a child node,
+/// in which case the entry is called a *midpoint*. Entries are stored in the
+/// node by ascending key. (Fully dereferenced key, not by ascending key id!)
+///
+/// The tree maintains the following invariant:
+///
+/// Suppose entry `i` and `j` are midpoints, with `i` ordering before `j`. Then
+/// it holds that:
+///
+/// * For every entry `z` in `i.child.entries`, `z.key < i.key`.
+/// * For every entry `z` in `j.child.entries`, `i.key < z.key`.
+///
+/// So midpoints order the keys: lesser keys go before it, greater keys go
+/// after it. However, there may be entries between two midpoints which are not
+/// themselves midpoints, and these are unordered with respect to the subtree
+/// of the midpoint which is the upper bound of this range of entries.
+#[repr(C)]
+#[derive(Clone)]
+pub struct Entry {
+    /// The key id of the key. Should not be zero.
+    pub key_id: KeyId,
+
+    /// If nonzero, the value id of the value. If zero, this is a tombstone.
+    pub value_id: Option<ValueId>,
+
+    /// If nonzero, the node id of the child node.
+    pub child_id: Option<NodeId>,
+}
+
+/// An entry in the key heap's index file.
+///
+/// The index file is an ordered list of key entries, sorted by ascending
+/// key id. It stores the offset and length into the key heap, where the
+/// actual key resides.
+/// TODO: We could employ the small string optimization here, and embed keys
+/// of 15 bytes and smaller directly.
+#[repr(C)]
+#[derive(Clone)]
+pub struct KeyEntry {
+    id: KeyId,
+    offset: u64,
+    len: u64,
+}
+
+/// An entry in the value heap's index file.
+///
+/// The index file is an ordered list of value entries, sorted by ascending
+/// value id. It stores the offset and length into the value heap, where
+/// the actual value resides.
+/// TODO: As with keys, we could employ the small string optimization.
+#[repr(C)]
+#[derive(Clone)]
+pub struct ValueEntry {
+    id: ValueId,
+    offset: u64,
+    len: u64,
+}
+
+#[repr(align(16))]
+#[repr(C)]
+pub struct NodeHeader {
+    /// The node's own node id.
+    ///
+    /// This value is redundant: we also store node ids externally in the
+    /// list of node ids. We embed it here as well so we can perform sanity
+    /// checks, and also to aid data recovery and debugging.
+    pub id: NodeId,
+
+    /// The number of entries in this node.
+    pub len: u16,
+
+    /// The generation that this node is stored in.
+    ///
+    /// This value is redundant: it is implied by the generation that stores
+    /// this node. We embed it here as well for the same reason that we
+    /// embed the node id.
+    pub generation: u8,
+
+    /// Layer in the tree: leaves have level 0, their parents level 1, etc.
+    pub level: u8,
+}
 
 /// Contains structs whose representation matches the disk format.
 ///
 /// TODO: Add a statement about endianness.
 mod raw {
-    use super::{ENTRIES_PER_NODE, KeyRef, NodeId, ValueRef};
+    use super::{ENTRIES_PER_NODE, KeyId, NodeId, ValueId};
     use std::num::NonZeroU64;
-
-    /// Raw representation of an entry in a tree node in the hitchhiker tree.
-    ///
-    /// All entries, except for the last one in a non-leaf node, reference a key
-    /// and a value.
-    ///
-    /// We use raw integers here, to ensure that the node can be packed into
-    /// memory efficiently in the way we like.
-    /// TODO: Document hitchhiker tree invariant.
-    #[repr(align(32))]
-    #[repr(C)]
-    #[derive(Clone, Default)]
-    pub struct Entry {
-        /// Byte offset into this generation's keys file.
-        pub raw_key_offset: u64,
-
-        /// Byte offset into this generation's values file.
-        pub raw_value_offset: u64,
-
-        /// Value length in bytes.
-        pub raw_value_len: u32,
-
-        /// Key length in bytes.
-        pub raw_key_len: u32,
-
-        /// If nonzero, the node id of the child node.
-        pub raw_child_id: u64,
-    }
-
-    impl Entry {
-        #[inline]
-        pub fn key_ref(&self) -> KeyRef {
-            debug_assert!(
-                ((self.raw_key_offset == 0) && (self.raw_key_len == 0)) || (self.raw_key_len > 0),
-                "The canonical encoding of the empty key has offset 0.",
-            );
-            KeyRef {
-                offset: self.raw_key_offset,
-                len: self.raw_key_len,
-            }
-        }
-
-        #[inline]
-        pub fn value_ref(&self) -> Option<ValueRef> {
-            // We use a nonzero offset together with zero length to signal
-            // a tombstone: an entry that marks that a key has been deleted.
-            let result = match (self.raw_value_offset, self.raw_value_len) {
-                (0, 0) => ValueRef { offset: 0, len: 0 },
-                (_, 0) => return None,
-                (i, n) => ValueRef { offset: i, len: n },
-            };
-            Some(result)
-        }
-
-        #[inline]
-        pub fn child_id(&self) -> Option<NodeId> {
-            NonZeroU64::new(self.raw_child_id).map(NodeId)
-        }
-    }
-
-    #[repr(align(32))]
-    #[repr(C)]
-    pub struct NodeHeader {
-        /// The node's own node id.
-        ///
-        /// This value is redundant: we also store node ids externally in the
-        /// list of node ids. We embed it here as well so we can perform sanity
-        /// checks, and also to aid data recovery and debugging.
-        pub raw_id: u64,
-
-        /// The epoch of the generation that this node is stored in.
-        ///
-        /// This value is redundant: it is implied by the epoch counter of the
-        /// generation that stores this node. We embed it here as well for the
-        /// same reasons that we embed the node id.
-        pub raw_epoch: u64,
-
-        pub _reserved_1: u64,
-        pub _reserved_2: u32,
-
-        /// The number of entries in this node.
-        pub raw_len: u16,
-
-        /// The generation that this node is stored in.
-        ///
-        /// This value is redundant: it is implied by the generation that stores
-        /// this node. We embed it here as well for the same reason that we
-        /// embed the node id.
-        pub generation: u8,
-
-        /// Layer in the tree: leaves have level 0, their parents level 1, etc.
-        pub level: u8,
-    }
 
     #[repr(align(32))]
     #[repr(C)]
@@ -181,11 +197,6 @@ mod raw {
 }
 
 use raw::{Entry, Node};
-
-/// Identifies a node in the hitchhiker tree.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[repr(transparent)]
-pub struct NodeId(NonZeroU64);
 
 /// A slice into a generation's key data.
 #[derive(Copy, Clone, Debug)]

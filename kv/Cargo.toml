@@ -14,11 +14,11 @@ parking_lot = "0.12.4"
 # We allow compile-time parametrization over the node size. We use this
 # primarily for tests and the fuzzers, to keep the examples smaller, so
 # the fuzzer can explore more efficiently. We on purpose include one node
-# size that's not a # power of 2 (and which has an even number of entries)
+# size that's not a power of 2 (and which has an odd number of entries)
 # to also ensure that the formulas work generically, which gives us more
 # confidence that they are correct.
 node-size-4096 = []
 node-size-256 = []
-node-size-160 = []
+node-size-88 = []
 
 default = ["node-size-4096"]
