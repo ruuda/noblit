@@ -5,6 +5,8 @@
 // you may not use this file except in compliance with the License.
 // A copy of the License has been included in the root of the repository.
 
+mod store;
+
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::net::Shutdown::Write;
