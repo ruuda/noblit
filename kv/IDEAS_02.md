@@ -1,6 +1,6 @@
 # Noblit KV
 
-(Evolution in IDEAS.md)
+(Evolution of IDEAS.md)
 
 The key-value store is implemented as a persistent hitchhiker tree. This
 means that we never update things in place, so we can make all writes
