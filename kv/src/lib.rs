@@ -24,29 +24,50 @@ const ENTRIES_PER_NODE: usize = 10;
 #[cfg(feature = "node-size-88")]
 const ENTRIES_PER_NODE: usize = 3;
 
-/// Identifies a node in the hitchhiker tree.
+/// Identifies hitchhiker tree node in the node store.
 ///
 /// Node ids are stable: they don't change when the nodes are moved around in
-/// backing storage.
+/// backing storage. Node ids are allocated sequentially, and are never
+/// recycled.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(transparent)]
 pub struct NodeId(NonZeroU64);
 
-/// Identifies a bytestring on the keys heap.
+/// Identifies a blob in the blob store.
 ///
-/// Key ids are stable: they don't change when keys are moved around in backing
-/// storage.
+/// Blob ids are stable: they don't change when blobs are moved around in
+/// backing storage. Blob ids are allocated sequentially, and are never
+/// recycled.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(transparent)]
-pub struct KeyId(NonZeroU64);
+pub struct BlobId(NonZeroU64);
 
-/// Identifies a bytestring on the values heap.
+/// An entry of the index of a level of a store.
 ///
-/// Value ids are stable: they don't change when keys are moved around in
-/// backing storage.
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[repr(transparent)]
-pub struct ValueId(NonZeroU64);
+/// See also [`Index`].
+#[repr(C)]
+#[derive(Clone)]
+pub struct IndexEntry {
+    /// Id of the object (node or blob) pointed at.
+    id: NonZeroU64,
+
+    /// Byte offset of the first byte of the *next* object.
+    ///
+    /// If this index entry is entry `i` in the index, then the object spans
+    /// `index[i - 1].offset..index[i].offset` in the backing file. For `i = 0`,
+    /// the object spans `0..index[i].offset`.
+    offset: u64,
+}
+
+/// The index of a level of the store.
+///
+/// The index maps object ids (node or blob ids) to byte ranges in the backing
+/// file.
+pub struct Index {
+    /// TODO: Support loading parts of the index from disk when needed.
+    /// For now we keep the entire index in memory.
+    entries: Vec<IndexEntry>,
+}
 
 /// Raw representation of an entry in a tree node in the hitchhiker tree.
 ///
@@ -67,46 +88,20 @@ pub struct ValueId(NonZeroU64);
 /// after it. However, there may be entries between two midpoints which are not
 /// themselves midpoints, and these are unordered with respect to the subtree
 /// of the midpoint which is the upper bound of this range of entries.
+///
+/// TODO: In a future version, we could inline small keys and small values. For
+/// v1, we keep things simple and store everything as blobs.
 #[repr(C)]
 #[derive(Clone)]
 pub struct Entry {
-    /// The key id of the key. Should not be zero.
-    pub key_id: KeyId,
+    /// The key of the KV pair or tombstone.
+    pub key_id: BlobId,
 
-    /// If nonzero, the value id of the value. If zero, this is a tombstone.
-    pub value_id: Option<ValueId>,
+    /// If nonzero, the value of the KV pair; if zero, this entry is a tombstone.
+    pub value_id: Option<BlobId>,
 
     /// If nonzero, the node id of the child node.
     pub child_id: Option<NodeId>,
-}
-
-/// An entry in the key heap's index file.
-///
-/// The index file is an ordered list of key entries, sorted by ascending
-/// key id. It stores the offset and length into the key heap, where the
-/// actual key resides.
-/// TODO: We could employ the small string optimization here, and embed keys
-/// of 15 bytes and smaller directly.
-#[repr(C)]
-#[derive(Clone)]
-pub struct KeyEntry {
-    id: KeyId,
-    offset: u64,
-    len: u64,
-}
-
-/// An entry in the value heap's index file.
-///
-/// The index file is an ordered list of value entries, sorted by ascending
-/// value id. It stores the offset and length into the value heap, where
-/// the actual value resides.
-/// TODO: As with keys, we could employ the small string optimization.
-#[repr(C)]
-#[derive(Clone)]
-pub struct ValueEntry {
-    id: ValueId,
-    offset: u64,
-    len: u64,
 }
 
 #[repr(align(16))]
@@ -115,22 +110,16 @@ pub struct NodeHeader {
     /// The node's own node id.
     ///
     /// This value is redundant: we also store node ids externally in the
-    /// list of node ids. We embed it here as well so we can perform sanity
+    /// store's index. We embed it here as well so we can perform sanity
     /// checks, and also to aid data recovery and debugging.
     pub id: NodeId,
 
     /// The number of entries in this node.
     pub len: u16,
 
-    /// The generation that this node is stored in.
-    ///
-    /// This value is redundant: it is implied by the generation that stores
-    /// this node. We embed it here as well for the same reason that we
-    /// embed the node id.
-    pub generation: u8,
-
     /// Layer in the tree: leaves have level 0, their parents level 1, etc.
     pub level: u8,
+    // TODO: We could store some kind of checksum here?
 }
 
 /// Contains structs whose representation matches the disk format.
