@@ -105,3 +105,34 @@ expect them to land. No point in filling up L0 and then copying everything into
 L1, when we already know we will fill up L0; we can write straight into L1.
 Collectiong during receive is generally unsafe because we don't yet have the
 nodes that are going to refer to the nodes we are writing.
+
+## Implementation
+
+The implementation should be sans-io, with submission and completion queues.
+Submission and completion queue entries are requests such as:
+
+ * `Get(root_id, key) -> Entry`
+ * `GetRange(root_id, start_key, end_key) -> &[Entry]`
+ * `Set(tx_id, key, value)`
+ * `Delete(tx_id, key)`
+ * `Commit(tx_id) -> Result<RootId>`
+
+To make things happen, we can feed in IO completions, and those may cause new
+IO requests (commands). E.g.
+
+ * `OpenFile(path) -> Result<Fp>`
+ * `ReadRange(fp, start, end) -> Result<&[u8]>`
+ * `WriteRange(fp, start, data) -> Result<()>`
+ * `Fsync(fp) -> Result<()>`
+
+This design puts the user in control of driving IO. It fits very naturally with
+io_uring, we can truly serve multiple parallel queries in a single syscall.
+Testing and fuzzing also becomes trivial, we can have a test impl with a virtual
+file system, and we can inject faults etc. For users who do dare to use the
+Rust async ecosystem, they can hook it up with their favorite async runtime. For
+users on systems without io_uring, we can still use stdlib IO.
+
+Maybe there should be two interfaces then. A low-level queue-based one, and then
+on top of it, a more traditional interface implemented with blocking IO (and
+maybe also one implemented with uring). After messing for an entire afternoon
+with Rust async, this suddenly feels very clear!
